@@ -1,0 +1,131 @@
+{{$n := .Name}}
+// TestNew{{$n}} proves the generator mints fresh identifiers of the declared
+// version.
+func TestNew{{$n}}(t *testing.T) {
+	t.Parallel()
+
+	// Act
+	first, err := New{{$n}}()
+	require.NoError(t, err)
+	second, err := New{{$n}}()
+	require.NoError(t, err)
+
+	// Assert
+	assert.False(t, first.IsZero())
+	assert.False(t, first.Equal(second), "two mints must not collide")
+	assert.EqualValues(t, {{.Version}}, first.Version())
+}
+
+// TestParse{{$n}} reads the identifiers an existing row may hold, which is any
+// RFC 4122 UUID rather than only the version this type mints.
+func TestParse{{$n}}(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	cases := []struct {
+		name    string
+		in      string
+		wantErr bool
+		zero    bool
+	}{
+{{range .Samples}}		{name: "reads {{.}}", in: {{q .}}},
+{{end}}		{name: "reads the nil UUID as an unassigned identifier", in: {{q .Zero}}, zero: true},
+		{name: "rejects a value that is not a UUID", in: "not-a-uuid", wantErr: true},
+		{name: "rejects the empty string", in: "", wantErr: true},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			got, err := Parse{{$n}}(tc.in)
+
+			// Assert
+			if tc.wantErr {
+				require.Error(t, err)
+				assert.ErrorIs(t, err, vogue.FieldError{Field: {{q .Field}}, Rule: "uuid"})
+				assert.True(t, got.IsZero())
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tc.zero, got.IsZero())
+			assert.Equal(t, tc.in, got.String())
+		})
+	}
+}
+
+// Test{{$n}}_RoundTrip proves an identifier survives the text codec and the
+// database unchanged.
+func Test{{$n}}_RoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	want, err := New{{$n}}()
+	require.NoError(t, err)
+
+	// Act
+	text, err := want.MarshalText()
+	require.NoError(t, err)
+
+	var fromText {{$n}}
+	require.NoError(t, fromText.UnmarshalText(text))
+
+	stored, err := want.Value()
+	require.NoError(t, err)
+
+	var fromSQL {{$n}}
+	err = fromSQL.Scan(stored)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, want.Equal(fromText))
+	assert.True(t, want.Equal(fromSQL))
+}
+
+// Test{{$n}}_Scan refuses a stored value that is not an identifier.
+func Test{{$n}}_Scan(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a stored value that is not a UUID is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got {{$n}}
+
+		// Act
+		err := got.Scan("not-a-uuid")
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("an unsupported source is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got {{$n}}
+
+		// Act
+		err := got.Scan(struct{}{})
+
+		// Assert
+		require.Error(t, err)
+	})
+}
+
+// Test{{$n}}_IsZero separates an unassigned identifier from a minted one.
+func Test{{$n}}_IsZero(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	var zero {{$n}}
+	minted, err := New{{$n}}()
+	require.NoError(t, err)
+
+	// Act & Assert
+	assert.True(t, zero.IsZero())
+	assert.False(t, minted.IsZero())
+	assert.False(t, zero.Equal(minted))
+}

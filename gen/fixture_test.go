@@ -32,13 +32,15 @@ func TestGenerate_Fixture(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		require.Len(t, files, 1)
+		require.Len(t, files, 2)
 		if *update {
 			require.NoError(t, gen.Write(files))
 		}
-		committed, err := os.ReadFile(files[0].Path)
-		require.NoError(t, err)
-		assert.Equal(t, string(committed), string(files[0].Content),
-			"the fixture output has drifted; re-run `go test ./pkg/vogue/gen -update`")
+		for _, file := range files {
+			committed, err := os.ReadFile(file.Path)
+			require.NoError(t, err)
+			assert.Equal(t, string(committed), string(file.Content),
+				"the committed %s file %s has drifted; re-run `go test ./pkg/vogue/gen -update`", file.Kind, file.Path)
+		}
 	})
 }

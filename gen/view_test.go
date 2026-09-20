@@ -10,14 +10,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// generate renders one in-memory source body and returns the generated file.
+// generate renders one in-memory source body and returns the generated value
+// objects, dropping the test file the generator produces alongside them.
 func generate(t *testing.T, body string, rules *vogue.RuleSet) string {
+	t.Helper()
+
+	return generated(t, body, rules, gen.CodeFile)
+}
+
+// generated renders one in-memory source body and returns the generated file
+// of the requested kind.
+func generated(t *testing.T, body string, rules *vogue.RuleSet, kind gen.FileKind) string {
 	t.Helper()
 
 	files, err := filesOf(t, gen.Options{Package: parseSource(t, body, rules)})
 	require.NoError(t, err)
-	require.Len(t, files, 1)
-	return string(files[0].Content)
+	require.Len(t, files, 2)
+	for _, file := range files {
+		if file.Kind == kind {
+			return string(file.Content)
+		}
+	}
+	t.Fatalf("the generator produced no %s file", kind)
+	return ""
 }
 
 func TestGenerator_Files_Kinds(t *testing.T) {

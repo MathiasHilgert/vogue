@@ -22,9 +22,35 @@ import (
 //go:embed templates/*.tmpl
 var templates embed.FS
 
-// suffix is appended to the base name of a source file to name its generated
-// counterpart.
-const suffix = "_vogue.go"
+// The suffixes appended to the base name of a source file to name its
+// generated counterparts.
+const (
+	suffix     = "_vogue.go"
+	testSuffix = "_vogue_test.go"
+)
+
+// FileKind tells a generated file apart from the test that proves it, so a
+// caller can write, diff or skip one of the two without matching on the name.
+type FileKind uint8
+
+const (
+	// CodeFile is a generated value-object source file.
+	CodeFile FileKind = iota
+	// TestFile is the generated test of a [CodeFile].
+	TestFile
+)
+
+// String returns the name of the file kind.
+func (k FileKind) String() string {
+	switch k {
+	case CodeFile:
+		return "code"
+	case TestFile:
+		return "test"
+	default:
+		return fmt.Sprintf("FileKind(%d)", uint8(k))
+	}
+}
 
 // Options configures a [Generator].
 type Options struct {
@@ -44,6 +70,8 @@ type Options struct {
 // content. Nothing is written until the caller asks for it, so a generator run
 // can be inspected, diffed or discarded.
 type OutFile struct {
+	// Kind says whether the file holds value objects or their tests.
+	Kind FileKind
 	// Path is the destination path of the file.
 	Path string
 	// Content is the gofmt-clean source.
@@ -72,9 +100,11 @@ func New(opts Options) (*Generator, error) {
 	return &Generator{opts: opts, tmpl: tmpl}, nil
 }
 
-// Files renders one file per source file that declares at least one directive.
-// Source files without directives produce nothing, so the generator never
-// leaves an empty file behind.
+// Files renders, for every source file that declares at least one directive,
+// the value objects it declares and the test that proves them. The pair is
+// returned in that order, tagged with [FileKind]. Source files without
+// directives produce nothing, so the generator never leaves an empty file
+// behind.
 func (g *Generator) Files() ([]OutFile, error) {
 	var out []OutFile
 	for _, file := range g.opts.Package.Files {
@@ -85,7 +115,13 @@ func (g *Generator) Files() ([]OutFile, error) {
 		if err != nil {
 			return nil, err
 		}
-		out = append(out, OutFile{Path: outPath(file.Path), Content: content})
+		out = append(out, OutFile{Kind: CodeFile, Path: outPath(file.Path, suffix), Content: content})
+
+		test, err := g.testFile(file)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, OutFile{Kind: TestFile, Path: outPath(file.Path, testSuffix), Content: test})
 	}
 	return out, nil
 }
@@ -120,8 +156,9 @@ func (g *Generator) file(file parse.File) ([]byte, error) {
 	return formatted, nil
 }
 
-// outPath returns the destination of the file generated from src.
-func outPath(src string) string {
+// outPath returns the destination of the file generated from src with the
+// given suffix.
+func outPath(src, suffix string) string {
 	base := strings.TrimSuffix(filepath.Base(src), ".go")
 	return filepath.Join(filepath.Dir(src), base+suffix)
 }

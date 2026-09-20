@@ -425,3 +425,57 @@ func TestRule_ImportsAndEmitKind(t *testing.T) {
 		assert.Equal(t, "v >= 1", got)
 	})
 }
+
+func TestExamples_TestGeneratorFields(t *testing.T) {
+	t.Run("an example carries a note and the kinds it applies to", func(t *testing.T) {
+		// Arrange
+		example := vogue.Example{Kinds: vogue.Kinds(vogue.String), Param: "1", In: "a", Note: "a single rune"}
+
+		// Act
+		applies := example.AppliesTo(vogue.String, "1")
+
+		// Assert
+		assert.True(t, applies)
+		assert.Equal(t, "a single rune", example.Note)
+	})
+
+	t.Run("an example without kinds applies to every kind", func(t *testing.T) {
+		// Arrange
+		example := vogue.Example{In: "a"}
+
+		// Act & Assert
+		assert.True(t, example.AppliesTo(vogue.String, ""))
+		assert.True(t, example.AppliesTo(vogue.Int, ""))
+	})
+
+	t.Run("an example is scoped to the parameter it was written against", func(t *testing.T) {
+		// Arrange
+		example := vogue.Example{Param: "2", In: "ab"}
+
+		// Act & Assert
+		assert.False(t, example.AppliesTo(vogue.String, "3"))
+		assert.True(t, example.AppliesTo(vogue.String, "2"))
+	})
+
+	t.Run("a rule declaring normalizations validates", func(t *testing.T) {
+		// Arrange
+		rule := vogue.Rule{
+			Name:      "trim",
+			Kinds:     vogue.Kinds(vogue.String),
+			Message:   "{{.Field}} is trimmed",
+			Normalize: true,
+			Emit:      func(c vogue.EmitContext) string { return c.Var + " = strings.TrimSpace(" + c.Var + ")" },
+			Examples: vogue.Examples{
+				Normalized: []vogue.Normalization{{In: "  a  ", Out: "a", Note: "surrounding blanks"}},
+			},
+		}
+
+		// Act
+		err := rule.Validate()
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, rule.Examples.Normalized, 1)
+		assert.Equal(t, "a", rule.Examples.Normalized[0].Out)
+	})
+}

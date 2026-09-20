@@ -29,6 +29,20 @@ func parseCase(t *testing.T, name string) *parse.Package {
 	return pkg
 }
 
+// assertGolden compares generated content against the committed golden file of
+// the tab case, rewriting it first when -update is set.
+func assertGolden(t *testing.T, name string, content []byte) {
+	t.Helper()
+
+	golden := filepath.Join("testdata", "tab", "want", name)
+	if *update {
+		require.NoError(t, os.WriteFile(golden, content, 0o600))
+	}
+	want, err := os.ReadFile(golden)
+	require.NoError(t, err)
+	assert.Equal(t, string(want), string(content))
+}
+
 func TestNew(t *testing.T) {
 	t.Run("rejects a missing package", func(t *testing.T) {
 		// Arrange
@@ -67,16 +81,26 @@ func TestGenerator_Files(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		require.Len(t, files, 1)
+		require.Len(t, files, 2)
+		assert.Equal(t, gen.CodeFile, files[0].Kind)
 		assert.Equal(t, filepath.Join("testdata", "tab", "vo_vogue.go"), files[0].Path)
+		assertGolden(t, "vo_vogue.go", files[0].Content)
+	})
 
-		golden := filepath.Join("testdata", "tab", "want", "vo_vogue.go")
-		if *update {
-			require.NoError(t, os.WriteFile(golden, files[0].Content, 0o600))
-		}
-		want, err := os.ReadFile(golden)
+	t.Run("generates a test file next to every generated file", func(t *testing.T) {
+		// Arrange
+		g, err := gen.New(gen.Options{Package: parseCase(t, "tab")})
 		require.NoError(t, err)
-		assert.Equal(t, string(want), string(files[0].Content))
+
+		// Act
+		files, err := g.Files()
+
+		// Assert
+		require.NoError(t, err)
+		require.Len(t, files, 2)
+		assert.Equal(t, gen.TestFile, files[1].Kind)
+		assert.Equal(t, filepath.Join("testdata", "tab", "vo_vogue_test.go"), files[1].Path)
+		assertGolden(t, "vo_vogue_test.go", files[1].Content)
 	})
 
 	t.Run("rejects a message template that references the runtime value", func(t *testing.T) {

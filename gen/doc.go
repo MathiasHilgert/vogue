@@ -17,6 +17,23 @@
 // every message is rendered at generate time. The output is formatted with
 // go/format, so it is gofmt-clean by construction.
 //
+// # Generated tests
+//
+// Every generated file arrives with the test that proves it, named
+// <basename>_vogue_test.go and tagged [TestFile]. The test lives in the
+// package under test and is table-driven, parallel and written in the
+// arrange/act/assert shape a reviewer expects, so it reads like a test someone
+// wrote rather than a fixture dump.
+//
+// Its content is derived from [vogue.Examples], never invented. A row is
+// emitted for the first declared valid input no other rule of the same
+// directive rejects, one row per rejected input naming every rule that rejects
+// it, and one subtest per declared [vogue.Normalization]. Inputs rejected by
+// several rules become a single row, which is how error accumulation is
+// covered without an example being made up. When the rules of a directive
+// declare nothing usable, the generated test skips with a message asking for
+// examples rather than passing on an empty table.
+//
 // # The Emit contract
 //
 // A rule contributes source through [vogue.Rule.Emit], and the direction of the

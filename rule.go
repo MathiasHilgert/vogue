@@ -160,11 +160,44 @@ func isMajorVersion(s string) bool {
 
 // Example is one input the test generator turns into a subtest case.
 type Example struct {
+	// Kinds are the value-object kinds the example is written for. A rule that
+	// spans several kinds needs different inputs per kind: `min=1` is satisfied
+	// by the string "a" and by the integer 1, and neither example is meaningful
+	// for the other kind. The zero value is empty, which means "every kind the
+	// rule applies to".
+	Kinds KindSet
 	// Param is the rule parameter the example is written against, empty when
-	// the rule takes none.
+	// the rule takes none. An example is only used for a directive that writes
+	// exactly this parameter, because "too short" only means something relative
+	// to a bound.
 	Param string
 	// In is the raw input handed to the generated constructor.
 	In string
+	// Note is the human-readable reason the example is what it is. The test
+	// generator uses it to name the subtest; without one it names the subtest
+	// after the rule and the input.
+	Note string
+}
+
+// AppliesTo reports whether the example describes the behaviour of a rule used
+// on kind with the parameter param. Empty [Example.Kinds] matches every kind,
+// and the parameter must match exactly.
+func (e Example) AppliesTo(kind Kind, param string) bool {
+	return (e.Kinds.Empty() || e.Kinds.Has(kind)) && e.Param == param
+}
+
+// Normalization is one input a normalizer rule rewrites, together with the
+// result. It is what lets the test generator prove that a normalizer actually
+// normalizes instead of only asserting that its output still validates.
+type Normalization struct {
+	// In is the raw input handed to the generated constructor.
+	In string
+	// Out is the value the constructor is expected to hold afterwards, as its
+	// String accessor reports it.
+	Out string
+	// Note is the human-readable reason the rewrite happens, used to name the
+	// generated subtest.
+	Note string
 }
 
 // Examples groups the accepted and rejected inputs of a rule. The test
@@ -175,6 +208,9 @@ type Examples struct {
 	Valid []Example
 	// Invalid inputs must be rejected by the rule.
 	Invalid []Example
+	// Normalized are the rewrites a rule with [Rule.Normalize] performs. They
+	// are ignored for a checking rule, which rewrites nothing.
+	Normalized []Normalization
 }
 
 // Rule is the definition of one validation tag. Rules are values, resolved at

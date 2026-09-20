@@ -31,8 +31,8 @@ func required() vogue.Rule {
 		Message: "{{.Field}} is required",
 		Emit:    func(c vogue.EmitContext) string { return c.Var + ` != ""` },
 		Examples: vogue.Examples{
-			Valid:   []vogue.Example{{In: "a"}},
-			Invalid: []vogue.Example{{In: ""}},
+			Valid:   []vogue.Example{{In: "a", Note: "a single rune"}},
+			Invalid: []vogue.Example{{In: "", Note: "the empty string"}},
 		},
 	}
 }
@@ -47,6 +47,11 @@ func trim() vogue.Rule {
 		Normalize: true,
 		Imports:   []string{"strings"},
 		Emit:      func(c vogue.EmitContext) string { return c.Var + " = strings.TrimSpace(" + c.Var + ")" },
+		Examples: vogue.Examples{
+			Normalized: []vogue.Normalization{
+				{In: "  a  ", Out: "a", Note: "trim removes the blanks around a value"},
+			},
+		},
 	}
 }
 
@@ -60,6 +65,11 @@ func lower() vogue.Rule {
 		Normalize: true,
 		Imports:   []string{"strings"},
 		Emit:      func(c vogue.EmitContext) string { return c.Var + " = strings.ToLower(" + c.Var + ")" },
+		Examples: vogue.Examples{
+			Normalized: []vogue.Normalization{
+				{In: "A", Out: "a", Note: "lower folds an upper-case value"},
+			},
+		},
 	}
 }
 
@@ -74,8 +84,14 @@ func minRule() vogue.Rule {
 		Imports: []string{"unicode/utf8"},
 		Emit:    func(c vogue.EmitContext) string { return bound(c, ">=") },
 		Examples: vogue.Examples{
-			Valid:   []vogue.Example{{Param: "1", In: "a"}},
-			Invalid: []vogue.Example{{Param: "1", In: ""}},
+			Valid: []vogue.Example{
+				{Kinds: vogue.Kinds(vogue.String), Param: "1", In: "a"},
+				{Kinds: vogue.Kinds(vogue.Int), Param: "1", In: "1"},
+			},
+			Invalid: []vogue.Example{
+				{Kinds: vogue.Kinds(vogue.String), Param: "1", In: "", Note: "the empty string"},
+				{Kinds: vogue.Kinds(vogue.Int), Param: "1", In: "0", Note: "a table with nobody at it"},
+			},
 		},
 	}
 }
@@ -91,8 +107,15 @@ func maxRule() vogue.Rule {
 		Imports: []string{"unicode/utf8"},
 		Emit:    func(c vogue.EmitContext) string { return bound(c, "<=") },
 		Examples: vogue.Examples{
-			Valid:   []vogue.Example{{Param: "2", In: "ab"}},
-			Invalid: []vogue.Example{{Param: "2", In: "abc"}},
+			Valid: []vogue.Example{
+				{Kinds: vogue.Kinds(vogue.String), Param: "2", In: "ab"},
+				{Kinds: vogue.Kinds(vogue.String), Param: "120", In: "a tab name"},
+				{Kinds: vogue.Kinds(vogue.Int), Param: "200", In: "200"},
+			},
+			Invalid: []vogue.Example{
+				{Kinds: vogue.Kinds(vogue.String), Param: "2", In: "abc"},
+				{Kinds: vogue.Kinds(vogue.Int), Param: "200", In: "201", Note: "one guest more than the house holds"},
+			},
 		},
 	}
 }
@@ -117,7 +140,7 @@ func noDigits(callPath string) vogue.Rule {
 		Call:    &vogue.FuncRef{Path: callPath, Name: "NoDigits"},
 		Examples: vogue.Examples{
 			Valid:   []vogue.Example{{In: "abc"}},
-			Invalid: []vogue.Example{{In: "a1"}},
+			Invalid: []vogue.Example{{In: "a1", Note: "a value carrying a digit"}},
 		},
 	}
 }
