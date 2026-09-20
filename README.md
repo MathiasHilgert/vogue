@@ -1,11 +1,55 @@
 # vogue
 
+[![Go Reference](https://pkg.go.dev/badge/github.com/MathiasHilgert/vogue.svg)](https://pkg.go.dev/github.com/MathiasHilgert/vogue)
+[![Go Report Card](https://goreportcard.com/badge/github.com/MathiasHilgert/vogue)](https://goreportcard.com/report/github.com/MathiasHilgert/vogue)
+[![CI](https://github.com/MathiasHilgert/vogue/actions/workflows/ci.yml/badge.svg)](https://github.com/MathiasHilgert/vogue/actions/workflows/ci.yml)
+[![License](https://img.shields.io/github/license/MathiasHilgert/vogue)](LICENSE)
+![status: beta](https://img.shields.io/badge/status-beta-yellow)
+
 Turns one-line directives into typed, validated, documented value objects and
 their tests. It reads like `go-playground/validator` — rule tags, descriptive
 field errors, custom rules — but resolves everything at generate time: the code
 it writes has no reflection, no runtime registry and no dynamic dispatch, only
 inlined expressions and static calls. A value object arrives with its
 constructor, its codecs and the table-driven test that proves it.
+
+## Quick start
+
+```sh
+go install github.com/MathiasHilgert/vogue/cmd/vogue@latest
+```
+
+```go
+// vo.go
+//go:generate go run github.com/MathiasHilgert/vogue/cmd/vogue
+package tab
+
+// Title is the name of a tab, as the waiter typed it.
+//vogue:string Title trim required min=1 max=120
+
+// Covers is the number of guests seated at a tab.
+//vogue:int Covers min=1 max=200
+
+// TabStatus is the lifecycle state of a tab.
+//vogue:enum TabStatus open,in_progress,closed
+
+// TabID identifies a tab across services.
+//vogue:id TabID
+```
+
+```sh
+go generate ./...
+```
+
+```go
+title, err := tab.NewTitle("  ")
+// err: 1 validation error:
+//   - title: title is required (rule "required")
+
+covers, _ := tab.NewCovers(4)
+status, _ := tab.ParseTabStatus("open")
+id := tab.NewTabID()
+```
 
 ## Usage
 
@@ -235,3 +279,19 @@ declared the example. When the rules of a directive declare nothing usable, the
 generated test skips with a message asking for examples rather than passing on
 an empty table, and a normalizer's rewrite is only asserted when the checks of
 its own directive vouch for the result.
+
+## Status
+
+vogue is beta. The generator, the runtime and the rule catalogue are exercised
+by the test suite and used as intended, but the API may still change before a
+1.0 release — directive syntax, generated method names and the `Rule` contract
+are the most likely places.
+
+Not there yet:
+
+- Multi-field value objects (`Money`, `Quantity`) stay hand-written; vogue only
+  generates single-field kinds.
+- Message translation: `FieldError.Message` is English only, and there is no
+  hook to localize it.
+- `pgtype.Numeric` scanning for the `decimal` kind; `Scan` accepts text, bytes
+  and `int64` but not the pgx-native numeric type.
