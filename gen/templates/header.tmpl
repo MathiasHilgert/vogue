@@ -7,4 +7,6 @@ import (
 {{end}}{{if and .Std .Ext}}
 {{end}}{{range .Ext}}	{{q .}}
 {{end}})
+{{end}}{{range .Decls}}
+{{.}}
 {{end}}

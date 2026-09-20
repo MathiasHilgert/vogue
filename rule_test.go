@@ -108,6 +108,15 @@ func TestRule_Validate(t *testing.T) {
 			},
 			wantMsg: "unknown param type",
 		},
+		{
+			name: "declare without emit",
+			mutate: func(r *vogue.Rule) {
+				r.Emit = nil
+				r.Call = &vogue.FuncRef{Path: "p", Name: "N"}
+				r.Declare = func(vogue.EmitContext) string { return "var x = 1" }
+			},
+			wantMsg: "Declare requires Emit",
+		},
 	}
 
 	for _, tc := range cases {
@@ -477,5 +486,23 @@ func TestExamples_TestGeneratorFields(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, rule.Examples.Normalized, 1)
 		assert.Equal(t, "a", rule.Examples.Normalized[0].Out)
+	})
+}
+
+func TestRule_Declare(t *testing.T) {
+	t.Run("a rule may declare a package-level declaration alongside its expression", func(t *testing.T) {
+		// Arrange
+		rule := minRule()
+		rule.Declare = func(c vogue.EmitContext) string {
+			return "var _vogueBound = " + c.Param
+		}
+
+		// Act
+		err := rule.Validate()
+
+		// Assert
+		require.NoError(t, err)
+		require.NotNil(t, rule.Declare)
+		assert.Equal(t, "var _vogueBound = 3", rule.Declare(vogue.EmitContext{Param: "3"}))
 	})
 }

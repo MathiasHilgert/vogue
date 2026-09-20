@@ -129,10 +129,11 @@ func (g *Generator) Files() ([]OutFile, error) {
 // file renders and formats one generated file.
 func (g *Generator) file(file parse.File) ([]byte, error) {
 	imports := newImportSet(g.opts.ImportPath)
+	decls := newDeclSet()
 
 	var bodies bytes.Buffer
 	for _, directive := range file.Directives {
-		view, name, err := g.newView(directive, imports)
+		view, name, err := g.newView(directive, imports, decls)
 		if err != nil {
 			return nil, err
 		}
@@ -143,7 +144,7 @@ func (g *Generator) file(file parse.File) ([]byte, error) {
 
 	var buf bytes.Buffer
 	std, ext := imports.groups()
-	header := fileView{Package: g.opts.Package.Name, Std: std, Ext: ext}
+	header := fileView{Package: g.opts.Package.Name, Std: std, Ext: ext, Decls: decls.all()}
 	if err := g.tmpl.ExecuteTemplate(&buf, "header.tmpl", header); err != nil {
 		return nil, fmt.Errorf("gen: rendering header of %s: %w", file.Path, err)
 	}

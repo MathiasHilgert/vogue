@@ -172,7 +172,7 @@ func fillScalar(v *testView, d parse.Directive) {
 	rejected := rejections(d)
 	v.ValidLit, v.ValidRaw = acceptedSample(d, rejected)
 	if v.ValidLit == "" {
-		v.Skip = fmt.Sprintf("vogue: no example of %s satisfies every rule; add Examples to the rules it uses", d.Name)
+		v.Skip = fmt.Sprintf("vogue: no example of %s satisfies every rule and differs from the zero value; add Examples to the rules it uses", d.Name)
 		v.AssertEqual = false
 		return
 	}
@@ -241,8 +241,16 @@ func rejectionName(row rejection) string {
 }
 
 // acceptedSample returns the literal and the textual spelling of the first
-// declared valid example no rule of the directive rejects. Both are empty when
-// the rules declare none.
+// declared valid example no rule of the directive rejects and that is not the
+// zero value of its kind. Both are empty when the rules declare none.
+//
+// The zero value is skipped because the generated test asserts that an
+// accepted input produced a usable value object, and a value object built from
+// the zero value is indistinguishable from one that never passed validation:
+// `nonneg` accepting 0 is correct, but "0 is not the zero value" is not
+// something any generated code could promise. Rather than emit an assertion
+// that must fail, the sample moves on to the next declared example, and the
+// test skips when there is none.
 func acceptedSample(d parse.Directive, rejected []rejection) (lit, raw string) {
 	for _, use := range d.Rules {
 		if use.Rule.Normalize {
@@ -253,13 +261,23 @@ func acceptedSample(d parse.Directive, rejected []rejection) (lit, raw string) {
 				continue
 			}
 			candidate, ok := literal(d.Kind, example.In)
-			if !ok || rejectedBy(rejected, example.In) {
+			if !ok || rejectedBy(rejected, example.In) || isZeroLiteral(d.Kind, example.In) {
 				continue
 			}
 			return candidate, strconv.Quote(example.In)
 		}
 	}
 	return "", ""
+}
+
+// isZeroLiteral reports whether the example is the zero value of its kind: the
+// empty string, or the integer zero however it was spelled.
+func isZeroLiteral(kind vogue.Kind, in string) bool {
+	if kind != vogue.Int {
+		return in == ""
+	}
+	n, err := strconv.ParseInt(in, 10, 64)
+	return err == nil && n == 0
 }
 
 // rejectedBy reports whether another rule of the same directive declares the

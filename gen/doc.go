@@ -56,6 +56,12 @@
 //     `pkg.Func(v)` or `pkg.Func(v, "<param>")`, with the same
 //     true-means-valid direction, and its package is added to the imports.
 //
+//   - A rule with [vogue.Rule.Declare] set also contributes a package-level
+//     declaration, emitted once between the imports and the first value
+//     object. Identical declarations are collapsed, so two directives written
+//     against the same regular expression share one compiled pattern rather
+//     than compiling it twice or once per call.
+//
 // # Messages
 //
 // Failure messages are rendered once, at generate time, with the field name and

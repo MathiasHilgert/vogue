@@ -21,6 +21,9 @@ type fileView struct {
 	Package string
 	Std     []string
 	Ext     []string
+	// Decls are the package-level declarations the rules of the file asked for,
+	// emitted between the imports and the first value object.
+	Decls []string
 }
 
 // stepView is one rule of a constructor, already resolved to Go source.
@@ -67,7 +70,7 @@ type voView struct {
 
 // newView builds the template data of one directive, names the template that
 // renders it and records the imports it needs.
-func (g *Generator) newView(d parse.Directive, imports *importSet) (voView, string, error) {
+func (g *Generator) newView(d parse.Directive, imports *importSet, decls *declSet) (voView, string, error) {
 	v := voView{
 		Name:     d.Name,
 		Recv:     receiver(d.Name),
@@ -105,7 +108,7 @@ func (g *Generator) newView(d parse.Directive, imports *importSet) (voView, stri
 		return voView{}, "", err
 	}
 	if len(d.Rules) > 0 {
-		steps, err := g.steps(d, imports)
+		steps, err := g.steps(d, imports, decls)
 		if err != nil {
 			return voView{}, "", err
 		}
@@ -154,7 +157,7 @@ func addAll(imports *importSet, paths ...string) error {
 
 // steps resolves every rule of a directive to the source the constructor runs,
 // preserving the order the rules were written in.
-func (g *Generator) steps(d parse.Directive, imports *importSet) ([]stepView, error) {
+func (g *Generator) steps(d parse.Directive, imports *importSet, decls *declSet) ([]stepView, error) {
 	steps := make([]stepView, 0, len(d.Rules))
 	for _, use := range d.Rules {
 		rule := use.Rule
@@ -162,6 +165,10 @@ func (g *Generator) steps(d parse.Directive, imports *importSet) ([]stepView, er
 			if err := imports.add(path); err != nil {
 				return nil, err
 			}
+		}
+
+		if rule.Declare != nil {
+			decls.add(rule.Declare(emitContext(d, use)))
 		}
 
 		code, err := g.code(d, use, imports)
@@ -208,7 +215,13 @@ func (g *Generator) code(d parse.Directive, use parse.RuleUse, imports *importSe
 	if rule.Emit == nil {
 		return "", fmt.Errorf("gen: %s: rule %q has neither Emit nor Call", use.Pos, rule.Name)
 	}
-	return rule.Emit(vogue.EmitContext{Var: "v", Param: use.Param, Field: d.Field, Kind: d.Kind}), nil
+	return rule.Emit(emitContext(d, use)), nil
+}
+
+// emitContext builds the context handed to [vogue.Rule.Emit] and
+// [vogue.Rule.Declare], so both always see exactly the same identifiers.
+func emitContext(d parse.Directive, use parse.RuleUse) vogue.EmitContext {
+	return vogue.EmitContext{Var: "v", Param: use.Param, Field: d.Field, Kind: d.Kind}
 }
 
 // renderMessage renders a rule message at generate time, rejecting a template

@@ -245,6 +245,15 @@ type Rule struct {
 	Emit func(EmitContext) string
 	// Call names a static function to call instead of emitting an expression.
 	Call *FuncRef
+	// Declare returns a package-level declaration the emitted expression needs,
+	// such as a regular expression compiled once at process start rather than
+	// on every constructor call. It is optional, requires [Rule.Emit], and is
+	// emitted once per distinct declaration in a generated file: two directives
+	// using the same rule with the same parameter share one declaration. The
+	// returned source must therefore be self-contained and must name itself
+	// deterministically from [EmitContext.Param], so that a rule declaring
+	// `var x = ...` also emits an expression referring to that same `x`.
+	Declare func(EmitContext) string
 	// Imports are the import paths the emitted code needs, such as "strings"
 	// for a rule whose expression calls strings.HasPrefix. A [Rule.Call] adds
 	// its own package automatically and does not need to repeat it here.
@@ -280,6 +289,9 @@ func (r Rule) Validate() error {
 		if path == "" {
 			return fmt.Errorf("vogue: rule %q: import path must not be empty", r.Name)
 		}
+	}
+	if r.Declare != nil && r.Emit == nil {
+		return fmt.Errorf("vogue: rule %q: Declare requires Emit, a call-backed rule declares nothing", r.Name)
 	}
 	if r.Call != nil {
 		if r.Normalize {

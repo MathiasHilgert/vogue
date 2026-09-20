@@ -61,6 +61,20 @@
 // with [MessageData], its documentation, its [Examples], and exactly one of
 // [Rule.Emit] (an inline expression) or [Rule.Call] (a static [FuncRef]).
 //
+// The rules vogue ships with live in their own package, so the catalogue can
+// be read, extended or replaced wholesale:
+//
+//   - `pkg/vogue/rules` holds one [Rule] value per built-in tag — the
+//     normalizers `trim`, `squish`, `lower` and `upper`, the string checks
+//     `required`, `min`, `max`, `len`, `email`, `url`, `uuid`, `regex`,
+//     `oneof`, `alpha`, `alphanum`, `numeric`, `ascii`, `printable`,
+//     `nospace`, `prefix`, `suffix`, `contains` and `excludes`, and the
+//     integer checks `positive`, `nonneg` and `multipleof` — together with
+//     `rules.All`, `rules.Set` and `rules.MustSet`.
+//   - `pkg/vogue/rules/fn` holds the runtime helpers those rules dispatch to
+//     through [Rule.Call], such as `fn.Email`: pure `func(string) bool`
+//     predicates a generated constructor calls statically.
+//
 // Rules live in a [RuleSet], which is ordered and name-unique and provides
 // [RuleSet.Suggest] so an unknown tag is reported with a file:line position and
 // the nearest known rule name.
