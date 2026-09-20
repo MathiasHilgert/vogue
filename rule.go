@@ -50,6 +50,12 @@ const (
 	ParamList
 	// ParamRegex is a regular expression compiled at generate time.
 	ParamRegex
+	// ParamNumber is a number whose Go type follows the kind the rule is used
+	// on: a base-10 integer for the string and int kinds, where a bound counts
+	// runes or compares an int64, and an exact decimal for the decimal kind.
+	// It is what lets one `min` rule take `min=1` on a name and `min=0.5` on a
+	// rate while still rejecting `min=0.5` on an integer.
+	ParamNumber
 )
 
 // String returns the human-readable name of the parameter type, used in
@@ -66,13 +72,15 @@ func (t ParamType) String() string {
 		return "list"
 	case ParamRegex:
 		return "regex"
+	case ParamNumber:
+		return "number"
 	default:
 		return fmt.Sprintf("ParamType(%d)", uint8(t))
 	}
 }
 
 // valid reports whether t is one of the declared parameter types.
-func (t ParamType) valid() bool { return t <= ParamRegex }
+func (t ParamType) valid() bool { return t <= ParamNumber }
 
 // ParamSpec declares the parameter contract of a rule. Its zero value means the
 // rule takes no parameter.

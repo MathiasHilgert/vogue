@@ -5,6 +5,8 @@
 package testrules
 
 import (
+	"hash/fnv"
+	"strconv"
 	"strings"
 
 	"github.com/MathiasHilgert/vogue"
@@ -16,7 +18,7 @@ import (
 // its own.
 func Set(callPath string) *vogue.RuleSet {
 	set := &vogue.RuleSet{}
-	if err := set.Add(required(), trim(), lower(), minRule(), maxRule(), noDigits(callPath)); err != nil {
+	if err := set.Add(required(), trim(), lower(), minRule(), maxRule(), scale(), noDigits(callPath)); err != nil {
 		panic(err)
 	}
 	return set
@@ -77,20 +79,23 @@ func lower() vogue.Rule {
 func minRule() vogue.Rule {
 	return vogue.Rule{
 		Name:    "min",
-		Kinds:   vogue.Kinds(vogue.String, vogue.Int),
+		Kinds:   vogue.Kinds(vogue.String, vogue.Int, vogue.Decimal),
 		Doc:     "Rejects values below the bound.",
-		Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamInt},
+		Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamNumber},
 		Message: "{{.Field}} must be at least {{.Param}}",
-		Imports: []string{"unicode/utf8"},
+		Imports: []string{"unicode/utf8", "github.com/govalues/decimal"},
 		Emit:    func(c vogue.EmitContext) string { return bound(c, ">=") },
+		Declare: boundDecl,
 		Examples: vogue.Examples{
 			Valid: []vogue.Example{
 				{Kinds: vogue.Kinds(vogue.String), Param: "1", In: "a"},
 				{Kinds: vogue.Kinds(vogue.Int), Param: "1", In: "1"},
+				{Kinds: vogue.Kinds(vogue.Decimal), Param: "0", In: "1.5", Note: "a weight above the floor"},
 			},
 			Invalid: []vogue.Example{
 				{Kinds: vogue.Kinds(vogue.String), Param: "1", In: "", Note: "the empty string"},
 				{Kinds: vogue.Kinds(vogue.Int), Param: "1", In: "0", Note: "a table with nobody at it"},
+				{Kinds: vogue.Kinds(vogue.Decimal), Param: "0", In: "-0.25", Note: "a weight below zero"},
 			},
 		},
 	}
@@ -100,12 +105,13 @@ func minRule() vogue.Rule {
 func maxRule() vogue.Rule {
 	return vogue.Rule{
 		Name:    "max",
-		Kinds:   vogue.Kinds(vogue.String, vogue.Int),
+		Kinds:   vogue.Kinds(vogue.String, vogue.Int, vogue.Decimal),
 		Doc:     "Rejects values above the bound.",
-		Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamInt},
+		Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamNumber},
 		Message: "{{.Field}} must be at most {{.Param}}",
-		Imports: []string{"unicode/utf8"},
+		Imports: []string{"unicode/utf8", "github.com/govalues/decimal"},
 		Emit:    func(c vogue.EmitContext) string { return bound(c, "<=") },
+		Declare: boundDecl,
 		Examples: vogue.Examples{
 			Valid: []vogue.Example{
 				{Kinds: vogue.Kinds(vogue.String), Param: "2", In: "ab"},
@@ -120,13 +126,49 @@ func maxRule() vogue.Rule {
 	}
 }
 
-// bound emits the comparison a bound rule needs for the kind being generated:
-// a rune count for strings, the value itself for integers.
-func bound(c vogue.EmitContext, op string) string {
-	if c.Kind == vogue.Int {
-		return c.Var + " " + op + " " + c.Param
+// scale bounds the number of decimal places of a decimal value.
+func scale() vogue.Rule {
+	return vogue.Rule{
+		Name:    "scale",
+		Kinds:   vogue.Kinds(vogue.Decimal),
+		Doc:     "Rejects values carrying more decimal places than the bound.",
+		Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamInt},
+		Message: "{{.Field}} must have at most {{.Param}} decimal places",
+		Emit:    func(c vogue.EmitContext) string { return c.Var + ".Scale() <= " + c.Param },
+		Examples: vogue.Examples{
+			Valid:   []vogue.Example{{Param: "3", In: "1.25", Note: "two decimal places fit in three"}},
+			Invalid: []vogue.Example{{Param: "3", In: "0.1234", Note: "four decimal places do not"}},
+		},
 	}
-	return "utf8.RuneCountInString(" + c.Var + ") " + op + " " + c.Param
+}
+
+// bound emits the comparison a bound rule needs for the kind being generated:
+// a rune count for strings, the value itself for integers, and a Cmp against a
+// once-parsed package-level decimal for the decimal kind.
+func bound(c vogue.EmitContext, op string) string {
+	switch c.Kind {
+	case vogue.Int:
+		return c.Var + " " + op + " " + c.Param
+	case vogue.Decimal:
+		return c.Var + ".Cmp(" + boundVar(c.Param) + ") " + op + " 0"
+	default:
+		return "utf8.RuneCountInString(" + c.Var + ") " + op + " " + c.Param
+	}
+}
+
+// boundDecl declares the parsed bound a decimal comparison reads.
+func boundDecl(c vogue.EmitContext) string {
+	if c.Kind != vogue.Decimal {
+		return ""
+	}
+	return "var " + boundVar(c.Param) + " = decimal.MustParse(" + strconv.Quote(c.Param) + ")"
+}
+
+// boundVar names the declaration deterministically from the bound itself.
+func boundVar(param string) string {
+	h := fnv.New32a()
+	_, _ = h.Write([]byte(param))
+	return "_vogueDecimal" + strconv.FormatUint(uint64(h.Sum32()), 16)
 }
 
 // noDigits is the call-backed rule of the catalogue, exercising import

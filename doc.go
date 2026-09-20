@@ -64,14 +64,14 @@
 // The rules vogue ships with live in their own package, so the catalogue can
 // be read, extended or replaced wholesale:
 //
-//   - `pkg/vogue/rules` holds one [Rule] value per built-in tag — the
+//   - `rules` holds one [Rule] value per built-in tag — the
 //     normalizers `trim`, `squish`, `lower` and `upper`, the string checks
 //     `required`, `min`, `max`, `len`, `email`, `url`, `uuid`, `regex`,
 //     `oneof`, `alpha`, `alphanum`, `numeric`, `ascii`, `printable`,
 //     `nospace`, `prefix`, `suffix`, `contains` and `excludes`, and the
 //     integer checks `positive`, `nonneg` and `multipleof` — together with
 //     `rules.All`, `rules.Set` and `rules.MustSet`.
-//   - `pkg/vogue/rules/fn` holds the runtime helpers those rules dispatch to
+//   - `rules/fn` holds the runtime helpers those rules dispatch to
 //     through [Rule.Call], such as `fn.Email`: pure `func(string) bool`
 //     predicates a generated constructor calls statically.
 //
@@ -91,7 +91,7 @@
 // # Running the generator
 //
 // The pipeline itself — resolve the catalogue, parse a directory, render, write
-// — is `pkg/vogue/generator`, whose Run is what both front ends call:
+// — is `generator`, whose Run is what both front ends call:
 //
 //	//go:generate go run github.com/MathiasHilgert/vogue/cmd/vogue
 //
@@ -104,9 +104,9 @@
 //
 //   - `cmd/vogue` is the shipped command, the built-in catalogue and nothing
 //     else, with `-list`, `-dry-run` and `-tests`.
-//   - `pkg/vogue/examples/customrule` is the worked example of a project rule:
+//   - `examples/customrule` is the worked example of a project rule:
 //     the rule, the one-file binary that registers it, the directives and the
 //     committed output, checked for drift by an ordinary test.
-//   - `pkg/vogue/README.md` holds the directive grammar, the rule catalogue
+//   - `README.md` holds the directive grammar, the rule catalogue
 //     table and the design notes.
 package vogue

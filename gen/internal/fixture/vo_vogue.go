@@ -11,7 +11,10 @@ import (
 
 	"github.com/MathiasHilgert/vogue"
 	"github.com/google/uuid"
+	"github.com/govalues/decimal"
 )
+
+var _vogueDecimal350ca8af = decimal.MustParse("0")
 
 // Title is the name of a tab, as the waiter typed it. It is trimmed and folded
 // to lower case before its bounds are checked.
@@ -465,5 +468,124 @@ func (s *Slug) Scan(src any) error {
 		return s.UnmarshalText(value)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into Slug", src)
+	}
+}
+
+// Weight is the weight of a portion, measured to the gram. It is the decimal
+// kind: an exact base-10 number, never a binary float, bounded from below and
+// limited to the precision the scale can actually read.
+//
+// The value is held as a decimal.Decimal: an exact base-10 number with no
+// binary float underneath, so a rate, a percentage or a fractional quantity
+// reads back as the value someone typed.
+type Weight struct{ v decimal.Decimal }
+
+// NewWeight validates raw and returns the Weight it describes.
+//
+// Rules are applied in the order they were declared, and every failure is
+// collected into one error rather than the first one aborting the rest.
+func NewWeight(raw decimal.Decimal) (Weight, error) {
+	var n vogue.Notification
+	v := raw
+	if !(v.Cmp(_vogueDecimal350ca8af) >= 0) {
+		n.Add(vogue.FieldError{Field: "weight", Rule: "min", Param: "0", Value: v.String(), Message: "weight must be at least 0"})
+	}
+	if !(v.Scale() <= 3) {
+		n.Add(vogue.FieldError{Field: "weight", Rule: "scale", Param: "3", Value: v.String(), Message: "weight must have at most 3 decimal places"})
+	}
+
+	if err := n.ErrOrNil(); err != nil {
+		return Weight{}, err
+	}
+	return Weight{v: v}, nil
+}
+
+// ParseWeight reads a decimal representation and validates it. A representation
+// decimal.Parse cannot read is reported as a "weight" failure of the
+// "decimal" rule, so a caller handles it the same way as every other rule.
+func ParseWeight(raw string) (Weight, error) {
+	v, err := decimal.Parse(raw)
+	if err != nil {
+		var n vogue.Notification
+		n.Add(vogue.FieldError{Field: "weight", Rule: "decimal", Value: raw, Message: "weight must be an exact decimal number"})
+		return Weight{}, n.ErrOrNil()
+	}
+	return NewWeight(v)
+}
+
+// Decimal returns the validated value.
+func (w Weight) Decimal() decimal.Decimal { return w.v }
+
+// String returns the canonical representation of the value, which keeps the
+// scale it was created with: 1.50 reads back as "1.50", not as "1.5".
+func (w Weight) String() string { return w.v.String() }
+
+// IsZero reports whether the receiver holds zero, which is also the zero
+// Weight — the only Weight that never passed validation.
+func (w Weight) IsZero() bool { return w.v.IsZero() }
+
+// Equal reports whether both value objects hold the same number.
+//
+// It compares with Cmp rather than with ==, because a decimal carries its
+// scale: 1.5 and 1.50 are the same number written at two scales, and == would
+// call them different. Two Weight values that compare equal here may therefore
+// still marshal to different text, which is what keeps a stored scale intact.
+func (w Weight) Equal(other Weight) bool { return w.v.Cmp(other.v) == 0 }
+
+// MarshalText implements encoding.TextMarshaler. encoding/json uses the text
+// codec when a type implements it, so Weight crosses a JSON boundary as a
+// string and never as a float the receiver would have to round.
+func (w Weight) MarshalText() ([]byte, error) { return []byte(w.v.String()), nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
+// no payload can produce a Weight the constructor would have rejected.
+func (w *Weight) UnmarshalText(data []byte) error {
+	parsed, err := ParseWeight(string(data))
+	if err != nil {
+		return err
+	}
+	*w = parsed
+	return nil
+}
+
+// Value implements driver.Valuer, storing the canonical representation as
+// text. A PostgreSQL `numeric` column accepts it and keeps every digit, which
+// a float parameter would not.
+func (w Weight) Value() (driver.Value, error) { return w.v.String(), nil }
+
+// Scan implements sql.Scanner for text and integer columns, re-running
+// validation so a row that no longer satisfies the rules surfaces as a vogue
+// error.
+//
+// A float64 or float32 source is refused rather than converted: it has already
+// lost digits by the time it arrives, and accepting it would undo the reason
+// this kind exists. A driver that hands back a numeric column as a float is
+// misconfigured — with pgx, the numeric codec must deliver text, and a
+// pgtype.Numeric source needs a helper of its own rather than a silent
+// conversion here.
+func (w *Weight) Scan(src any) error {
+	switch value := src.(type) {
+	case nil:
+		*w = Weight{}
+		return nil
+	case string:
+		return w.UnmarshalText([]byte(value))
+	case []byte:
+		return w.UnmarshalText(value)
+	case int64:
+		parsed, err := decimal.New(value, 0)
+		if err != nil {
+			return fmt.Errorf("vogue: cannot scan %d into Weight: %w", value, err)
+		}
+		built, err := NewWeight(parsed)
+		if err != nil {
+			return err
+		}
+		*w = built
+		return nil
+	case float64, float32:
+		return fmt.Errorf("vogue: cannot scan the binary float %T into Weight: it has already lost digits; configure the driver to deliver numeric columns as text", src)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into Weight", src)
 	}
 }

@@ -1,0 +1,115 @@
+{{$n := .Name}}{{$r := .Recv}}
+{{range .DocLines}}// {{.}}
+{{end}}//
+// The value is held as a decimal.Decimal: an exact base-10 number with no
+// binary float underneath, so a rate, a percentage or a fractional quantity
+// reads back as the value someone typed.
+type {{$n}} struct{ v decimal.Decimal }
+
+// New{{$n}} validates raw and returns the {{$n}} it describes.
+//
+// Rules are applied in the order they were declared, and every failure is
+// collected into one error rather than the first one aborting the rest.
+func New{{$n}}(raw decimal.Decimal) ({{$n}}, error) {
+	var n vogue.Notification
+	v := raw
+{{range .Steps}}{{if .Normalize}}	{{.Code}}
+{{else}}	if !({{.Code}}) {
+		n.Add(vogue.FieldError{Field: {{q .Field}}, Rule: {{q .Rule}}, {{if .Param}}Param: {{q .Param}}, {{end}}Value: v.String(), Message: {{q .Message}}})
+	}
+{{end}}{{end}}
+	if err := n.ErrOrNil(); err != nil {
+		return {{$n}}{}, err
+	}
+	return {{$n}}{v: v}, nil
+}
+
+// Parse{{$n}} reads a decimal representation and validates it. A representation
+// decimal.Parse cannot read is reported as a {{q .Field}} failure of the
+// "decimal" rule, so a caller handles it the same way as every other rule.
+func Parse{{$n}}(raw string) ({{$n}}, error) {
+	v, err := decimal.Parse(raw)
+	if err != nil {
+		var n vogue.Notification
+		n.Add(vogue.FieldError{Field: {{q .Field}}, Rule: "decimal", Value: raw, Message: "{{.Field}} must be an exact decimal number"})
+		return {{$n}}{}, n.ErrOrNil()
+	}
+	return New{{$n}}(v)
+}
+
+// Decimal returns the validated value.
+func ({{$r}} {{$n}}) Decimal() decimal.Decimal { return {{$r}}.v }
+
+// String returns the canonical representation of the value, which keeps the
+// scale it was created with: 1.50 reads back as "1.50", not as "1.5".
+func ({{$r}} {{$n}}) String() string { return {{$r}}.v.String() }
+
+// IsZero reports whether the receiver holds zero, which is also the zero
+// {{$n}} — the only {{$n}} that never passed validation.
+func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.v.IsZero() }
+
+// Equal reports whether both value objects hold the same number.
+//
+// It compares with Cmp rather than with ==, because a decimal carries its
+// scale: 1.5 and 1.50 are the same number written at two scales, and == would
+// call them different. Two {{$n}} values that compare equal here may therefore
+// still marshal to different text, which is what keeps a stored scale intact.
+func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.v.Cmp(other.v) == 0 }
+
+// MarshalText implements encoding.TextMarshaler. encoding/json uses the text
+// codec when a type implements it, so {{$n}} crosses a JSON boundary as a
+// string and never as a float the receiver would have to round.
+func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.v.String()), nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
+// no payload can produce a {{$n}} the constructor would have rejected.
+func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
+	parsed, err := Parse{{$n}}(string(data))
+	if err != nil {
+		return err
+	}
+	*{{$r}} = parsed
+	return nil
+}
+
+// Value implements driver.Valuer, storing the canonical representation as
+// text. A PostgreSQL `numeric` column accepts it and keeps every digit, which
+// a float parameter would not.
+func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.v.String(), nil }
+
+// Scan implements sql.Scanner for text and integer columns, re-running
+// validation so a row that no longer satisfies the rules surfaces as a vogue
+// error.
+//
+// A float64 or float32 source is refused rather than converted: it has already
+// lost digits by the time it arrives, and accepting it would undo the reason
+// this kind exists. A driver that hands back a numeric column as a float is
+// misconfigured — with pgx, the numeric codec must deliver text, and a
+// pgtype.Numeric source needs a helper of its own rather than a silent
+// conversion here.
+func ({{$r}} *{{$n}}) Scan(src any) error {
+	switch value := src.(type) {
+	case nil:
+		*{{$r}} = {{$n}}{}
+		return nil
+	case string:
+		return {{$r}}.UnmarshalText([]byte(value))
+	case []byte:
+		return {{$r}}.UnmarshalText(value)
+	case int64:
+		parsed, err := decimal.New(value, 0)
+		if err != nil {
+			return fmt.Errorf("vogue: cannot scan %d into {{$n}}: %w", value, err)
+		}
+		built, err := New{{$n}}(parsed)
+		if err != nil {
+			return err
+		}
+		*{{$r}} = built
+		return nil
+	case float64, float32:
+		return fmt.Errorf("vogue: cannot scan the binary float %T into {{$n}}: it has already lost digits; configure the driver to deliver numeric columns as text", src)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into {{$n}}", src)
+	}
+}

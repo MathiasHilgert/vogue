@@ -18,6 +18,7 @@ var kindNames = []string{
 	vogue.Int.String(),
 	vogue.Enum.String(),
 	vogue.ID.String(),
+	vogue.Decimal.String(),
 }
 
 // dtoken is one whitespace-separated directive token together with its byte

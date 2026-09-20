@@ -118,3 +118,28 @@ package catalogue
 
 // SlotMinutes is a booking length measured in whole quarter hours.
 //vogue:int SlotMinutes multipleof=15
+
+// The decimal directives below carry the same rules again on the kind that
+// holds an exact non-integer value, because a rule that spans two kinds emits
+// two different expressions and only executing both proves either.
+
+// MinRate is a rate that may not fall below nothing.
+//vogue:decimal MinRate min=0
+
+// MaxRate is a share of a bill, which cannot exceed the whole.
+//vogue:decimal MaxRate max=1
+
+// UnitWeight is a weight on a scale, which only means something above zero.
+//vogue:decimal UnitWeight positive
+
+// ShelfWeight is a stock weight, which may be nothing but never less.
+//vogue:decimal ShelfWeight nonneg
+
+// TaxRate is a rate stored in a numeric column of scale four.
+//vogue:decimal TaxRate scale=4
+
+// PreciseWeight is a weight measured to the gram and no finer.
+//vogue:decimal PreciseWeight scale=3
+
+// Adjustment is a correction to a bill, which is pointless when it is zero.
+//vogue:decimal Adjustment nonzero

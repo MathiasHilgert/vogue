@@ -13,6 +13,7 @@ const (
 	importFmt     = "fmt"
 	importStrconv = "strconv"
 	importUUID    = "github.com/google/uuid"
+	importDecimal = "github.com/govalues/decimal"
 	importVogue   = "github.com/MathiasHilgert/vogue"
 )
 

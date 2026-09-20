@@ -33,3 +33,8 @@ func NoDigits(v string) bool {
 // the directive shape that leaves the generated constructor table without an
 // accepted sample: the rewrite is still proven, the table is not invented.
 //vogue:string Slug lower
+
+// Weight is the weight of a portion, measured to the gram. It is the decimal
+// kind: an exact base-10 number, never a binary float, bounded from below and
+// limited to the precision the scale can actually read.
+//vogue:decimal Weight min=0 scale=3

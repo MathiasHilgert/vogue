@@ -64,7 +64,7 @@ func TestREADME_RuleTable(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, readme, want,
-			"the rule table of the README has drifted; re-run `go test ./pkg/vogue -update`")
+			"the rule table of the README has drifted; re-run `go test . -update`")
 	})
 
 	t.Run("every shipped rule has a row and a first sentence to put in it", func(t *testing.T) {
@@ -89,7 +89,7 @@ func TestREADME_RuleTable(t *testing.T) {
 		table := ruleTable()
 
 		// Assert
-		assert.Contains(t, table, "| `min` | string, int | required int |")
-		assert.Equal(t, vogue.Kinds(vogue.String, vogue.Int), min.Kinds)
+		assert.Contains(t, table, "| `min` | string, int, decimal | required number |")
+		assert.Equal(t, vogue.Kinds(vogue.String, vogue.Int, vogue.Decimal), min.Kinds)
 	})
 }

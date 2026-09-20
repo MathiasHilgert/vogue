@@ -92,6 +92,10 @@ func (g *Generator) newView(d parse.Directive, imports *importSet, decls *declSe
 		v.ValueExpr, name = "strconv.FormatInt(v, 10)", "int"
 		paths = append(paths, importDriver, importStrconv)
 
+	case vogue.Decimal:
+		v.ValueExpr, name = "v.String()", "decimal"
+		paths = append(paths, importDriver, importDecimal)
+
 	case vogue.Enum:
 		name = "enum"
 		paths = append(paths, importDriver)
@@ -145,6 +149,36 @@ func (g *Generator) idView(v *voView, d parse.Directive, paths []string) (string
 	return "id_uuid", append(paths, importUUID)
 }
 
+// addUsed records the import paths of a rule that the source it just emitted
+// actually references.
+//
+// [vogue.Rule.Imports] is declared once for the whole rule, but a rule
+// spanning several kinds emits different source for each of them: `min` counts
+// runes with unicode/utf8 on a string and compares a once-parsed
+// github.com/govalues/decimal value on a decimal, and neither file may import
+// what the other needs. Which of the two it is can only be read off the source
+// the rule produced, so that is what is asked, by looking for the identifier
+// the path is referenced through.
+func addUsed(imports *importSet, paths []string, sources ...string) error {
+	for _, path := range paths {
+		selector := packageIdent(path) + "."
+		used := false
+		for _, source := range sources {
+			if strings.Contains(source, selector) {
+				used = true
+				break
+			}
+		}
+		if !used {
+			continue
+		}
+		if err := imports.add(path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // addAll records several import paths, stopping at the first collision.
 func addAll(imports *importSet, paths ...string) error {
 	for _, path := range paths {
@@ -161,18 +195,18 @@ func (g *Generator) steps(d parse.Directive, imports *importSet, decls *declSet)
 	steps := make([]stepView, 0, len(d.Rules))
 	for _, use := range d.Rules {
 		rule := use.Rule
-		for _, path := range rule.Imports {
-			if err := imports.add(path); err != nil {
-				return nil, err
-			}
-		}
 
+		var decl string
 		if rule.Declare != nil {
-			decls.add(rule.Declare(emitContext(d, use)))
+			decl = rule.Declare(emitContext(d, use))
+			decls.add(decl)
 		}
 
 		code, err := g.code(d, use, imports)
 		if err != nil {
+			return nil, err
+		}
+		if err := addUsed(imports, rule.Imports, code, decl); err != nil {
 			return nil, err
 		}
 		if rule.Normalize {

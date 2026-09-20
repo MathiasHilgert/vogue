@@ -47,6 +47,7 @@ field errors take its lower-camel form. The tokens depend on the kind:
 |------|--------|-----------|
 | `string` | rules, in evaluation order | `New<Name>(string)`, `String`, `Equal`, `IsZero`, text and SQL codecs |
 | `int` | rules, in evaluation order | `New<Name>(int64)`, `Int64`, `Parse<Name>`, the same methods |
+| `decimal` | rules, in evaluation order | `New<Name>(decimal.Decimal)`, `Decimal`, `Parse<Name>`, the same methods |
 | `enum` | one comma-separated list of at least two lower-snake values | `<Name><Member>` vars, `<Name>Values`, `Parse<Name>`, the same methods |
 | `id` | an optional strategy: `uuid7` (default), `uuid4`, `int64` | `New<Name>()` for the uuid strategies, `Parse<Name>`, the same methods |
 
@@ -70,8 +71,8 @@ name.
 | `lower` | string | none | Folds the value to lower case using the Unicode mapping, so "Í" becomes "í". |
 | `upper` | string | none | Folds the value to upper case using the Unicode mapping. |
 | `required` | string | none | Rejects the empty string. |
-| `min` | string, int | required int | Rejects values below the bound. |
-| `max` | string, int | required int | Rejects values above the bound, counting runes on a string and the value itself on an integer, inclusive on both. |
+| `min` | string, int, decimal | required number | Rejects values below the bound. |
+| `max` | string, int, decimal | required number | Rejects values above the bound, counting runes on a string and the value itself on an integer or a decimal, inclusive on every kind. |
 | `len` | string | required int | Requires the value to be exactly the given number of runes long. |
 | `email` | string | none | Requires a single email address in the RFC 5322 grammar, parsed by net/mail rather than matched against a regular expression. |
 | `url` | string | none | Requires an absolute http or https URL, parsed by net/url as a request URI. |
@@ -88,13 +89,15 @@ name.
 | `suffix` | string | required string | Requires the value to end with the parameter, compared byte for byte and therefore case-sensitively. |
 | `contains` | string | required string | Requires the parameter to appear somewhere in the value, compared byte for byte and therefore case-sensitively. |
 | `excludes` | string | required string | Rejects the value when the parameter appears anywhere in it, compared byte for byte and therefore case-sensitively — which is exactly why it is a weak guard: a denylist is defeated by a change of case or an encoding. |
-| `positive` | int | none | Requires the value to be strictly greater than zero. |
-| `nonneg` | int | none | Requires the value to be zero or greater. |
+| `positive` | int, decimal | none | Requires the value to be strictly greater than zero. |
+| `nonneg` | int, decimal | none | Requires the value to be zero or greater. |
 | `multipleof` | int | required int | Requires the value to be an exact multiple of the parameter, which is how a quantity sold by the box, a duration measured in whole slots or an amount in whole units is expressed. |
+| `scale` | decimal | required int | Requires the value to carry at most the given number of decimal places, which is how a rate stored in a numeric(p,s) column, a unit price quoted to the cent or a weight measured to the gram is expressed. |
+| `nonzero` | decimal | none | Rejects zero, at any scale: "0", "0.00" and "-0.0" are all the same number and all rejected. |
 <!-- rules:end -->
 
 The full documentation of each rule is the godoc of
-[`pkg/vogue/rules`](rules). `vogue -list` prints the same table in a terminal.
+[`rules`](rules). `vogue -list` prints the same table in a terminal.
 
 ## Your own rules
 
@@ -191,8 +194,34 @@ since a test ranging over it grows a case the moment a member is added.
 question and not this one.
 
 **No float.** There is no `float` kind and there will not be one: binary floats
-are unacceptable for money-adjacent values. A `decimal` kind is the next
-addition; `Money` and `Quantity` are multi-field and stay hand-written.
+are unacceptable for money-adjacent values. `Money` and `Quantity` are
+multi-field and stay hand-written.
+
+**Decimals.** The `decimal` kind wraps a
+[`github.com/govalues/decimal`](https://github.com/govalues/decimal) value: an
+exact base-10 number with a sign, a coefficient and a scale, and no binary
+float underneath. It is the kind for a rate, a percentage or a quantity
+measured in fractional units.
+
+Because a decimal carries its scale, `1.5` and `1.50` are the same number
+written two ways. `Equal` therefore compares with `Cmp`, not with `==`, while
+`String`, `MarshalText` and `Value` keep the scale the value was created with —
+so a `numeric(10,4)` column reads back exactly as it was stored. `Value` writes
+the canonical text, which PostgreSQL accepts for a `numeric` column and which
+no float parameter could carry losslessly.
+
+`Scan` takes text, bytes and `int64`, and refuses `float64` and `float32`
+outright: a float source has already lost digits by the time it arrives, and
+converting it would undo the reason the kind exists. With pgx that means the
+numeric codec must deliver text; a `pgtype.Numeric` source needs a helper of
+its own, which belongs with the bases rather than in generated code.
+
+A bound is written as a decimal literal — `min=0 max=1` — parsed once at
+generate time into a package-level `decimal.MustParse` variable, so the
+constructor compares and never parses. `min=0.5` is a rate and a generate-time
+error on an `int`. `scale=N` rejects a value carrying more decimal places than
+`N`; it never rounds one, because how to round is a decision the domain makes
+and not the constructor.
 
 **Identifiers.** `uuid7` is the default because time-ordered identifiers keep
 an index from fragmenting; `uuid4` is there for values that must not leak a

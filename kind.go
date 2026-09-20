@@ -20,15 +20,21 @@ const (
 	Enum
 	// ID is a UUID-backed identifier value object.
 	ID
+	// Decimal is a value object wrapping one exact base-10 number, held as a
+	// github.com/govalues/decimal Decimal. It is the kind for a rate, a
+	// percentage or a quantity measured in fractional units, none of which a
+	// binary float can represent without losing the value someone typed.
+	Decimal
 )
 
 // kindNames maps a Kind to its directive spelling. The slice index is the Kind
 // value, so it doubles as the set of known kinds.
 var kindNames = [...]string{
-	String: "string",
-	Int:    "int",
-	Enum:   "enum",
-	ID:     "id",
+	String:  "string",
+	Int:     "int",
+	Enum:    "enum",
+	ID:      "id",
+	Decimal: "decimal",
 }
 
 // String returns the directive spelling of the kind, or a Kind(<n>) placeholder

@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/govalues/decimal"
+
 	"github.com/MathiasHilgert/vogue"
 	"github.com/MathiasHilgert/vogue/parse"
 )
@@ -54,11 +56,22 @@ type testView struct {
 	// Skip carries the reason the constructor cannot be exercised, which is
 	// what the generated test skips with. It is empty when a sample was found.
 	Skip string
-	// InType is the Go type the constructor takes, "string" or "int64", and
-	// Accessor the method that reads the value back.
+	// InType is the Go type the table feeds [testView.Ctor], and Accessor the
+	// method that reads the value back.
 	InType, Accessor string
-	// HasParse marks a kind that also exposes Parse<Name>.
-	HasParse bool
+	// Ctor is the constructor the table drives. It is New<Name> for every kind
+	// whose constructor takes a Go literal the table can write; the decimal
+	// kind takes a decimal.Decimal, which no literal can spell, so its table
+	// is written in the text its Parse<Name> reads.
+	Ctor string
+	// HasParse marks a kind that also exposes Parse<Name>, ParseRule the rule
+	// its failures are reported under and ParseNote how the generated subtest
+	// names an input it cannot read.
+	HasParse             bool
+	ParseRule, ParseNote string
+	// RefusesFloat marks a kind whose Scan refuses a binary float outright,
+	// which is a promise worth a test of its own.
+	RefusesFloat bool
 	// Cases are the constructor rows, the accepted sample first.
 	Cases []caseView
 	// ValidLit is the literal of the accepted sample and ValidRaw its textual
@@ -153,7 +166,7 @@ func testImports(body []byte) (*importSet, error) {
 // newTestView builds the test data of one directive and names the template
 // that renders it.
 func newTestView(d parse.Directive) (testView, string, error) {
-	v := testView{Name: d.Name, Recv: receiver(d.Name), Field: d.Field}
+	v := testView{Name: d.Name, Recv: receiver(d.Name), Field: d.Field, Ctor: "New" + d.Name}
 
 	switch d.Kind {
 	case vogue.String:
@@ -163,6 +176,14 @@ func newTestView(d parse.Directive) (testView, string, error) {
 
 	case vogue.Int:
 		v.InType, v.Accessor, v.HasParse = "int64", "Int64", true
+		v.ParseRule, v.ParseNote = "int", "is not a whole number"
+		fillScalar(&v, d)
+		return v, "test_scalar", nil
+
+	case vogue.Decimal:
+		v.InType, v.Accessor, v.HasParse = "string", "String", true
+		v.Ctor, v.ParseRule, v.ParseNote = "Parse"+d.Name, "decimal", "is not an exact decimal number"
+		v.RefusesFloat = true
 		fillScalar(&v, d)
 		return v, "test_scalar", nil
 
@@ -193,7 +214,11 @@ func newTestView(d parse.Directive) (testView, string, error) {
 // fillScalar derives the table of a string or int constructor from the
 // examples the rules of the directive declare.
 func fillScalar(v *testView, d parse.Directive) {
-	v.AssertEqual = true
+	// A decimal row is written as text and read back as text, and the two need
+	// not match: "+1" and "1" are the same number, and only the second is what
+	// String reports. Asserting the value came through unchanged is therefore
+	// something only the kinds with one spelling per value can promise.
+	v.AssertEqual = d.Kind != vogue.Decimal
 	rejected := rejections(d)
 	for _, use := range d.Rules {
 		if use.Rule.Normalize {
@@ -303,13 +328,18 @@ func acceptedSample(d parse.Directive, rejected []rejection) (lit, raw string) {
 }
 
 // isZeroLiteral reports whether the example is the zero value of its kind: the
-// empty string, or the integer zero however it was spelled.
+// empty string, or the number zero however it was spelled.
 func isZeroLiteral(kind vogue.Kind, in string) bool {
-	if kind != vogue.Int {
+	switch kind {
+	case vogue.Int:
+		n, err := strconv.ParseInt(in, 10, 64)
+		return err == nil && n == 0
+	case vogue.Decimal:
+		d, err := decimal.Parse(in)
+		return err == nil && d.IsZero()
+	default:
 		return in == ""
 	}
-	n, err := strconv.ParseInt(in, 10, 64)
-	return err == nil && n == 0
 }
 
 // accepted reports whether the checks of the directive are known to accept a
@@ -378,11 +408,21 @@ func normalizations(d parse.Directive, use parse.RuleUse, rejected []rejection) 
 // takes, reporting whether the kind can express it at all: an integer value
 // object cannot be handed the example of a rule written for strings.
 func literal(kind vogue.Kind, in string) (string, bool) {
-	if kind != vogue.Int {
+	switch kind {
+	case vogue.Int:
+		if _, err := strconv.ParseInt(in, 10, 64); err != nil {
+			return "", false
+		}
+		return in, true
+	case vogue.Decimal:
+		// A decimal table is written in text, so the literal is the example
+		// itself — but only when it is a decimal at all, which is what keeps a
+		// string rule's example out of a decimal table.
+		if _, err := decimal.Parse(in); err != nil {
+			return "", false
+		}
+		return strconv.Quote(in), true
+	default:
 		return strconv.Quote(in), true
 	}
-	if _, err := strconv.ParseInt(in, 10, 64); err != nil {
-		return "", false
-	}
-	return in, true
 }

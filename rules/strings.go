@@ -35,27 +35,34 @@ var Required = vogue.Rule{
 // an integer.
 var Min = vogue.Rule{
 	Name:  "min",
-	Kinds: vogue.Kinds(vogue.String, vogue.Int),
+	Kinds: vogue.Kinds(vogue.String, vogue.Int, vogue.Decimal),
 	Doc: "Rejects values below the bound. On a string the bound is a count of runes, not of " +
 		"bytes, so `min=3` accepts \"añó\": it counts what a person filling in the form counts. " +
-		"On an integer it is the value itself, and the bound is inclusive on both kinds. Place it " +
-		"after any normalizer, so the bound is measured on the value that will actually be stored.",
-	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamInt},
+		"On an integer and on a decimal it is the value itself, and the bound is inclusive on " +
+		"every kind. The bound is written the way the kind is read, so `min=0.5` is a rate and a " +
+		"generate-time error on an integer. Place it after any normalizer, so the bound is " +
+		"measured on the value that will actually be stored.",
+	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamNumber},
 	Message: "{{.Field}} must be at least {{.Param}}",
-	Imports: []string{importUTF8},
+	Imports: []string{importUTF8, importDecimal},
 	Emit:    func(c vogue.EmitContext) string { return compare(c, ">=") },
+	Declare: declareBound,
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{Kinds: str, Param: "1", In: "a", Note: "a single rune meets a bound of one"},
 			{Kinds: str, Param: "3", In: "añó", Note: "three accented runes, six bytes, count as three"},
 			{Kinds: intK, Param: "1", In: "1", Note: "the bound itself is accepted"},
 			{Kinds: intK, Param: "1", In: "42", Note: "a table well above the bound"},
+			{Kinds: decK, Param: "0", In: "0.5", Note: "half a unit is above a floor of nothing"},
+			{Kinds: decK, Param: "0", In: "0", Note: "the bound itself is accepted"},
 		},
 		Invalid: []vogue.Example{
 			{Kinds: str, Param: "1", In: "", Note: "the empty string is shorter than one rune"},
 			{Kinds: str, Param: "3", In: "ab", Note: "two runes fall short of three"},
 			{Kinds: intK, Param: "1", In: "0", Note: "a table with nobody at it"},
 			{Kinds: intK, Param: "1", In: "-5", Note: "a negative count is below any positive bound"},
+			{Kinds: decK, Param: "0", In: "-0.25", Note: "a quarter below a floor of nothing"},
+			{Kinds: decK, Param: "0", In: "-1", Note: "a whole unit below the floor"},
 		},
 	},
 }
@@ -63,27 +70,34 @@ var Min = vogue.Rule{
 // Max bounds a value from above and is the counterpart of [Min].
 var Max = vogue.Rule{
 	Name:  "max",
-	Kinds: vogue.Kinds(vogue.String, vogue.Int),
+	Kinds: vogue.Kinds(vogue.String, vogue.Int, vogue.Decimal),
 	Doc: "Rejects values above the bound, counting runes on a string and the value itself on an " +
-		"integer, inclusive on both. Because it counts runes, a column declared varchar(120) is " +
-		"better guarded by a `max` on the byte length of its widest expected encoding; `max=120` " +
-		"here means 120 characters as a person counts them, which is what a form should say.",
-	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamInt},
+		"integer or a decimal, inclusive on every kind. Because it counts runes, a column " +
+		"declared varchar(120) is better guarded by a `max` on the byte length of its widest " +
+		"expected encoding; `max=120` here means 120 characters as a person counts them, which " +
+		"is what a form should say. On a decimal it is the ceiling of a rate: `max=1` is a share " +
+		"that cannot exceed the whole.",
+	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamNumber},
 	Message: "{{.Field}} must be at most {{.Param}}",
-	Imports: []string{importUTF8},
+	Imports: []string{importUTF8, importDecimal},
 	Emit:    func(c vogue.EmitContext) string { return compare(c, "<=") },
+	Declare: declareBound,
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{Kinds: str, Param: "4", In: "abcd", Note: "the bound itself is accepted"},
 			{Kinds: str, Param: "4", In: "", Note: "the empty string is under every bound"},
 			{Kinds: intK, Param: "200", In: "200", Note: "a full house is still a house"},
 			{Kinds: intK, Param: "200", In: "-1", Note: "a negative value is under every positive bound"},
+			{Kinds: decK, Param: "1", In: "1", Note: "a share of the whole bill is the ceiling"},
+			{Kinds: decK, Param: "1", In: "0.25", Note: "a quarter is well under the ceiling"},
 		},
 		Invalid: []vogue.Example{
 			{Kinds: str, Param: "4", In: "abcde", Note: "one rune more than the bound holds"},
 			{Kinds: str, Param: "4", In: "añóra", Note: "five accented runes are five, not ten"},
 			{Kinds: intK, Param: "200", In: "201", Note: "one guest more than the room holds"},
 			{Kinds: intK, Param: "200", In: "1000", Note: "a value far above the bound"},
+			{Kinds: decK, Param: "1", In: "1.5", Note: "half again more than the whole"},
+			{Kinds: decK, Param: "1", In: "2", Note: "twice the whole bill"},
 		},
 	},
 }

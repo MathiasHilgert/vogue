@@ -28,7 +28,7 @@ func TestNew{{$n}}(t *testing.T) {
 			t.Parallel()
 
 			// Act
-			got, err := New{{$n}}(tc.in)
+			got, err := {{.Ctor}}(tc.in)
 
 			// Assert
 			if len(tc.wantRules) == 0 {
@@ -67,7 +67,7 @@ func TestNew{{$n}}_Normalizes(t *testing.T) {
 			t.Parallel()
 
 			// Act
-			got, err := New{{$n}}(tc.in)
+			got, err := {{.Ctor}}(tc.in)
 
 			// Assert
 			require.NoError(t, err)
@@ -83,7 +83,7 @@ func Test{{$n}}_TextRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	want, err := New{{$n}}({{.ValidLit}})
+	want, err := {{.Ctor}}({{.ValidLit}})
 	require.NoError(t, err)
 
 	// Act
@@ -103,7 +103,7 @@ func Test{{$n}}_SQLRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	want, err := New{{$n}}({{.ValidLit}})
+	want, err := {{.Ctor}}({{.ValidLit}})
 	require.NoError(t, err)
 
 	// Act
@@ -150,7 +150,22 @@ func Test{{$n}}_Scan(t *testing.T) {
 		assert.True(t, got.IsZero())
 	})
 {{end}}
-	t.Run("an unsupported source is refused", func(t *testing.T) {
+{{if .RefusesFloat}}	t.Run("a binary float source is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got {{$n}}
+
+		// Act
+		err := got.Scan(1.5)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "binary float")
+		assert.True(t, got.IsZero())
+	})
+
+{{end}}	t.Run("an unsupported source is refused", func(t *testing.T) {
 		t.Parallel()
 
 		// Arrange
@@ -173,7 +188,7 @@ func TestParse{{$n}}(t *testing.T) {
 		t.Parallel()
 
 		// Arrange
-		want, err := New{{$n}}({{.ValidLit}})
+		want, err := {{.Ctor}}({{.ValidLit}})
 		require.NoError(t, err)
 
 		// Act
@@ -184,7 +199,7 @@ func TestParse{{$n}}(t *testing.T) {
 		assert.True(t, want.Equal(got))
 	})
 
-	t.Run("rejects a representation that is not a whole number", func(t *testing.T) {
+	t.Run("rejects a representation that {{.ParseNote}}", func(t *testing.T) {
 		t.Parallel()
 
 		// Act
@@ -192,7 +207,7 @@ func TestParse{{$n}}(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: {{q .Field}}, Rule: "int"})
+		assert.ErrorIs(t, err, vogue.FieldError{Field: {{q .Field}}, Rule: {{q .ParseRule}}})
 		assert.True(t, got.IsZero())
 	})
 }
@@ -203,7 +218,7 @@ func Test{{$n}}_IsZero(t *testing.T) {
 
 	// Arrange
 	var zero {{$n}}
-	built, err := New{{$n}}({{.ValidLit}})
+	built, err := {{.Ctor}}({{.ValidLit}})
 	require.NoError(t, err)
 
 	// Act & Assert

@@ -32,9 +32,9 @@ func TestAll(t *testing.T) {
 		// Arrange
 		want := []string{
 			"alpha", "alphanum", "ascii", "contains", "email", "excludes", "len",
-			"lower", "max", "min", "multipleof", "nonneg", "nospace", "numeric",
-			"oneof", "positive", "prefix", "printable", "regex", "required",
-			"squish", "suffix", "trim", "upper", "url", "uuid",
+			"lower", "max", "min", "multipleof", "nonneg", "nonzero", "nospace",
+			"numeric", "oneof", "positive", "prefix", "printable", "regex",
+			"required", "scale", "squish", "suffix", "trim", "upper", "url", "uuid",
 		}
 
 		// Act

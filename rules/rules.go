@@ -34,9 +34,24 @@
 //
 // # Kinds
 //
-// [Min], [Max] and [OneOf] apply to both the string and the int kind and emit
-// the comparison each one needs: a rune count for a string, the value itself
-// for an integer. The rest are scoped to the one kind they make sense for.
+// [Min] and [Max] apply to the string, int and decimal kinds and emit the
+// comparison each one needs: a rune count for a string, the value itself for
+// an integer, a Cmp against a once-parsed bound for a decimal. [OneOf] spans
+// string and int only, because exact equality against a written list is not a
+// question a value carrying a scale answers well — 0.5 and 0.50 are the same
+// number and only one of them is in the list. [Positive] and [NonNeg] read the
+// sign of an int or a decimal. The rest are scoped to the one kind they make
+// sense for.
+//
+// # Decimals
+//
+// The decimal kind is for exact non-integer values — rates, percentages,
+// quantities in fractional units — held as a github.com/govalues/decimal
+// value, never as a binary float. Besides the bounds and the sign rules it has
+// [Scale], which bounds how many decimal places a value carries, and
+// [NonZero]. A bound is written as a decimal literal and parsed at generate
+// time, so `min=0.5` is a bound on a rate and a rejected directive on an
+// integer.
 package rules
 
 import (
@@ -78,10 +93,14 @@ func All() []vogue.Rule {
 		Contains,
 		Excludes,
 
-		// Integer checks.
+		// Number checks.
 		Positive,
 		NonNeg,
 		MultipleOf,
+
+		// Decimal checks.
+		Scale,
+		NonZero,
 	}
 }
 

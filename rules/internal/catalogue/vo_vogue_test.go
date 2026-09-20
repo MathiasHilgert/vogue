@@ -4615,3 +4615,1331 @@ func TestSlotMinutes_IsZero(t *testing.T) {
 	assert.False(t, built.IsZero())
 	assert.False(t, zero.Equal(built))
 }
+
+// TestNewMinRate exercises the constructor against the examples the rules of
+// the directive declare: one accepted input, and one row per rejected input
+// naming every rule that rejects it.
+func TestNewMinRate(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	cases := []struct {
+		name      string
+		in        string
+		wantRules []string
+	}{
+		{name: "accepts \"0.5\"", in: "0.5"},
+		{name: "rejects a quarter below a floor of nothing", in: "-0.25", wantRules: []string{"min"}},
+		{name: "rejects a whole unit below the floor", in: "-1", wantRules: []string{"min"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			got, err := ParseMinRate(tc.in)
+
+			// Assert
+			if len(tc.wantRules) == 0 {
+				require.NoError(t, err)
+				assert.False(t, got.IsZero())
+				return
+			}
+			require.Error(t, err)
+			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
+			for _, rule := range tc.wantRules {
+				assert.ErrorIs(t, err, vogue.FieldError{Field: "minRate", Rule: rule},
+					"the %q rule was expected to reject the input", rule)
+			}
+		})
+	}
+}
+
+// TestMinRate_TextRoundTrip proves a marshalled value object unmarshals back to
+// an equal one, which is what a JSON boundary does to it.
+func TestMinRate_TextRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	want, err := ParseMinRate("0.5")
+	require.NoError(t, err)
+
+	// Act
+	text, err := want.MarshalText()
+	require.NoError(t, err)
+
+	var got MinRate
+	err = got.UnmarshalText(text)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, want.Equal(got), "%s did not survive the text round trip", want.String())
+}
+
+// TestMinRate_SQLRoundTrip proves a stored value object reads back equal.
+func TestMinRate_SQLRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	want, err := ParseMinRate("0.5")
+	require.NoError(t, err)
+
+	// Act
+	stored, err := want.Value()
+	require.NoError(t, err)
+
+	var got MinRate
+	err = got.Scan(stored)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, want.Equal(got), "%s did not survive the SQL round trip", want.String())
+}
+
+// TestMinRate_Scan covers the sources Scan accepts and the ones it refuses.
+func TestMinRate_Scan(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a NULL column produces the zero value", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got MinRate
+
+		// Act
+		err := got.Scan(nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("a stored value the rules reject is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got MinRate
+
+		// Act
+		err := got.Scan("-0.25")
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("a binary float source is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got MinRate
+
+		// Act
+		err := got.Scan(1.5)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "binary float")
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("an unsupported source is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got MinRate
+
+		// Act
+		err := got.Scan(struct{}{})
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot scan")
+	})
+}
+
+// TestParseMinRate covers the textual entry point of the value object.
+func TestParseMinRate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("reads a valid representation", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		want, err := ParseMinRate("0.5")
+		require.NoError(t, err)
+
+		// Act
+		got, err := ParseMinRate("0.5")
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, want.Equal(got))
+	})
+
+	t.Run("rejects a representation that is not an exact decimal number", func(t *testing.T) {
+		t.Parallel()
+
+		// Act
+		got, err := ParseMinRate("not-a-number")
+
+		// Assert
+		require.Error(t, err)
+		assert.ErrorIs(t, err, vogue.FieldError{Field: "minRate", Rule: "decimal"})
+		assert.True(t, got.IsZero())
+	})
+}
+
+// TestMinRate_IsZero separates the zero value from a validated one.
+func TestMinRate_IsZero(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	var zero MinRate
+	built, err := ParseMinRate("0.5")
+	require.NoError(t, err)
+
+	// Act & Assert
+	assert.True(t, zero.IsZero())
+	assert.False(t, built.IsZero())
+	assert.False(t, zero.Equal(built))
+}
+
+// TestNewMaxRate exercises the constructor against the examples the rules of
+// the directive declare: one accepted input, and one row per rejected input
+// naming every rule that rejects it.
+func TestNewMaxRate(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	cases := []struct {
+		name      string
+		in        string
+		wantRules []string
+	}{
+		{name: "accepts \"1\"", in: "1"},
+		{name: "rejects half again more than the whole", in: "1.5", wantRules: []string{"max"}},
+		{name: "rejects twice the whole bill", in: "2", wantRules: []string{"max"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			got, err := ParseMaxRate(tc.in)
+
+			// Assert
+			if len(tc.wantRules) == 0 {
+				require.NoError(t, err)
+				assert.False(t, got.IsZero())
+				return
+			}
+			require.Error(t, err)
+			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
+			for _, rule := range tc.wantRules {
+				assert.ErrorIs(t, err, vogue.FieldError{Field: "maxRate", Rule: rule},
+					"the %q rule was expected to reject the input", rule)
+			}
+		})
+	}
+}
+
+// TestMaxRate_TextRoundTrip proves a marshalled value object unmarshals back to
+// an equal one, which is what a JSON boundary does to it.
+func TestMaxRate_TextRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	want, err := ParseMaxRate("1")
+	require.NoError(t, err)
+
+	// Act
+	text, err := want.MarshalText()
+	require.NoError(t, err)
+
+	var got MaxRate
+	err = got.UnmarshalText(text)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, want.Equal(got), "%s did not survive the text round trip", want.String())
+}
+
+// TestMaxRate_SQLRoundTrip proves a stored value object reads back equal.
+func TestMaxRate_SQLRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	want, err := ParseMaxRate("1")
+	require.NoError(t, err)
+
+	// Act
+	stored, err := want.Value()
+	require.NoError(t, err)
+
+	var got MaxRate
+	err = got.Scan(stored)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, want.Equal(got), "%s did not survive the SQL round trip", want.String())
+}
+
+// TestMaxRate_Scan covers the sources Scan accepts and the ones it refuses.
+func TestMaxRate_Scan(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a NULL column produces the zero value", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got MaxRate
+
+		// Act
+		err := got.Scan(nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("a stored value the rules reject is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got MaxRate
+
+		// Act
+		err := got.Scan("1.5")
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("a binary float source is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got MaxRate
+
+		// Act
+		err := got.Scan(1.5)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "binary float")
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("an unsupported source is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got MaxRate
+
+		// Act
+		err := got.Scan(struct{}{})
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot scan")
+	})
+}
+
+// TestParseMaxRate covers the textual entry point of the value object.
+func TestParseMaxRate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("reads a valid representation", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		want, err := ParseMaxRate("1")
+		require.NoError(t, err)
+
+		// Act
+		got, err := ParseMaxRate("1")
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, want.Equal(got))
+	})
+
+	t.Run("rejects a representation that is not an exact decimal number", func(t *testing.T) {
+		t.Parallel()
+
+		// Act
+		got, err := ParseMaxRate("not-a-number")
+
+		// Assert
+		require.Error(t, err)
+		assert.ErrorIs(t, err, vogue.FieldError{Field: "maxRate", Rule: "decimal"})
+		assert.True(t, got.IsZero())
+	})
+}
+
+// TestMaxRate_IsZero separates the zero value from a validated one.
+func TestMaxRate_IsZero(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	var zero MaxRate
+	built, err := ParseMaxRate("1")
+	require.NoError(t, err)
+
+	// Act & Assert
+	assert.True(t, zero.IsZero())
+	assert.False(t, built.IsZero())
+	assert.False(t, zero.Equal(built))
+}
+
+// TestNewUnitWeight exercises the constructor against the examples the rules of
+// the directive declare: one accepted input, and one row per rejected input
+// naming every rule that rejects it.
+func TestNewUnitWeight(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	cases := []struct {
+		name      string
+		in        string
+		wantRules []string
+	}{
+		{name: "accepts \"1.5\"", in: "1.5"},
+		{name: "rejects zero written at three decimal places is still zero", in: "0.000", wantRules: []string{"positive"}},
+		{name: "rejects half a unit less than nothing", in: "-0.5", wantRules: []string{"positive"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			got, err := ParseUnitWeight(tc.in)
+
+			// Assert
+			if len(tc.wantRules) == 0 {
+				require.NoError(t, err)
+				assert.False(t, got.IsZero())
+				return
+			}
+			require.Error(t, err)
+			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
+			for _, rule := range tc.wantRules {
+				assert.ErrorIs(t, err, vogue.FieldError{Field: "unitWeight", Rule: rule},
+					"the %q rule was expected to reject the input", rule)
+			}
+		})
+	}
+}
+
+// TestUnitWeight_TextRoundTrip proves a marshalled value object unmarshals back to
+// an equal one, which is what a JSON boundary does to it.
+func TestUnitWeight_TextRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	want, err := ParseUnitWeight("1.5")
+	require.NoError(t, err)
+
+	// Act
+	text, err := want.MarshalText()
+	require.NoError(t, err)
+
+	var got UnitWeight
+	err = got.UnmarshalText(text)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, want.Equal(got), "%s did not survive the text round trip", want.String())
+}
+
+// TestUnitWeight_SQLRoundTrip proves a stored value object reads back equal.
+func TestUnitWeight_SQLRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	want, err := ParseUnitWeight("1.5")
+	require.NoError(t, err)
+
+	// Act
+	stored, err := want.Value()
+	require.NoError(t, err)
+
+	var got UnitWeight
+	err = got.Scan(stored)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, want.Equal(got), "%s did not survive the SQL round trip", want.String())
+}
+
+// TestUnitWeight_Scan covers the sources Scan accepts and the ones it refuses.
+func TestUnitWeight_Scan(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a NULL column produces the zero value", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got UnitWeight
+
+		// Act
+		err := got.Scan(nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("a stored value the rules reject is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got UnitWeight
+
+		// Act
+		err := got.Scan("0.000")
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("a binary float source is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got UnitWeight
+
+		// Act
+		err := got.Scan(1.5)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "binary float")
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("an unsupported source is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got UnitWeight
+
+		// Act
+		err := got.Scan(struct{}{})
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot scan")
+	})
+}
+
+// TestParseUnitWeight covers the textual entry point of the value object.
+func TestParseUnitWeight(t *testing.T) {
+	t.Parallel()
+
+	t.Run("reads a valid representation", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		want, err := ParseUnitWeight("1.5")
+		require.NoError(t, err)
+
+		// Act
+		got, err := ParseUnitWeight("1.5")
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, want.Equal(got))
+	})
+
+	t.Run("rejects a representation that is not an exact decimal number", func(t *testing.T) {
+		t.Parallel()
+
+		// Act
+		got, err := ParseUnitWeight("not-a-number")
+
+		// Assert
+		require.Error(t, err)
+		assert.ErrorIs(t, err, vogue.FieldError{Field: "unitWeight", Rule: "decimal"})
+		assert.True(t, got.IsZero())
+	})
+}
+
+// TestUnitWeight_IsZero separates the zero value from a validated one.
+func TestUnitWeight_IsZero(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	var zero UnitWeight
+	built, err := ParseUnitWeight("1.5")
+	require.NoError(t, err)
+
+	// Act & Assert
+	assert.True(t, zero.IsZero())
+	assert.False(t, built.IsZero())
+	assert.False(t, zero.Equal(built))
+}
+
+// TestNewShelfWeight exercises the constructor against the examples the rules of
+// the directive declare: one accepted input, and one row per rejected input
+// naming every rule that rejects it.
+func TestNewShelfWeight(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	cases := []struct {
+		name      string
+		in        string
+		wantRules []string
+	}{
+		{name: "accepts \"12.750\"", in: "12.750"},
+		{name: "rejects a hundredth below the floor", in: "-0.01", wantRules: []string{"nonneg"}},
+		{name: "rejects a quantity nobody can have", in: "-100", wantRules: []string{"nonneg"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			got, err := ParseShelfWeight(tc.in)
+
+			// Assert
+			if len(tc.wantRules) == 0 {
+				require.NoError(t, err)
+				assert.False(t, got.IsZero())
+				return
+			}
+			require.Error(t, err)
+			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
+			for _, rule := range tc.wantRules {
+				assert.ErrorIs(t, err, vogue.FieldError{Field: "shelfWeight", Rule: rule},
+					"the %q rule was expected to reject the input", rule)
+			}
+		})
+	}
+}
+
+// TestShelfWeight_TextRoundTrip proves a marshalled value object unmarshals back to
+// an equal one, which is what a JSON boundary does to it.
+func TestShelfWeight_TextRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	want, err := ParseShelfWeight("12.750")
+	require.NoError(t, err)
+
+	// Act
+	text, err := want.MarshalText()
+	require.NoError(t, err)
+
+	var got ShelfWeight
+	err = got.UnmarshalText(text)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, want.Equal(got), "%s did not survive the text round trip", want.String())
+}
+
+// TestShelfWeight_SQLRoundTrip proves a stored value object reads back equal.
+func TestShelfWeight_SQLRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	want, err := ParseShelfWeight("12.750")
+	require.NoError(t, err)
+
+	// Act
+	stored, err := want.Value()
+	require.NoError(t, err)
+
+	var got ShelfWeight
+	err = got.Scan(stored)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, want.Equal(got), "%s did not survive the SQL round trip", want.String())
+}
+
+// TestShelfWeight_Scan covers the sources Scan accepts and the ones it refuses.
+func TestShelfWeight_Scan(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a NULL column produces the zero value", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got ShelfWeight
+
+		// Act
+		err := got.Scan(nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("a stored value the rules reject is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got ShelfWeight
+
+		// Act
+		err := got.Scan("-0.01")
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("a binary float source is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got ShelfWeight
+
+		// Act
+		err := got.Scan(1.5)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "binary float")
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("an unsupported source is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got ShelfWeight
+
+		// Act
+		err := got.Scan(struct{}{})
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot scan")
+	})
+}
+
+// TestParseShelfWeight covers the textual entry point of the value object.
+func TestParseShelfWeight(t *testing.T) {
+	t.Parallel()
+
+	t.Run("reads a valid representation", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		want, err := ParseShelfWeight("12.750")
+		require.NoError(t, err)
+
+		// Act
+		got, err := ParseShelfWeight("12.750")
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, want.Equal(got))
+	})
+
+	t.Run("rejects a representation that is not an exact decimal number", func(t *testing.T) {
+		t.Parallel()
+
+		// Act
+		got, err := ParseShelfWeight("not-a-number")
+
+		// Assert
+		require.Error(t, err)
+		assert.ErrorIs(t, err, vogue.FieldError{Field: "shelfWeight", Rule: "decimal"})
+		assert.True(t, got.IsZero())
+	})
+}
+
+// TestShelfWeight_IsZero separates the zero value from a validated one.
+func TestShelfWeight_IsZero(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	var zero ShelfWeight
+	built, err := ParseShelfWeight("12.750")
+	require.NoError(t, err)
+
+	// Act & Assert
+	assert.True(t, zero.IsZero())
+	assert.False(t, built.IsZero())
+	assert.False(t, zero.Equal(built))
+}
+
+// TestNewTaxRate exercises the constructor against the examples the rules of
+// the directive declare: one accepted input, and one row per rejected input
+// naming every rule that rejects it.
+func TestNewTaxRate(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	cases := []struct {
+		name      string
+		in        string
+		wantRules []string
+	}{
+		{name: "accepts \"0.1234\"", in: "0.1234"},
+		{name: "rejects one decimal place more than the column holds", in: "0.12345", wantRules: []string{"scale"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			got, err := ParseTaxRate(tc.in)
+
+			// Assert
+			if len(tc.wantRules) == 0 {
+				require.NoError(t, err)
+				assert.False(t, got.IsZero())
+				return
+			}
+			require.Error(t, err)
+			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
+			for _, rule := range tc.wantRules {
+				assert.ErrorIs(t, err, vogue.FieldError{Field: "taxRate", Rule: rule},
+					"the %q rule was expected to reject the input", rule)
+			}
+		})
+	}
+}
+
+// TestTaxRate_TextRoundTrip proves a marshalled value object unmarshals back to
+// an equal one, which is what a JSON boundary does to it.
+func TestTaxRate_TextRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	want, err := ParseTaxRate("0.1234")
+	require.NoError(t, err)
+
+	// Act
+	text, err := want.MarshalText()
+	require.NoError(t, err)
+
+	var got TaxRate
+	err = got.UnmarshalText(text)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, want.Equal(got), "%s did not survive the text round trip", want.String())
+}
+
+// TestTaxRate_SQLRoundTrip proves a stored value object reads back equal.
+func TestTaxRate_SQLRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	want, err := ParseTaxRate("0.1234")
+	require.NoError(t, err)
+
+	// Act
+	stored, err := want.Value()
+	require.NoError(t, err)
+
+	var got TaxRate
+	err = got.Scan(stored)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, want.Equal(got), "%s did not survive the SQL round trip", want.String())
+}
+
+// TestTaxRate_Scan covers the sources Scan accepts and the ones it refuses.
+func TestTaxRate_Scan(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a NULL column produces the zero value", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got TaxRate
+
+		// Act
+		err := got.Scan(nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("a stored value the rules reject is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got TaxRate
+
+		// Act
+		err := got.Scan("0.12345")
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("a binary float source is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got TaxRate
+
+		// Act
+		err := got.Scan(1.5)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "binary float")
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("an unsupported source is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got TaxRate
+
+		// Act
+		err := got.Scan(struct{}{})
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot scan")
+	})
+}
+
+// TestParseTaxRate covers the textual entry point of the value object.
+func TestParseTaxRate(t *testing.T) {
+	t.Parallel()
+
+	t.Run("reads a valid representation", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		want, err := ParseTaxRate("0.1234")
+		require.NoError(t, err)
+
+		// Act
+		got, err := ParseTaxRate("0.1234")
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, want.Equal(got))
+	})
+
+	t.Run("rejects a representation that is not an exact decimal number", func(t *testing.T) {
+		t.Parallel()
+
+		// Act
+		got, err := ParseTaxRate("not-a-number")
+
+		// Assert
+		require.Error(t, err)
+		assert.ErrorIs(t, err, vogue.FieldError{Field: "taxRate", Rule: "decimal"})
+		assert.True(t, got.IsZero())
+	})
+}
+
+// TestTaxRate_IsZero separates the zero value from a validated one.
+func TestTaxRate_IsZero(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	var zero TaxRate
+	built, err := ParseTaxRate("0.1234")
+	require.NoError(t, err)
+
+	// Act & Assert
+	assert.True(t, zero.IsZero())
+	assert.False(t, built.IsZero())
+	assert.False(t, zero.Equal(built))
+}
+
+// TestNewPreciseWeight exercises the constructor against the examples the rules of
+// the directive declare: one accepted input, and one row per rejected input
+// naming every rule that rejects it.
+func TestNewPreciseWeight(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	cases := []struct {
+		name      string
+		in        string
+		wantRules []string
+	}{
+		{name: "accepts \"1.5\"", in: "1.5"},
+		{name: "rejects a weight measured finer than the scale reads", in: "0.1234", wantRules: []string{"scale"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			got, err := ParsePreciseWeight(tc.in)
+
+			// Assert
+			if len(tc.wantRules) == 0 {
+				require.NoError(t, err)
+				assert.False(t, got.IsZero())
+				return
+			}
+			require.Error(t, err)
+			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
+			for _, rule := range tc.wantRules {
+				assert.ErrorIs(t, err, vogue.FieldError{Field: "preciseWeight", Rule: rule},
+					"the %q rule was expected to reject the input", rule)
+			}
+		})
+	}
+}
+
+// TestPreciseWeight_TextRoundTrip proves a marshalled value object unmarshals back to
+// an equal one, which is what a JSON boundary does to it.
+func TestPreciseWeight_TextRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	want, err := ParsePreciseWeight("1.5")
+	require.NoError(t, err)
+
+	// Act
+	text, err := want.MarshalText()
+	require.NoError(t, err)
+
+	var got PreciseWeight
+	err = got.UnmarshalText(text)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, want.Equal(got), "%s did not survive the text round trip", want.String())
+}
+
+// TestPreciseWeight_SQLRoundTrip proves a stored value object reads back equal.
+func TestPreciseWeight_SQLRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	want, err := ParsePreciseWeight("1.5")
+	require.NoError(t, err)
+
+	// Act
+	stored, err := want.Value()
+	require.NoError(t, err)
+
+	var got PreciseWeight
+	err = got.Scan(stored)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, want.Equal(got), "%s did not survive the SQL round trip", want.String())
+}
+
+// TestPreciseWeight_Scan covers the sources Scan accepts and the ones it refuses.
+func TestPreciseWeight_Scan(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a NULL column produces the zero value", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got PreciseWeight
+
+		// Act
+		err := got.Scan(nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("a stored value the rules reject is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got PreciseWeight
+
+		// Act
+		err := got.Scan("0.1234")
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("a binary float source is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got PreciseWeight
+
+		// Act
+		err := got.Scan(1.5)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "binary float")
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("an unsupported source is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got PreciseWeight
+
+		// Act
+		err := got.Scan(struct{}{})
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot scan")
+	})
+}
+
+// TestParsePreciseWeight covers the textual entry point of the value object.
+func TestParsePreciseWeight(t *testing.T) {
+	t.Parallel()
+
+	t.Run("reads a valid representation", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		want, err := ParsePreciseWeight("1.5")
+		require.NoError(t, err)
+
+		// Act
+		got, err := ParsePreciseWeight("1.5")
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, want.Equal(got))
+	})
+
+	t.Run("rejects a representation that is not an exact decimal number", func(t *testing.T) {
+		t.Parallel()
+
+		// Act
+		got, err := ParsePreciseWeight("not-a-number")
+
+		// Assert
+		require.Error(t, err)
+		assert.ErrorIs(t, err, vogue.FieldError{Field: "preciseWeight", Rule: "decimal"})
+		assert.True(t, got.IsZero())
+	})
+}
+
+// TestPreciseWeight_IsZero separates the zero value from a validated one.
+func TestPreciseWeight_IsZero(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	var zero PreciseWeight
+	built, err := ParsePreciseWeight("1.5")
+	require.NoError(t, err)
+
+	// Act & Assert
+	assert.True(t, zero.IsZero())
+	assert.False(t, built.IsZero())
+	assert.False(t, zero.Equal(built))
+}
+
+// TestNewAdjustment exercises the constructor against the examples the rules of
+// the directive declare: one accepted input, and one row per rejected input
+// naming every rule that rejects it.
+func TestNewAdjustment(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	cases := []struct {
+		name      string
+		in        string
+		wantRules []string
+	}{
+		{name: "accepts \"1\"", in: "1"},
+		{name: "rejects nothing to adjust", in: "0", wantRules: []string{"nonzero"}},
+		{name: "rejects nothing, written to the cent", in: "0.00", wantRules: []string{"nonzero"}},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			got, err := ParseAdjustment(tc.in)
+
+			// Assert
+			if len(tc.wantRules) == 0 {
+				require.NoError(t, err)
+				assert.False(t, got.IsZero())
+				return
+			}
+			require.Error(t, err)
+			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
+			for _, rule := range tc.wantRules {
+				assert.ErrorIs(t, err, vogue.FieldError{Field: "adjustment", Rule: rule},
+					"the %q rule was expected to reject the input", rule)
+			}
+		})
+	}
+}
+
+// TestAdjustment_TextRoundTrip proves a marshalled value object unmarshals back to
+// an equal one, which is what a JSON boundary does to it.
+func TestAdjustment_TextRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	want, err := ParseAdjustment("1")
+	require.NoError(t, err)
+
+	// Act
+	text, err := want.MarshalText()
+	require.NoError(t, err)
+
+	var got Adjustment
+	err = got.UnmarshalText(text)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, want.Equal(got), "%s did not survive the text round trip", want.String())
+}
+
+// TestAdjustment_SQLRoundTrip proves a stored value object reads back equal.
+func TestAdjustment_SQLRoundTrip(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	want, err := ParseAdjustment("1")
+	require.NoError(t, err)
+
+	// Act
+	stored, err := want.Value()
+	require.NoError(t, err)
+
+	var got Adjustment
+	err = got.Scan(stored)
+
+	// Assert
+	require.NoError(t, err)
+	assert.True(t, want.Equal(got), "%s did not survive the SQL round trip", want.String())
+}
+
+// TestAdjustment_Scan covers the sources Scan accepts and the ones it refuses.
+func TestAdjustment_Scan(t *testing.T) {
+	t.Parallel()
+
+	t.Run("a NULL column produces the zero value", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got Adjustment
+
+		// Act
+		err := got.Scan(nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("a stored value the rules reject is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got Adjustment
+
+		// Act
+		err := got.Scan("0")
+
+		// Assert
+		require.Error(t, err)
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("a binary float source is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got Adjustment
+
+		// Act
+		err := got.Scan(1.5)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "binary float")
+		assert.True(t, got.IsZero())
+	})
+
+	t.Run("an unsupported source is refused", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var got Adjustment
+
+		// Act
+		err := got.Scan(struct{}{})
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "cannot scan")
+	})
+}
+
+// TestParseAdjustment covers the textual entry point of the value object.
+func TestParseAdjustment(t *testing.T) {
+	t.Parallel()
+
+	t.Run("reads a valid representation", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		want, err := ParseAdjustment("1")
+		require.NoError(t, err)
+
+		// Act
+		got, err := ParseAdjustment("1")
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, want.Equal(got))
+	})
+
+	t.Run("rejects a representation that is not an exact decimal number", func(t *testing.T) {
+		t.Parallel()
+
+		// Act
+		got, err := ParseAdjustment("not-a-number")
+
+		// Assert
+		require.Error(t, err)
+		assert.ErrorIs(t, err, vogue.FieldError{Field: "adjustment", Rule: "decimal"})
+		assert.True(t, got.IsZero())
+	})
+}
+
+// TestAdjustment_IsZero separates the zero value from a validated one.
+func TestAdjustment_IsZero(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	var zero Adjustment
+	built, err := ParseAdjustment("1")
+	require.NoError(t, err)
+
+	// Act & Assert
+	assert.True(t, zero.IsZero())
+	assert.False(t, built.IsZero())
+	assert.False(t, zero.Equal(built))
+}

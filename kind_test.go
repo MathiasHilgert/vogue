@@ -45,7 +45,8 @@ func TestParseKind(t *testing.T) {
 		{name: "int", in: "int", want: vogue.Int},
 		{name: "enum", in: "enum", want: vogue.Enum},
 		{name: "id", in: "id", want: vogue.ID},
-		{name: "unknown", in: "decimal", wantErr: true},
+		{name: "decimal", in: "decimal", want: vogue.Decimal},
+		{name: "unknown", in: "money", wantErr: true},
 		{name: "empty", in: "", wantErr: true},
 		{name: "case sensitive", in: "String", wantErr: true},
 	}

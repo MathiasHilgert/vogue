@@ -24,6 +24,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/govalues/decimal"
+
 	"github.com/MathiasHilgert/vogue"
 )
 
@@ -198,7 +200,7 @@ func (p *collector) directive(comment *ast.Comment, doc string) (Directive, bool
 			return Directive{}, false
 		}
 		d.Values = values
-	case vogue.String, vogue.Int:
+	case vogue.String, vogue.Int, vogue.Decimal:
 		rules, ok := p.ruleUses(pos, kind, tokens)
 		if !ok {
 			return Directive{}, false
@@ -311,7 +313,7 @@ func (p *collector) ruleUses(pos token.Position, kind vogue.Kind, tokens []dtoke
 		}
 		seen[name] = tokPos
 
-		if !p.checkParam(tokPos, rule, param, hasParam) {
+		if !p.checkParam(tokPos, kind, rule, param, hasParam) {
 			ok = false
 			continue
 		}
@@ -322,7 +324,7 @@ func (p *collector) ruleUses(pos token.Position, kind vogue.Kind, tokens []dtoke
 
 // checkParam validates the presence and the syntax of a rule parameter against
 // the rule's declared contract.
-func (p *collector) checkParam(pos token.Position, rule vogue.Rule, param string, hasParam bool) bool {
+func (p *collector) checkParam(pos token.Position, kind vogue.Kind, rule vogue.Rule, param string, hasParam bool) bool {
 	switch rule.Param.Presence {
 	case vogue.ParamNone:
 		if hasParam {
@@ -342,7 +344,7 @@ func (p *collector) checkParam(pos token.Position, rule vogue.Rule, param string
 		}
 	}
 
-	if msg, bad := badParam(rule, param); bad {
+	if msg, bad := badParam(kind, rule, param); bad {
 		p.errs.err(pos, fmt.Sprintf("invalid parameter for rule %q: %s", rule.Name, msg))
 		return false
 	}
@@ -351,8 +353,19 @@ func (p *collector) checkParam(pos token.Position, rule vogue.Rule, param string
 
 // badParam reports why the parameter does not satisfy the rule's parameter
 // type, if it does not.
-func badParam(rule vogue.Rule, param string) (string, bool) {
+//
+// The kind is part of the question because [vogue.ParamNumber] means a
+// different number on each kind: an int64 wherever the generated comparison is
+// an int64 one — the rune count of a string, the value of an integer — and an
+// exact decimal on the decimal kind. That is what keeps `min=0.5` a
+// generate-time error on an int while accepting it on a rate.
+func badParam(kind vogue.Kind, rule vogue.Rule, param string) (string, bool) {
 	switch rule.Param.Type {
+	case vogue.ParamNumber:
+		if kind == vogue.Decimal {
+			return badDecimalParam(param)
+		}
+		fallthrough
 	case vogue.ParamInt:
 		if _, err := strconv.ParseInt(param, 10, 64); err != nil {
 			return fmt.Sprintf("%q is not an integer", param), true
@@ -368,6 +381,29 @@ func badParam(rule vogue.Rule, param string) (string, bool) {
 			return err.Error(), true
 		}
 	case vogue.ParamString:
+	}
+	return "", false
+}
+
+// badDecimalParam reports why a decimal parameter cannot be used as written.
+//
+// [decimal.Parse] rounds a literal carrying more than 19 decimal places
+// instead of refusing it, which would quietly turn a bound into a slightly
+// different bound. A generator that silently moves a boundary is worse than
+// one that complains, so the rounding is detected here and reported. A literal
+// written in exponent notation is exempt, because the digits after its point
+// are not its decimal places.
+func badDecimalParam(param string) (string, bool) {
+	parsed, err := decimal.Parse(param)
+	if err != nil {
+		return fmt.Sprintf("%q is not a decimal number: %v", param, err), true
+	}
+	if strings.ContainsAny(param, "eE") {
+		return "", false
+	}
+	if _, frac, ok := strings.Cut(param, "."); ok && len(frac) > parsed.Scale() {
+		return fmt.Sprintf("%q has more than %d decimal places, which is the most a decimal can hold; "+
+			"write the bound you mean", param, decimal.MaxScale), true
 	}
 	return "", false
 }

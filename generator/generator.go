@@ -17,7 +17,7 @@
 //
 // The pipeline depends on parse, gen and rules, and all three depend on vogue
 // for [vogue.Rule] and friends. Putting Run in vogue itself would close that
-// cycle, so the entry point lives one package down instead. `pkg/vogue` stays
+// cycle, so the entry point lives one package down instead. `vogue` stays
 // the definition of what a rule and an error are; this package is the program
 // that uses them.
 //
