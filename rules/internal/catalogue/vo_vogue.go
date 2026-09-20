@@ -301,6 +301,274 @@ func (u *UpperedName) Scan(src any) error {
 	}
 }
 
+// TrimmedOnly proves what `trim` rewrites.
+type TrimmedOnly struct{ v string }
+
+// NewTrimmedOnly validates raw and returns the TrimmedOnly it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [vogue.FieldError] on a notification. Every
+// failure is collected, so the returned error describes the whole input rather
+// than the first thing that went wrong.
+func NewTrimmedOnly(raw string) (TrimmedOnly, error) {
+	var n vogue.Notification
+	v := raw
+	v = strings.TrimSpace(v)
+
+	if err := n.ErrOrNil(); err != nil {
+		return TrimmedOnly{}, err
+	}
+	return TrimmedOnly{v: v}, nil
+}
+
+// String returns the validated value.
+func (t TrimmedOnly) String() string { return t.v }
+
+// IsZero reports whether the receiver is the zero TrimmedOnly, which is the only
+// TrimmedOnly that never passed validation.
+func (t TrimmedOnly) IsZero() bool { return t.v == "" }
+
+// Equal reports whether both value objects hold the same value.
+func (t TrimmedOnly) Equal(other TrimmedOnly) bool { return t.v == other.v }
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so TrimmedOnly marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func (t TrimmedOnly) MarshalText() ([]byte, error) { return []byte(t.v), nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a TrimmedOnly the constructor would have rejected.
+func (t *TrimmedOnly) UnmarshalText(data []byte) error {
+	parsed, err := NewTrimmedOnly(string(data))
+	if err != nil {
+		return err
+	}
+	*t = parsed
+	return nil
+}
+
+// Value implements driver.Valuer.
+func (t TrimmedOnly) Value() (driver.Value, error) { return t.v, nil }
+
+// Scan implements sql.Scanner for text columns. It re-runs validation, so a
+// row that no longer satisfies the rules surfaces as a vogue error instead of
+// an invalid value object.
+func (t *TrimmedOnly) Scan(src any) error {
+	switch value := src.(type) {
+	case nil:
+		*t = TrimmedOnly{}
+		return nil
+	case string:
+		return t.UnmarshalText([]byte(value))
+	case []byte:
+		return t.UnmarshalText(value)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into TrimmedOnly", src)
+	}
+}
+
+// SquishedOnly proves what `squish` rewrites.
+type SquishedOnly struct{ v string }
+
+// NewSquishedOnly validates raw and returns the SquishedOnly it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [vogue.FieldError] on a notification. Every
+// failure is collected, so the returned error describes the whole input rather
+// than the first thing that went wrong.
+func NewSquishedOnly(raw string) (SquishedOnly, error) {
+	var n vogue.Notification
+	v := raw
+	v = strings.Join(strings.Fields(v), " ")
+
+	if err := n.ErrOrNil(); err != nil {
+		return SquishedOnly{}, err
+	}
+	return SquishedOnly{v: v}, nil
+}
+
+// String returns the validated value.
+func (s SquishedOnly) String() string { return s.v }
+
+// IsZero reports whether the receiver is the zero SquishedOnly, which is the only
+// SquishedOnly that never passed validation.
+func (s SquishedOnly) IsZero() bool { return s.v == "" }
+
+// Equal reports whether both value objects hold the same value.
+func (s SquishedOnly) Equal(other SquishedOnly) bool { return s.v == other.v }
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so SquishedOnly marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func (s SquishedOnly) MarshalText() ([]byte, error) { return []byte(s.v), nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a SquishedOnly the constructor would have rejected.
+func (s *SquishedOnly) UnmarshalText(data []byte) error {
+	parsed, err := NewSquishedOnly(string(data))
+	if err != nil {
+		return err
+	}
+	*s = parsed
+	return nil
+}
+
+// Value implements driver.Valuer.
+func (s SquishedOnly) Value() (driver.Value, error) { return s.v, nil }
+
+// Scan implements sql.Scanner for text columns. It re-runs validation, so a
+// row that no longer satisfies the rules surfaces as a vogue error instead of
+// an invalid value object.
+func (s *SquishedOnly) Scan(src any) error {
+	switch value := src.(type) {
+	case nil:
+		*s = SquishedOnly{}
+		return nil
+	case string:
+		return s.UnmarshalText([]byte(value))
+	case []byte:
+		return s.UnmarshalText(value)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into SquishedOnly", src)
+	}
+}
+
+// LoweredOnly proves what `lower` rewrites.
+type LoweredOnly struct{ v string }
+
+// NewLoweredOnly validates raw and returns the LoweredOnly it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [vogue.FieldError] on a notification. Every
+// failure is collected, so the returned error describes the whole input rather
+// than the first thing that went wrong.
+func NewLoweredOnly(raw string) (LoweredOnly, error) {
+	var n vogue.Notification
+	v := raw
+	v = strings.ToLower(v)
+
+	if err := n.ErrOrNil(); err != nil {
+		return LoweredOnly{}, err
+	}
+	return LoweredOnly{v: v}, nil
+}
+
+// String returns the validated value.
+func (l LoweredOnly) String() string { return l.v }
+
+// IsZero reports whether the receiver is the zero LoweredOnly, which is the only
+// LoweredOnly that never passed validation.
+func (l LoweredOnly) IsZero() bool { return l.v == "" }
+
+// Equal reports whether both value objects hold the same value.
+func (l LoweredOnly) Equal(other LoweredOnly) bool { return l.v == other.v }
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so LoweredOnly marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func (l LoweredOnly) MarshalText() ([]byte, error) { return []byte(l.v), nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a LoweredOnly the constructor would have rejected.
+func (l *LoweredOnly) UnmarshalText(data []byte) error {
+	parsed, err := NewLoweredOnly(string(data))
+	if err != nil {
+		return err
+	}
+	*l = parsed
+	return nil
+}
+
+// Value implements driver.Valuer.
+func (l LoweredOnly) Value() (driver.Value, error) { return l.v, nil }
+
+// Scan implements sql.Scanner for text columns. It re-runs validation, so a
+// row that no longer satisfies the rules surfaces as a vogue error instead of
+// an invalid value object.
+func (l *LoweredOnly) Scan(src any) error {
+	switch value := src.(type) {
+	case nil:
+		*l = LoweredOnly{}
+		return nil
+	case string:
+		return l.UnmarshalText([]byte(value))
+	case []byte:
+		return l.UnmarshalText(value)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into LoweredOnly", src)
+	}
+}
+
+// UpperedOnly proves what `upper` rewrites.
+type UpperedOnly struct{ v string }
+
+// NewUpperedOnly validates raw and returns the UpperedOnly it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [vogue.FieldError] on a notification. Every
+// failure is collected, so the returned error describes the whole input rather
+// than the first thing that went wrong.
+func NewUpperedOnly(raw string) (UpperedOnly, error) {
+	var n vogue.Notification
+	v := raw
+	v = strings.ToUpper(v)
+
+	if err := n.ErrOrNil(); err != nil {
+		return UpperedOnly{}, err
+	}
+	return UpperedOnly{v: v}, nil
+}
+
+// String returns the validated value.
+func (u UpperedOnly) String() string { return u.v }
+
+// IsZero reports whether the receiver is the zero UpperedOnly, which is the only
+// UpperedOnly that never passed validation.
+func (u UpperedOnly) IsZero() bool { return u.v == "" }
+
+// Equal reports whether both value objects hold the same value.
+func (u UpperedOnly) Equal(other UpperedOnly) bool { return u.v == other.v }
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so UpperedOnly marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func (u UpperedOnly) MarshalText() ([]byte, error) { return []byte(u.v), nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a UpperedOnly the constructor would have rejected.
+func (u *UpperedOnly) UnmarshalText(data []byte) error {
+	parsed, err := NewUpperedOnly(string(data))
+	if err != nil {
+		return err
+	}
+	*u = parsed
+	return nil
+}
+
+// Value implements driver.Valuer.
+func (u UpperedOnly) Value() (driver.Value, error) { return u.v, nil }
+
+// Scan implements sql.Scanner for text columns. It re-runs validation, so a
+// row that no longer satisfies the rules surfaces as a vogue error instead of
+// an invalid value object.
+func (u *UpperedOnly) Scan(src any) error {
+	switch value := src.(type) {
+	case nil:
+		*u = UpperedOnly{}
+		return nil
+	case string:
+		return u.UnmarshalText([]byte(value))
+	case []byte:
+		return u.UnmarshalText(value)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into UpperedOnly", src)
+	}
+}
+
 // RequiredName is a name that must be given.
 type RequiredName struct{ v string }
 

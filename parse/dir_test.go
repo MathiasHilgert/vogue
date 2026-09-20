@@ -31,6 +31,8 @@ func TestDir(t *testing.T) {
 		"generated and test files must be skipped")
 
 	t.Run("doc comes from the lines above the directive", func(t *testing.T) {
+		t.Parallel()
+
 		assert.Equal(t, "Title is the name of a tab.", pkg.Directives()[0].Doc)
 	})
 }

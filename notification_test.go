@@ -164,8 +164,8 @@ func TestNotification_ErrOrNil(t *testing.T) {
 		err := n.ErrOrNil()
 
 		// Assert
-		assert.Nil(t, err)
-		assert.True(t, err == nil, "must not be a typed nil trapped in an interface")
+		require.NoError(t, err)
+		assert.Equal(t, error(nil), err, "must not be a typed nil trapped in an interface")
 	})
 
 	t.Run("non empty returns the notification", func(t *testing.T) {
@@ -191,8 +191,8 @@ func TestNotification_Unwrap(t *testing.T) {
 
 	t.Run("errors.Is finds a rule", func(t *testing.T) {
 		// Act & Assert
-		assert.True(t, errors.Is(err, vogue.FieldError{Rule: "email"}))
-		assert.False(t, errors.Is(err, vogue.FieldError{Rule: "max"}))
+		require.ErrorIs(t, err, vogue.FieldError{Rule: "email"})
+		assert.NotErrorIs(t, err, vogue.FieldError{Rule: "max"})
 	})
 
 	t.Run("errors.As extracts the first field error", func(t *testing.T) {

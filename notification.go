@@ -28,7 +28,7 @@ func (n *Notification) Add(err FieldError) {
 // Addf appends a failure whose message is built with fmt.Sprintf. It is the
 // form generated code uses when the message template has already been rendered
 // into a format string at generate time.
-func (n *Notification) Addf(field, rule, param, value string, format string, args ...any) {
+func (n *Notification) Addf(field, rule, param, value, format string, args ...any) {
 	n.errs = append(n.errs, FieldError{
 		Field:   field,
 		Rule:    rule,

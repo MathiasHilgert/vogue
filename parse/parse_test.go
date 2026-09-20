@@ -37,6 +37,8 @@ func TestFiles(t *testing.T) {
 	require.Len(t, directives, 5)
 
 	t.Run("string directive", func(t *testing.T) {
+		t.Parallel()
+
 		d := directives[0]
 
 		assert.Equal(t, vogue.String, d.Kind)
@@ -49,6 +51,8 @@ func TestFiles(t *testing.T) {
 	})
 
 	t.Run("rule positions point at the token", func(t *testing.T) {
+		t.Parallel()
+
 		d := directives[0]
 
 		require.Len(t, d.Rules, 4)
@@ -57,11 +61,15 @@ func TestFiles(t *testing.T) {
 	})
 
 	t.Run("doc is empty without preceding comment lines", func(t *testing.T) {
+		t.Parallel()
+
 		assert.Empty(t, directives[1].Doc)
 		assert.Equal(t, "email", directives[1].Field)
 	})
 
 	t.Run("int directive", func(t *testing.T) {
+		t.Parallel()
+
 		d := directives[2]
 
 		assert.Equal(t, vogue.Int, d.Kind)
@@ -70,6 +78,8 @@ func TestFiles(t *testing.T) {
 	})
 
 	t.Run("enum directive derives constants", func(t *testing.T) {
+		t.Parallel()
+
 		d := directives[3]
 
 		assert.Equal(t, vogue.Enum, d.Kind)
@@ -82,6 +92,8 @@ func TestFiles(t *testing.T) {
 	})
 
 	t.Run("id directive", func(t *testing.T) {
+		t.Parallel()
+
 		d := directives[4]
 
 		assert.Equal(t, vogue.ID, d.Kind)

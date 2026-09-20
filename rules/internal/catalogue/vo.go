@@ -23,6 +23,24 @@ package catalogue
 // UpperedName is a name folded to upper case.
 //vogue:string UpperedName upper required
 
+// The four directives below carry a normalizer and nothing else. A rewrite is
+// only asserted when the checks of its own directive vouch for the result, and
+// `required` vouches for a trimmed name but not for a squished sentence or a
+// folded currency code — so these are where the rewrites themselves are
+// proven, and the four above are where the ordering is.
+
+// TrimmedOnly proves what `trim` rewrites.
+//vogue:string TrimmedOnly trim
+
+// SquishedOnly proves what `squish` rewrites.
+//vogue:string SquishedOnly squish
+
+// LoweredOnly proves what `lower` rewrites.
+//vogue:string LoweredOnly lower
+
+// UpperedOnly proves what `upper` rewrites.
+//vogue:string UpperedOnly upper
+
 // RequiredName is a name that must be given.
 //vogue:string RequiredName required
 

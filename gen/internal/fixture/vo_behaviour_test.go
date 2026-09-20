@@ -2,7 +2,6 @@ package fixture_test
 
 import (
 	"encoding/json"
-	"errors"
 	"strings"
 	"testing"
 
@@ -36,7 +35,7 @@ func TestNewTitle(t *testing.T) {
 			// Assert
 			if tc.wantRule != "" {
 				require.Error(t, err)
-				assert.True(t, errors.Is(err, vogue.FieldError{Field: "title", Rule: tc.wantRule}),
+				require.ErrorIs(t, err, vogue.FieldError{Field: "title", Rule: tc.wantRule},
 					"want rule %q, got %v", tc.wantRule, err)
 				assert.True(t, got.IsZero())
 				return
@@ -59,7 +58,7 @@ func TestNewTitle_CollectsEveryFailure(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		var n *vogue.Notification
-		require.True(t, errors.As(err, &n))
+		require.ErrorAs(t, err, &n)
 		assert.Equal(t, 1, n.Len(), "required runs before trim, so only min fails here: %v", err)
 
 		// Act: an empty value fails both the required rule and the lower bound.
@@ -67,7 +66,7 @@ func TestNewTitle_CollectsEveryFailure(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		require.True(t, errors.As(err, &n))
+		require.ErrorAs(t, err, &n)
 		assert.Equal(t, 2, n.Len())
 		assert.Equal(t, []string{"title.required", "title.min"}, codes(n))
 	})
@@ -116,7 +115,7 @@ func TestTitle_JSON(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, vogue.FieldError{Rule: "nodigits"}))
+		assert.ErrorIs(t, err, vogue.FieldError{Rule: "nodigits"})
 	})
 }
 
@@ -163,7 +162,7 @@ func TestCovers(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, vogue.FieldError{Field: "covers", Rule: "min"}))
+		assert.ErrorIs(t, err, vogue.FieldError{Field: "covers", Rule: "min"})
 	})
 
 	t.Run("round-trips through SQL", func(t *testing.T) {
@@ -196,7 +195,7 @@ func TestCovers(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, vogue.FieldError{Field: "covers", Rule: "int"}))
+		assert.ErrorIs(t, err, vogue.FieldError{Field: "covers", Rule: "int"})
 	})
 }
 
@@ -226,7 +225,7 @@ func TestTabStatus(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.True(t, got.IsZero())
-		assert.True(t, errors.Is(err, vogue.FieldError{Field: "tabStatus", Rule: "oneof"}))
+		require.ErrorIs(t, err, vogue.FieldError{Field: "tabStatus", Rule: "oneof"})
 		assert.Contains(t, err.Error(), "open, in_progress, closed")
 	})
 
@@ -289,7 +288,7 @@ func TestTabID(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.True(t, got.IsZero())
-		assert.True(t, errors.Is(err, vogue.FieldError{Field: "tabId", Rule: "uuid"}))
+		assert.ErrorIs(t, err, vogue.FieldError{Field: "tabId", Rule: "uuid"})
 	})
 
 	t.Run("the zero value is the nil UUID", func(t *testing.T) {
@@ -318,7 +317,7 @@ func TestInvoiceNumber(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.True(t, errors.Is(err, vogue.FieldError{Field: "invoiceNumber", Rule: "positive"}))
+		assert.ErrorIs(t, err, vogue.FieldError{Field: "invoiceNumber", Rule: "positive"})
 	})
 
 	t.Run("crosses JSON as a string so precision survives", func(t *testing.T) {

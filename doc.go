@@ -87,4 +87,26 @@
 // statically known, which is what lets the generator reject an unknown rule,
 // a rule applied to the wrong kind, or a malformed parameter before any code
 // is written.
+//
+// # Running the generator
+//
+// The pipeline itself — resolve the catalogue, parse a directory, render, write
+// — is `pkg/vogue/generator`, whose Run is what both front ends call:
+//
+//	//go:generate go run github.com/MathiasHilgert/vogue/cmd/vogue
+//
+//	generator.Run(generator.WithRules(cuit.Rule))
+//
+// It lives one package down rather than here because it depends on the parser,
+// the code generator and the shipped rules, and all three depend on this
+// package for [Rule] and [FieldError]. This package defines what a rule and a
+// failure are; that one is the program that uses them.
+//
+//   - `cmd/vogue` is the shipped command, the built-in catalogue and nothing
+//     else, with `-list`, `-dry-run` and `-tests`.
+//   - `pkg/vogue/examples/customrule` is the worked example of a project rule:
+//     the rule, the one-file binary that registers it, the directives and the
+//     committed output, checked for drift by an ordinary test.
+//   - `pkg/vogue/README.md` holds the directive grammar, the rule catalogue
+//     table and the design notes.
 package vogue

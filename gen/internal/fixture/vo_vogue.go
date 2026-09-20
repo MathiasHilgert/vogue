@@ -398,3 +398,72 @@ func (i *InvoiceNumber) Scan(src any) error {
 		return fmt.Errorf("vogue: cannot scan %T into InvoiceNumber", src)
 	}
 }
+
+// Slug is the tab name folded for lookups. It is normalizer-only, which is
+// the directive shape that leaves the generated constructor table without an
+// accepted sample: the rewrite is still proven, the table is not invented.
+type Slug struct{ v string }
+
+// NewSlug validates raw and returns the Slug it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [vogue.FieldError] on a notification. Every
+// failure is collected, so the returned error describes the whole input rather
+// than the first thing that went wrong.
+func NewSlug(raw string) (Slug, error) {
+	var n vogue.Notification
+	v := raw
+	v = strings.ToLower(v)
+
+	if err := n.ErrOrNil(); err != nil {
+		return Slug{}, err
+	}
+	return Slug{v: v}, nil
+}
+
+// String returns the validated value.
+func (s Slug) String() string { return s.v }
+
+// IsZero reports whether the receiver is the zero Slug, which is the only
+// Slug that never passed validation.
+func (s Slug) IsZero() bool { return s.v == "" }
+
+// Equal reports whether both value objects hold the same value.
+func (s Slug) Equal(other Slug) bool { return s.v == other.v }
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so Slug marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func (s Slug) MarshalText() ([]byte, error) { return []byte(s.v), nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a Slug the constructor would have rejected.
+func (s *Slug) UnmarshalText(data []byte) error {
+	parsed, err := NewSlug(string(data))
+	if err != nil {
+		return err
+	}
+	*s = parsed
+	return nil
+}
+
+// Value implements driver.Valuer.
+func (s Slug) Value() (driver.Value, error) { return s.v, nil }
+
+// Scan implements sql.Scanner for text columns. It re-runs validation, so a
+// row that no longer satisfies the rules surfaces as a vogue error instead of
+// an invalid value object.
+func (s *Slug) Scan(src any) error {
+	switch value := src.(type) {
+	case nil:
+		*s = Slug{}
+		return nil
+	case string:
+		return s.UnmarshalText([]byte(value))
+	case []byte:
+		return s.UnmarshalText(value)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into Slug", src)
+	}
+}

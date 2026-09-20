@@ -46,6 +46,7 @@ func TestNew{{$n}}(t *testing.T) {
 		})
 	}
 }
+{{end}}
 {{if .Normalizations}}
 // TestNew{{$n}}_Normalizes proves the normalizers of the directive rewrite the
 // value instead of only accepting it.
@@ -75,6 +76,7 @@ func TestNew{{$n}}_Normalizes(t *testing.T) {
 	}
 }
 {{end}}
+{{if not .Skip}}
 // Test{{$n}}_TextRoundTrip proves a marshalled value object unmarshals back to
 // an equal one, which is what a JSON boundary does to it.
 func Test{{$n}}_TextRoundTrip(t *testing.T) {

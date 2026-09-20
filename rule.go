@@ -327,6 +327,19 @@ func (r Rule) validateParam() error {
 	return nil
 }
 
+// Summary returns the first sentence of [Rule.Doc], with the line breaks of a
+// wrapped documentation collapsed. It is what a one-line catalogue entry shows
+// — the `-list` table of the command, the rule table of the README — so the
+// first sentence of a rule's documentation should say what it rejects and the
+// rest may go into detail.
+func (r Rule) Summary() string {
+	doc := strings.Join(strings.Fields(r.Doc), " ")
+	if end := strings.Index(doc, ". "); end >= 0 {
+		return doc[:end+1]
+	}
+	return doc
+}
+
 // RenderMessage renders the rule message with the given data.
 func (r Rule) RenderMessage(data MessageData) (string, error) {
 	return RenderMessage(r.Message, data)

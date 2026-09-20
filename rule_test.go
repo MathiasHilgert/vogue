@@ -506,3 +506,37 @@ func TestRule_Declare(t *testing.T) {
 		assert.Equal(t, "var _vogueBound = 3", rule.Declare(vogue.EmitContext{Param: "3"}))
 	})
 }
+
+func TestRule_Summary(t *testing.T) {
+	t.Run("returns the first sentence of the documentation", func(t *testing.T) {
+		// Arrange
+		rule := vogue.Rule{Doc: "Rejects the empty string. It is checked where it is written."}
+
+		// Act
+		got := rule.Summary()
+
+		// Assert
+		assert.Equal(t, "Rejects the empty string.", got)
+	})
+
+	t.Run("returns a single-sentence documentation whole", func(t *testing.T) {
+		// Arrange
+		rule := vogue.Rule{Doc: "Rejects values below the bound."}
+
+		// Act & Assert
+		assert.Equal(t, "Rejects values below the bound.", rule.Summary())
+	})
+
+	t.Run("collapses the line breaks of a wrapped documentation", func(t *testing.T) {
+		// Arrange
+		rule := vogue.Rule{Doc: "Rejects the\n  empty string. And more."}
+
+		// Act & Assert
+		assert.Equal(t, "Rejects the empty string.", rule.Summary())
+	})
+
+	t.Run("reports an undocumented rule as empty", func(t *testing.T) {
+		// Act & Assert
+		assert.Empty(t, vogue.Rule{}.Summary())
+	})
+}

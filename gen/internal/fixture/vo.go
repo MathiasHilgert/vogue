@@ -28,3 +28,8 @@ func NoDigits(v string) bool {
 
 // InvoiceNumber is the sequence the accounting system assigns to an invoice.
 //vogue:id InvoiceNumber int64
+
+// Slug is the tab name folded for lookups. It is normalizer-only, which is
+// the directive shape that leaves the generated constructor table without an
+// accepted sample: the rewrite is still proven, the table is not invented.
+//vogue:string Slug lower

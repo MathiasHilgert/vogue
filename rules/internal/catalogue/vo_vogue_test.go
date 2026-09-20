@@ -207,36 +207,6 @@ func TestNewSquishedName(t *testing.T) {
 	}
 }
 
-// TestNewSquishedName_Normalizes proves the normalizers of the directive rewrite the
-// value instead of only accepting it.
-func TestNewSquishedName_Normalizes(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	cases := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{name: "a run of spaces becomes one", in: "Tortilla   de  patatas", want: "Tortilla de patatas"},
-		{name: "the ends are trimmed as well", in: "  Tortilla de patatas  ", want: "Tortilla de patatas"},
-		{name: "a tab and a newline become plain spaces", in: "Tortilla\tde\npatatas", want: "Tortilla de patatas"},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Act
-			got, err := NewSquishedName(tc.in)
-
-			// Assert
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, got.String())
-		})
-	}
-}
-
 // TestSquishedName_TextRoundTrip proves a marshalled value object unmarshals back to
 // an equal one, which is what a JSON boundary does to it.
 func TestSquishedName_TextRoundTrip(t *testing.T) {
@@ -361,36 +331,6 @@ func TestNewLoweredName(t *testing.T) {
 				assert.ErrorIs(t, err, vogue.FieldError{Field: "loweredName", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
-		})
-	}
-}
-
-// TestNewLoweredName_Normalizes proves the normalizers of the directive rewrite the
-// value instead of only accepting it.
-func TestNewLoweredName_Normalizes(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	cases := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{name: "an address is folded to one canonical spelling", in: "Waiter@Example.Com", want: "waiter@example.com"},
-		{name: "an accented capital folds like any other letter", in: "ÁRBOL", want: "árbol"},
-		{name: "a value already in lower case is left alone", in: "already", want: "already"},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Act
-			got, err := NewLoweredName(tc.in)
-
-			// Assert
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, got.String())
 		})
 	}
 }
@@ -523,36 +463,6 @@ func TestNewUpperedName(t *testing.T) {
 	}
 }
 
-// TestNewUpperedName_Normalizes proves the normalizers of the directive rewrite the
-// value instead of only accepting it.
-func TestNewUpperedName_Normalizes(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	cases := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{name: "a currency code is shouted the way the standard writes it", in: "eur", want: "EUR"},
-		{name: "digits and punctuation are left untouched", in: "sku-12", want: "SKU-12"},
-		{name: "a value already in upper case is left alone", in: "EUR", want: "EUR"},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Act
-			got, err := NewUpperedName(tc.in)
-
-			// Assert
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, got.String())
-		})
-	}
-}
-
 // TestUpperedName_TextRoundTrip proves a marshalled value object unmarshals back to
 // an equal one, which is what a JSON boundary does to it.
 func TestUpperedName_TextRoundTrip(t *testing.T) {
@@ -640,6 +550,158 @@ func TestUpperedName_IsZero(t *testing.T) {
 	assert.True(t, zero.IsZero())
 	assert.False(t, built.IsZero())
 	assert.False(t, zero.Equal(built))
+}
+
+// TestNewTrimmedOnly has nothing to assert: no example declared by the rules of
+// TrimmedOnly survives all of them, so any table would either be fabricated or
+// silently green.
+func TestNewTrimmedOnly(t *testing.T) {
+	t.Parallel()
+	t.Skip("vogue: no example of TrimmedOnly satisfies every rule and differs from the zero value; add Examples to the rules it uses")
+}
+
+// TestNewTrimmedOnly_Normalizes proves the normalizers of the directive rewrite the
+// value instead of only accepting it.
+func TestNewTrimmedOnly_Normalizes(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "the blanks around a pasted value are dropped", in: "  Tortilla  ", want: "Tortilla"},
+		{name: "tabs and newlines count as whitespace too", in: "\tTortilla\n", want: "Tortilla"},
+		{name: "an already clean value is left alone", in: "Tortilla", want: "Tortilla"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			got, err := NewTrimmedOnly(tc.in)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got.String())
+		})
+	}
+}
+
+// TestNewSquishedOnly has nothing to assert: no example declared by the rules of
+// SquishedOnly survives all of them, so any table would either be fabricated or
+// silently green.
+func TestNewSquishedOnly(t *testing.T) {
+	t.Parallel()
+	t.Skip("vogue: no example of SquishedOnly satisfies every rule and differs from the zero value; add Examples to the rules it uses")
+}
+
+// TestNewSquishedOnly_Normalizes proves the normalizers of the directive rewrite the
+// value instead of only accepting it.
+func TestNewSquishedOnly_Normalizes(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "a run of spaces becomes one", in: "Tortilla   de  patatas", want: "Tortilla de patatas"},
+		{name: "the ends are trimmed as well", in: "  Tortilla de patatas  ", want: "Tortilla de patatas"},
+		{name: "a tab and a newline become plain spaces", in: "Tortilla\tde\npatatas", want: "Tortilla de patatas"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			got, err := NewSquishedOnly(tc.in)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got.String())
+		})
+	}
+}
+
+// TestNewLoweredOnly has nothing to assert: no example declared by the rules of
+// LoweredOnly survives all of them, so any table would either be fabricated or
+// silently green.
+func TestNewLoweredOnly(t *testing.T) {
+	t.Parallel()
+	t.Skip("vogue: no example of LoweredOnly satisfies every rule and differs from the zero value; add Examples to the rules it uses")
+}
+
+// TestNewLoweredOnly_Normalizes proves the normalizers of the directive rewrite the
+// value instead of only accepting it.
+func TestNewLoweredOnly_Normalizes(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "an address is folded to one canonical spelling", in: "Waiter@Example.Com", want: "waiter@example.com"},
+		{name: "an accented capital folds like any other letter", in: "ÁRBOL", want: "árbol"},
+		{name: "a value already in lower case is left alone", in: "already", want: "already"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			got, err := NewLoweredOnly(tc.in)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got.String())
+		})
+	}
+}
+
+// TestNewUpperedOnly has nothing to assert: no example declared by the rules of
+// UpperedOnly survives all of them, so any table would either be fabricated or
+// silently green.
+func TestNewUpperedOnly(t *testing.T) {
+	t.Parallel()
+	t.Skip("vogue: no example of UpperedOnly satisfies every rule and differs from the zero value; add Examples to the rules it uses")
+}
+
+// TestNewUpperedOnly_Normalizes proves the normalizers of the directive rewrite the
+// value instead of only accepting it.
+func TestNewUpperedOnly_Normalizes(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "a currency code is shouted the way the standard writes it", in: "eur", want: "EUR"},
+		{name: "digits and punctuation are left untouched", in: "sku-12", want: "SKU-12"},
+		{name: "a value already in upper case is left alone", in: "EUR", want: "EUR"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			got, err := NewUpperedOnly(tc.in)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got.String())
+		})
+	}
 }
 
 // TestNewRequiredName exercises the constructor against the examples the rules of

@@ -811,3 +811,39 @@ func TestInvoiceNumber_IsZero(t *testing.T) {
 	assert.False(t, assigned.IsZero())
 	assert.False(t, zero.Equal(assigned))
 }
+
+// TestNewSlug has nothing to assert: no example declared by the rules of
+// Slug survives all of them, so any table would either be fabricated or
+// silently green.
+func TestNewSlug(t *testing.T) {
+	t.Parallel()
+	t.Skip("vogue: no example of Slug satisfies every rule and differs from the zero value; add Examples to the rules it uses")
+}
+
+// TestNewSlug_Normalizes proves the normalizers of the directive rewrite the
+// value instead of only accepting it.
+func TestNewSlug_Normalizes(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	cases := []struct {
+		name string
+		in   string
+		want string
+	}{
+		{name: "lower folds an upper-case value", in: "A", want: "a"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			got, err := NewSlug(tc.in)
+
+			// Assert
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, got.String())
+		})
+	}
+}

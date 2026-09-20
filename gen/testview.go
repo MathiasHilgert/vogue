@@ -87,11 +87,6 @@ type testView struct {
 
 // testFile renders and formats the test of one generated file.
 func (g *Generator) testFile(file parse.File) ([]byte, error) {
-	imports := newImportSet("")
-	if err := addAll(imports, importTesting, importVogue, importAssert, importRequire); err != nil {
-		return nil, err
-	}
-
 	var bodies bytes.Buffer
 	for _, directive := range file.Directives {
 		view, name, err := newTestView(directive)
@@ -101,6 +96,11 @@ func (g *Generator) testFile(file parse.File) ([]byte, error) {
 		if err := g.tmpl.ExecuteTemplate(&bodies, name+".tmpl", view); err != nil {
 			return nil, fmt.Errorf("gen: rendering the test of %s: %w", directive.Name, err)
 		}
+	}
+
+	imports, err := testImports(bodies.Bytes())
+	if err != nil {
+		return nil, err
 	}
 
 	var buf bytes.Buffer
@@ -116,6 +116,38 @@ func (g *Generator) testFile(file parse.File) ([]byte, error) {
 		return nil, fmt.Errorf("gen: formatting the test of %s: %w\n%s", file.Path, err, buf.String())
 	}
 	return formatted, nil
+}
+
+// testImports returns the imports the rendered test bodies actually reference.
+//
+// Which helpers a test uses depends on what its directive declared: a
+// directive whose rules declare no accepted sample renders a skipped
+// constructor test and, when it normalizes, nothing but the rewrite table, so
+// neither vogue nor testify is named. Adding the four unconditionally would
+// leave such a file with imports the compiler rejects, so the set is derived
+// from the body rather than assumed.
+func testImports(body []byte) (*importSet, error) {
+	imports := newImportSet("")
+	wanted := []struct {
+		selector string
+		path     string
+	}{
+		{"testing.", importTesting},
+		{"vogue.", importVogue},
+		{"assert.", importAssert},
+		{"require.", importRequire},
+	}
+	// Every generated test takes *testing.T, so testing is always named; the
+	// loop still asks, because that is what keeps the rule one rule.
+	for _, want := range wanted {
+		if !bytes.Contains(body, []byte(want.selector)) {
+			continue
+		}
+		if err := addAll(imports, want.path); err != nil {
+			return nil, err
+		}
+	}
+	return imports, nil
 }
 
 // newTestView builds the test data of one directive and names the template
@@ -162,14 +194,14 @@ func newTestView(d parse.Directive) (testView, string, error) {
 // examples the rules of the directive declare.
 func fillScalar(v *testView, d parse.Directive) {
 	v.AssertEqual = true
+	rejected := rejections(d)
 	for _, use := range d.Rules {
 		if use.Rule.Normalize {
 			v.AssertEqual = false
-			v.Normalizations = append(v.Normalizations, normalizations(d, use)...)
+			v.Normalizations = append(v.Normalizations, normalizations(d, use, rejected)...)
 		}
 	}
 
-	rejected := rejections(d)
 	v.ValidLit, v.ValidRaw = acceptedSample(d, rejected)
 	if v.ValidLit == "" {
 		v.Skip = fmt.Sprintf("vogue: no example of %s satisfies every rule and differs from the zero value; add Examples to the rules it uses", d.Name)
@@ -280,6 +312,36 @@ func isZeroLiteral(kind vogue.Kind, in string) bool {
 	return err == nil && n == 0
 }
 
+// accepted reports whether the checks of the directive are known to accept a
+// value, which is what a generated assertion may rely on.
+//
+// A normalizer declares what it rewrites, not what the rest of the directive
+// makes of the result: `trim` turning "  Tortilla  " into "Tortilla" says
+// nothing about a `cuit` written after it, which rejects both. The evidence
+// available at generate time is the declared examples, so a value counts as
+// accepted when some check of the directive declares it valid and none
+// declares it invalid — the same standard [acceptedSample] applies to the
+// constructor table. A directive whose rules only normalize checks nothing, so
+// every value passes it.
+func accepted(d parse.Directive, rejected []rejection, value string) bool {
+	if rejectedBy(rejected, value) {
+		return false
+	}
+	checks := false
+	for _, use := range d.Rules {
+		if use.Rule.Normalize {
+			continue
+		}
+		checks = true
+		for _, example := range use.Rule.Examples.Valid {
+			if example.AppliesTo(d.Kind, use.Param) && example.In == value {
+				return true
+			}
+		}
+	}
+	return !checks
+}
+
 // rejectedBy reports whether another rule of the same directive declares the
 // candidate invalid, which is what keeps a sample valid for one rule from
 // being asserted valid for the whole value object.
@@ -293,13 +355,14 @@ func rejectedBy(rejected []rejection, in string) bool {
 }
 
 // normalizations converts the rewrites a normalizer declares into the rows the
-// generated test asserts, dropping the ones the kind cannot express.
-func normalizations(d parse.Directive, use parse.RuleUse) []normCaseView {
+// generated test asserts, dropping the ones the kind cannot express and the
+// ones the other rules of the directive do not vouch for.
+func normalizations(d parse.Directive, use parse.RuleUse, rejected []rejection) []normCaseView {
 	var out []normCaseView
 	for _, rewrite := range use.Rule.Examples.Normalized {
 		in, okIn := literal(d.Kind, rewrite.In)
 		out2, okOut := literal(d.Kind, rewrite.Out)
-		if !okIn || !okOut {
+		if !okIn || !okOut || !accepted(d, rejected, rewrite.Out) {
 			continue
 		}
 		name := rewrite.Note
