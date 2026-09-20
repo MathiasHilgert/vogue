@@ -1,0 +1,93 @@
+{{$n := .Name}}{{$r := .Recv}}
+{{range .DocLines}}// {{.}}
+{{end}}//
+// The value is held as an int64 so it survives every database driver and JSON
+// number without a widening conversion at the boundary.
+type {{$n}} struct{ v int64 }
+
+// New{{$n}} validates raw and returns the {{$n}} it describes.
+//
+// Rules are applied in the order they were declared, and every failure is
+// collected into one error rather than the first one aborting the rest.
+func New{{$n}}(raw int64) ({{$n}}, error) {
+	var n vogue.Notification
+	v := raw
+{{range .Steps}}{{if .Normalize}}	{{.Code}}
+{{else}}	if !({{.Code}}) {
+		n.Add(vogue.FieldError{Field: {{q .Field}}, Rule: {{q .Rule}}, {{if .Param}}Param: {{q .Param}}, {{end}}Value: strconv.FormatInt(v, 10), Message: {{q .Message}}})
+	}
+{{end}}{{end}}
+	if err := n.ErrOrNil(); err != nil {
+		return {{$n}}{}, err
+	}
+	return {{$n}}{v: v}, nil
+}
+
+// Parse{{$n}} reads a base-10 representation and validates it.
+func Parse{{$n}}(raw string) ({{$n}}, error) {
+	v, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		var n vogue.Notification
+		n.Add(vogue.FieldError{Field: {{q .Field}}, Rule: "int", Value: raw, Message: "{{.Field}} must be a whole number"})
+		return {{$n}}{}, n.ErrOrNil()
+	}
+	return New{{$n}}(v)
+}
+
+// Int64 returns the validated value.
+func ({{$r}} {{$n}}) Int64() int64 { return {{$r}}.v }
+
+// String returns the base-10 representation of the value.
+func ({{$r}} {{$n}}) String() string { return strconv.FormatInt({{$r}}.v, 10) }
+
+// IsZero reports whether the receiver is the zero {{$n}}, which is the only
+// {{$n}} that never passed validation.
+func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.v == 0 }
+
+// Equal reports whether both value objects hold the same value.
+func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.v == other.v }
+
+// MarshalText implements encoding.TextMarshaler. encoding/json uses the text
+// codec when a type implements it, so {{$n}} round-trips through JSON without
+// a MarshalJSON of its own.
+func ({{$r}} {{$n}}) MarshalText() ([]byte, error) {
+	return strconv.AppendInt(nil, {{$r}}.v, 10), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
+// no payload can produce a {{$n}} the constructor would have rejected.
+func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
+	parsed, err := Parse{{$n}}(string(data))
+	if err != nil {
+		return err
+	}
+	*{{$r}} = parsed
+	return nil
+}
+
+// Value implements driver.Valuer.
+func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.v, nil }
+
+// Scan implements sql.Scanner for integer and text columns, re-running
+// validation so a row that no longer satisfies the rules surfaces as a vogue
+// error.
+func ({{$r}} *{{$n}}) Scan(src any) error {
+	switch value := src.(type) {
+	case nil:
+		*{{$r}} = {{$n}}{}
+		return nil
+	case int64:
+		parsed, err := New{{$n}}(value)
+		if err != nil {
+			return err
+		}
+		*{{$r}} = parsed
+		return nil
+	case string:
+		return {{$r}}.UnmarshalText([]byte(value))
+	case []byte:
+		return {{$r}}.UnmarshalText(value)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into {{$n}}", src)
+	}
+}

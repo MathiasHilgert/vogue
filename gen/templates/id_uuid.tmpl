@@ -1,0 +1,36 @@
+{{$n := .Name}}{{$r := .Recv}}
+{{range .DocLines}}// {{.}}
+{{end}}//
+// It embeds uuid.UUID, which is what gives it String, MarshalText,
+// UnmarshalText, Value and Scan: the identifier behaves like a UUID everywhere
+// a UUID is expected, while staying a distinct type no other identifier can be
+// assigned to.
+type {{$n}} struct{ uuid.UUID }
+
+// New{{$n}} mints {{.MintDoc}}.
+func New{{$n}}() ({{$n}}, error) {
+	id, err := {{.Mint}}()
+	if err != nil {
+		return {{$n}}{}, fmt.Errorf("vogue: minting {{$n}}: %w", err)
+	}
+	return {{$n}}{UUID: id}, nil
+}
+
+// Parse{{$n}} reads any RFC 4122 UUID, not only the version this type mints,
+// so identifiers written by an earlier schema stay readable.
+func Parse{{$n}}(raw string) ({{$n}}, error) {
+	id, err := uuid.Parse(raw)
+	if err != nil {
+		var n vogue.Notification
+		n.Add(vogue.FieldError{Field: {{q .Field}}, Rule: "uuid", Value: raw, Message: "{{.Field}} must be a valid UUID"})
+		return {{$n}}{}, n.ErrOrNil()
+	}
+	return {{$n}}{UUID: id}, nil
+}
+
+// IsZero reports whether the receiver is the nil UUID, which is what an
+// unassigned identifier looks like.
+func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.UUID == uuid.Nil }
+
+// Equal reports whether both identifiers refer to the same entity.
+func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.UUID == other.UUID }

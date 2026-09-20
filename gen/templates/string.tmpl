@@ -1,0 +1,70 @@
+{{$n := .Name}}{{$r := .Recv}}
+{{range .DocLines}}// {{.}}
+{{end}}type {{$n}} struct{ v string }
+
+// New{{$n}} validates raw and returns the {{$n}} it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [vogue.FieldError] on a notification. Every
+// failure is collected, so the returned error describes the whole input rather
+// than the first thing that went wrong.
+func New{{$n}}(raw string) ({{$n}}, error) {
+	var n vogue.Notification
+	v := raw
+{{range .Steps}}{{if .Normalize}}	{{.Code}}
+{{else}}	if !({{.Code}}) {
+		n.Add(vogue.FieldError{Field: {{q .Field}}, Rule: {{q .Rule}}, {{if .Param}}Param: {{q .Param}}, {{end}}Value: v, Message: {{q .Message}}})
+	}
+{{end}}{{end}}
+	if err := n.ErrOrNil(); err != nil {
+		return {{$n}}{}, err
+	}
+	return {{$n}}{v: v}, nil
+}
+
+// String returns the validated value.
+func ({{$r}} {{$n}}) String() string { return {{$r}}.v }
+
+// IsZero reports whether the receiver is the zero {{$n}}, which is the only
+// {{$n}} that never passed validation.
+func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.v == "" }
+
+// Equal reports whether both value objects hold the same value.
+func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.v == other.v }
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so {{$n}} marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.v), nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a {{$n}} the constructor would have rejected.
+func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
+	parsed, err := New{{$n}}(string(data))
+	if err != nil {
+		return err
+	}
+	*{{$r}} = parsed
+	return nil
+}
+
+// Value implements driver.Valuer.
+func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.v, nil }
+
+// Scan implements sql.Scanner for text columns. It re-runs validation, so a
+// row that no longer satisfies the rules surfaces as a vogue error instead of
+// an invalid value object.
+func ({{$r}} *{{$n}}) Scan(src any) error {
+	switch value := src.(type) {
+	case nil:
+		*{{$r}} = {{$n}}{}
+		return nil
+	case string:
+		return {{$r}}.UnmarshalText([]byte(value))
+	case []byte:
+		return {{$r}}.UnmarshalText(value)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into {{$n}}", src)
+	}
+}

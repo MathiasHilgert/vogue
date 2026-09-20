@@ -1,0 +1,88 @@
+{{$n := .Name}}{{$r := .Recv}}
+{{range .DocLines}}// {{.}}
+{{end}}//
+// The value is assigned by the database, so this type has no generator: an
+// identifier is either read from a row with Scan or Parse{{$n}}, or built from
+// a number the database already handed out with {{$n}}FromInt64.
+type {{$n}} struct{ v int64 }
+
+// {{$n}}FromInt64 wraps a database-assigned identifier. Identifiers are
+// positive by definition, so zero and negative values are rejected rather than
+// quietly producing an identifier equal to the zero value.
+func {{$n}}FromInt64(raw int64) ({{$n}}, error) {
+	var n vogue.Notification
+	v := raw
+	if !(v > 0) {
+		n.Add(vogue.FieldError{Field: {{q .Field}}, Rule: "positive", Value: strconv.FormatInt(v, 10), Message: "{{.Field}} must be a positive identifier"})
+	}
+
+	if err := n.ErrOrNil(); err != nil {
+		return {{$n}}{}, err
+	}
+	return {{$n}}{v: v}, nil
+}
+
+// Parse{{$n}} reads a base-10 representation of an identifier.
+func Parse{{$n}}(raw string) ({{$n}}, error) {
+	v, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil {
+		var n vogue.Notification
+		n.Add(vogue.FieldError{Field: {{q .Field}}, Rule: "int", Value: raw, Message: "{{.Field}} must be a whole number"})
+		return {{$n}}{}, n.ErrOrNil()
+	}
+	return {{$n}}FromInt64(v)
+}
+
+// Int64 returns the identifier as the database holds it.
+func ({{$r}} {{$n}}) Int64() int64 { return {{$r}}.v }
+
+// String returns the base-10 representation of the identifier.
+func ({{$r}} {{$n}}) String() string { return strconv.FormatInt({{$r}}.v, 10) }
+
+// IsZero reports whether the receiver is an unassigned identifier.
+func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.v == 0 }
+
+// Equal reports whether both identifiers refer to the same entity.
+func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.v == other.v }
+
+// MarshalText implements encoding.TextMarshaler, which encoding/json also
+// uses, so the identifier crosses a JSON boundary as a string and keeps its
+// full precision in a JavaScript client.
+func ({{$r}} {{$n}}) MarshalText() ([]byte, error) {
+	return strconv.AppendInt(nil, {{$r}}.v, 10), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler through Parse{{$n}}.
+func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
+	parsed, err := Parse{{$n}}(string(data))
+	if err != nil {
+		return err
+	}
+	*{{$r}} = parsed
+	return nil
+}
+
+// Value implements driver.Valuer.
+func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.v, nil }
+
+// Scan implements sql.Scanner for integer and text columns.
+func ({{$r}} *{{$n}}) Scan(src any) error {
+	switch value := src.(type) {
+	case nil:
+		*{{$r}} = {{$n}}{}
+		return nil
+	case int64:
+		parsed, err := {{$n}}FromInt64(value)
+		if err != nil {
+			return err
+		}
+		*{{$r}} = parsed
+		return nil
+	case string:
+		return {{$r}}.UnmarshalText([]byte(value))
+	case []byte:
+		return {{$r}}.UnmarshalText(value)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into {{$n}}", src)
+	}
+}

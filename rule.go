@@ -104,6 +104,9 @@ type EmitContext struct {
 	// Field is the value-object field name, available for checks that need to
 	// name it.
 	Field string
+	// Kind is the value-object kind being generated, so a rule registered for
+	// several kinds can emit the expression each one needs.
+	Kind Kind
 }
 
 // FuncRef names a package-level function used as a rule check. The referenced
@@ -194,11 +197,22 @@ type Rule struct {
 	Param ParamSpec
 	// Message is the failure message template rendered with [MessageData].
 	Message string
-	// Emit returns Go source for an inline boolean expression that is true when
-	// the value is acceptable.
+	// Normalize marks the rule as a normalizer rather than a check: its [Rule.Emit]
+	// returns a Go statement that rewrites the working variable, and it produces
+	// no failure. Normalizers run in the order they are written, so every rule
+	// after them sees the rewritten value. A normalizer is always inlined, so it
+	// may not use [Rule.Call].
+	Normalize bool
+	// Emit returns Go source. For an ordinary rule it is an inline boolean
+	// expression that is true when the value is acceptable; for a rule with
+	// [Rule.Normalize] set it is a statement assigning to [EmitContext.Var].
 	Emit func(EmitContext) string
 	// Call names a static function to call instead of emitting an expression.
 	Call *FuncRef
+	// Imports are the import paths the emitted code needs, such as "strings"
+	// for a rule whose expression calls strings.HasPrefix. A [Rule.Call] adds
+	// its own package automatically and does not need to repeat it here.
+	Imports []string
 	// Examples feed the generated table-driven tests.
 	Examples Examples
 }
@@ -226,7 +240,15 @@ func (r Rule) Validate() error {
 	if (r.Emit == nil) == (r.Call == nil) {
 		return fmt.Errorf("vogue: rule %q: exactly one of Emit or Call must be set", r.Name)
 	}
+	for _, path := range r.Imports {
+		if path == "" {
+			return fmt.Errorf("vogue: rule %q: import path must not be empty", r.Name)
+		}
+	}
 	if r.Call != nil {
+		if r.Normalize {
+			return fmt.Errorf("vogue: rule %q: a normalizing rule must emit a statement, Call is not supported", r.Name)
+		}
 		if r.Call.Path == "" {
 			return fmt.Errorf("vogue: rule %q: call path must not be empty", r.Name)
 		}

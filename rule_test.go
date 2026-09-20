@@ -335,3 +335,93 @@ func TestRule_RenderMessage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "title must be at least 3 characters", got)
 }
+
+// trimRule is a representative normalizer: its Emit returns a statement that
+// rewrites the working variable instead of a boolean expression.
+func trimRule() vogue.Rule {
+	return vogue.Rule{
+		Name:      "trim",
+		Kinds:     vogue.Kinds(vogue.String),
+		Doc:       "Removes leading and trailing whitespace.",
+		Message:   "{{.Field}} is normalised by trimming whitespace",
+		Normalize: true,
+		Emit:      func(c vogue.EmitContext) string { return c.Var + " = strings.TrimSpace(" + c.Var + ")" },
+	}
+}
+
+func TestRule_Normalize(t *testing.T) {
+	t.Run("accepts a normalizer backed by an emitter", func(t *testing.T) {
+		// Arrange
+		rule := trimRule()
+
+		// Act
+		err := rule.Validate()
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, rule.Normalize)
+	})
+
+	t.Run("rejects a normalizer backed by a call", func(t *testing.T) {
+		// Arrange
+		rule := emailRule()
+		rule.Normalize = true
+
+		// Act
+		err := rule.Validate()
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "normalizing rule")
+	})
+}
+
+func TestRule_ImportsAndEmitKind(t *testing.T) {
+	t.Run("a rule declares the imports its emitted code needs", func(t *testing.T) {
+		// Arrange
+		rule := trimRule()
+		rule.Imports = []string{"strings"}
+
+		// Act
+		err := rule.Validate()
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, []string{"strings"}, rule.Imports)
+	})
+
+	t.Run("rejects an empty import path", func(t *testing.T) {
+		// Arrange
+		rule := trimRule()
+		rule.Imports = []string{""}
+
+		// Act
+		err := rule.Validate()
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "import path must not be empty")
+	})
+
+	t.Run("the emit context carries the kind being generated", func(t *testing.T) {
+		// Arrange
+		rule := vogue.Rule{
+			Name:    "min",
+			Kinds:   vogue.Kinds(vogue.String, vogue.Int),
+			Message: "{{.Field}} is too small",
+			Emit: func(c vogue.EmitContext) string {
+				if c.Kind == vogue.Int {
+					return c.Var + " >= " + c.Param
+				}
+				return "len(" + c.Var + ") >= " + c.Param
+			},
+			Param: vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamInt},
+		}
+
+		// Act
+		got := rule.Emit(vogue.EmitContext{Var: "v", Param: "1", Field: "covers", Kind: vogue.Int})
+
+		// Assert
+		assert.Equal(t, "v >= 1", got)
+	})
+}
