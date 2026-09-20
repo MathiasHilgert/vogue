@@ -46,7 +46,7 @@ const (
 	ParamInt
 	// ParamString is an opaque string, as in `prefix=SKU-`.
 	ParamString
-	// ParamList is a space-separated list of strings, as in `oneof=a b c`.
+	// ParamList is a comma-separated list of strings, as in `oneof=a,b,c`.
 	ParamList
 	// ParamRegex is a regular expression compiled at generate time.
 	ParamRegex
