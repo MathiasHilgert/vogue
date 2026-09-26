@@ -52,7 +52,7 @@ func TestGenerator_Tests(t *testing.T) {
 		got := generateTest(t, body, testrules.Set(testrulesPath))
 
 		// Assert
-		assert.Contains(t, got, `assert.ErrorIs(t, err, vogue.FieldError{Field: "title", Rule: rule}`)
+		assert.Contains(t, got, `assert.ErrorIs(t, err, validation.FieldError{Field: "title", Rule: rule}`)
 		assert.Contains(t, got, `{name: "rejects a value carrying a digit", in: "a1", wantRules: []string{"nodigits"}},`)
 	})
 
@@ -127,7 +127,7 @@ func TestGenerator_Tests(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, got, "assert.EqualValues(t, 4, first.Version())")
-		assert.Contains(t, got, `assert.ErrorIs(t, err, vogue.FieldError{Field: "sessionId", Rule: "uuid"})`)
+		assert.Contains(t, got, `assert.ErrorIs(t, err, validation.FieldError{Field: "sessionId", Rule: "uuid"})`)
 	})
 
 	t.Run("covers the positive rule of an int64 identifier", func(t *testing.T) {

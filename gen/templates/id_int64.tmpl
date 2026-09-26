@@ -10,10 +10,10 @@ type {{$n}} struct{ v int64 }
 // positive by definition, so zero and negative values are rejected rather than
 // quietly producing an identifier equal to the zero value.
 func {{$n}}FromInt64(raw int64) ({{$n}}, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(v > 0) {
-		n.Add(vogue.FieldError{Field: {{q .Field}}, Rule: "positive", Value: strconv.FormatInt(v, 10), Message: "{{.Field}} must be a positive identifier"})
+		n.Add(validation.FieldError{Field: {{q .Field}}, Rule: "positive", Value: strconv.FormatInt(v, 10), Message: "{{.Field}} must be a positive identifier"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -26,8 +26,8 @@ func {{$n}}FromInt64(raw int64) ({{$n}}, error) {
 func Parse{{$n}}(raw string) ({{$n}}, error) {
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: {{q .Field}}, Rule: "int", Value: raw, Message: "{{.Field}} must be a whole number"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: {{q .Field}}, Rule: "int", Value: raw, Message: "{{.Field}} must be a whole number"})
 		return {{$n}}{}, n.ErrOrNil()
 	}
 	return {{$n}}FromInt64(v)
@@ -83,6 +83,6 @@ func ({{$r}} *{{$n}}) Scan(src any) error {
 	case []byte:
 		return {{$r}}.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into {{$n}}", src)
+		return fmt.Errorf("vogue: cannot scan %T into {{$n}}: %w", src, validation.ErrUnsupportedSource)
 	}
 }

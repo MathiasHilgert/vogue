@@ -40,7 +40,7 @@ func TestNew{{$n}}(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: {{q .Field}}, Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: {{q .Field}}, Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -207,7 +207,7 @@ func TestParse{{$n}}(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: {{q .Field}}, Rule: {{q .ParseRule}}})
+		assert.ErrorIs(t, err, validation.FieldError{Field: {{q .Field}}, Rule: {{q .ParseRule}}})
 		assert.True(t, got.IsZero())
 	})
 }

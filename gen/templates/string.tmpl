@@ -5,15 +5,15 @@
 // New{{$n}} validates raw and returns the {{$n}} it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func New{{$n}}(raw string) ({{$n}}, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 {{range .Steps}}{{if .Normalize}}	{{.Code}}
 {{else}}	if !({{.Code}}) {
-		n.Add(vogue.FieldError{Field: {{q .Field}}, Rule: {{q .Rule}}, {{if .Param}}Param: {{q .Param}}, {{end}}Value: v, Message: {{q .Message}}})
+		n.Add(validation.FieldError{Field: {{q .Field}}, Rule: {{q .Rule}}, {{if .Param}}Param: {{q .Param}}, {{end}}Value: v, Message: {{q .Message}}})
 	}
 {{end}}{{end}}
 	if err := n.ErrOrNil(); err != nil {
@@ -65,6 +65,6 @@ func ({{$r}} *{{$n}}) Scan(src any) error {
 	case []byte:
 		return {{$r}}.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into {{$n}}", src)
+		return fmt.Errorf("vogue: cannot scan %T into {{$n}}: %w", src, validation.ErrUnsupportedSource)
 	}
 }

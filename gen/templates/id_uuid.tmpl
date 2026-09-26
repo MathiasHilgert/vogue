@@ -21,8 +21,8 @@ func New{{$n}}() ({{$n}}, error) {
 func Parse{{$n}}(raw string) ({{$n}}, error) {
 	id, err := uuid.Parse(raw)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: {{q .Field}}, Rule: "uuid", Value: raw, Message: "{{.Field}} must be a valid UUID"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: {{q .Field}}, Rule: "uuid", Value: raw, Message: "{{.Field}} must be a valid UUID"})
 		return {{$n}}{}, n.ErrOrNil()
 	}
 	return {{$n}}{UUID: id}, nil

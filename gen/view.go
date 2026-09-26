@@ -51,7 +51,7 @@ type voView struct {
 	// Name is the generated type name and Recv the receiver identifier used by
 	// its methods.
 	Name, Recv string
-	// Field is the name the value object reports in a [vogue.FieldError].
+	// Field is the name the value object reports in a [validation.FieldError].
 	Field string
 	// DocLines are the godoc lines of the type, without their slashes.
 	DocLines []string
@@ -80,7 +80,7 @@ func (g *Generator) newView(d parse.Directive, imports *importSet, decls *declSe
 
 	// Every kind reports failures through vogue and formats an unsupported
 	// Scan source with fmt; the rest depends on the shape being generated.
-	paths := []string{importVogue, importFmt}
+	paths := []string{importValidation, importFmt}
 
 	var name string
 	switch d.Kind {
@@ -266,7 +266,7 @@ func renderMessage(rule vogue.Rule, field, param string) (string, error) {
 		return "", err
 	}
 	if strings.Contains(message, valueSentinel) {
-		return "", fmt.Errorf("rule %q: message template must not reference {{.Value}}: messages are rendered at generate time, and the offending value is already carried by vogue.FieldError.Value", rule.Name)
+		return "", fmt.Errorf("rule %q: message template must not reference {{.Value}}: messages are rendered at generate time, and the offending value is already carried by validation.FieldError.Value", rule.Name)
 	}
 	return message, nil
 }

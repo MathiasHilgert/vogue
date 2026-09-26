@@ -146,7 +146,7 @@ func testImports(body []byte) (*importSet, error) {
 		path     string
 	}{
 		{"testing.", importTesting},
-		{"vogue.", importVogue},
+		{"validation.", importValidation},
 		{"assert.", importAssert},
 		{"require.", importRequire},
 	}

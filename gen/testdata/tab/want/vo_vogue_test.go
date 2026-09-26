@@ -5,7 +5,7 @@ package tab
 import (
 	"testing"
 
-	"github.com/MathiasHilgert/vogue"
+	"github.com/MathiasHilgert/vogue/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +43,7 @@ func TestNewTitle(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "title", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "title", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -216,7 +216,7 @@ func TestNewCovers(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "covers", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "covers", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -338,7 +338,7 @@ func TestParseCovers(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "covers", Rule: "int"})
+		assert.ErrorIs(t, err, validation.FieldError{Field: "covers", Rule: "int"})
 		assert.True(t, got.IsZero())
 	})
 }
@@ -386,7 +386,7 @@ func TestParseTabStatus(t *testing.T) {
 			// Assert
 			if tc.wantErr {
 				require.Error(t, err)
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "tabStatus", Rule: "oneof", Param: "open,in_progress,closed"})
+				assert.ErrorIs(t, err, validation.FieldError{Field: "tabStatus", Rule: "oneof", Param: "open,in_progress,closed"})
 				assert.True(t, got.IsZero())
 				return
 			}
@@ -555,7 +555,7 @@ func TestParseTabID(t *testing.T) {
 			// Assert
 			if tc.wantErr {
 				require.Error(t, err)
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "tabId", Rule: "uuid"})
+				assert.ErrorIs(t, err, validation.FieldError{Field: "tabId", Rule: "uuid"})
 				assert.True(t, got.IsZero())
 				return
 			}
@@ -668,7 +668,7 @@ func TestInvoiceNumberFromInt64(t *testing.T) {
 			// Assert
 			if tc.wantErr {
 				require.Error(t, err)
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "invoiceNumber", Rule: "positive"})
+				assert.ErrorIs(t, err, validation.FieldError{Field: "invoiceNumber", Rule: "positive"})
 				assert.True(t, got.IsZero())
 				return
 			}
@@ -702,7 +702,7 @@ func TestParseInvoiceNumber(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "invoiceNumber", Rule: "int"})
+		assert.ErrorIs(t, err, validation.FieldError{Field: "invoiceNumber", Rule: "int"})
 		assert.True(t, got.IsZero())
 	})
 
@@ -714,7 +714,7 @@ func TestParseInvoiceNumber(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "invoiceNumber", Rule: "positive"})
+		assert.ErrorIs(t, err, validation.FieldError{Field: "invoiceNumber", Rule: "positive"})
 		assert.True(t, got.IsZero())
 	})
 }

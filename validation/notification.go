@@ -1,4 +1,4 @@
-package vogue
+package validation
 
 import (
 	"fmt"
@@ -109,7 +109,7 @@ func (n *Notification) Error() string {
 }
 
 // Unwrap exposes the collected failures to errors.Is and errors.As, so callers
-// can ask errors.Is(err, vogue.FieldError{Rule: "email"}) or extract a
+// can ask errors.Is(err, validation.FieldError{Rule: "email"}) or extract a
 // [FieldError] from a notification without type-asserting it first.
 func (n *Notification) Unwrap() []error {
 	if len(n.errs) == 0 {

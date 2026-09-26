@@ -182,18 +182,35 @@ title, err := NewTitle("")
 //   - title: title is required (rule "required")
 ```
 
-Each failure is a `FieldError{Field, Rule, Param, Value, Message}`. `Error()`
-renders `<field>: <message> (rule "<rule>", param "<param>")`, and `Code()`
-returns the stable `<field>.<rule>` identifier for payloads and translation
-keys. `Notification` implements `Unwrap() []error`, so the standard library is
-the whole API:
+Generated code imports one runtime package,
+[`validation`](validation), and nothing else of vogue. It depends on the
+standard library only, so a domain package built from generated value objects
+does not link the generator, its templates or its rule catalogue.
+
+Each failure is a `validation.FieldError{Field, Rule, Param, Value, Message}`.
+`Error()` renders `<field>: <message> (rule "<rule>", param "<param>")`, and
+`Code()` returns the stable `<field>.<rule>` identifier for payloads and
+translation keys. `Notification` implements `Unwrap() []error`, so the
+standard library is the whole API:
 
 ```go
-if errors.Is(err, vogue.FieldError{Rule: "email"}) { ... }
+if errors.Is(err, validation.ErrInvalid) { ... }          // any rule failed
+if errors.Is(err, validation.FieldError{Rule: "email"}) { ... } // this one did
 
-var fe vogue.FieldError
+var fe validation.FieldError
 if errors.As(err, &fe) { log.Println(fe.Code()) }
 ```
+
+`validation.ErrInvalid` is matched by every failure however it was wrapped,
+which is what an HTTP adapter maps to a 422. A generated `Scan` handed a
+source it cannot read wraps `validation.ErrUnsupportedSource`, and a decimal
+handed a binary float wraps `validation.ErrLossySource`; neither is an
+`ErrInvalid`, because they describe a misconfigured driver rather than a value
+that broke a rule.
+
+`vogue.FieldError`, `vogue.Notification` and `vogue.ErrInvalid` remain as
+aliases of the `validation` names, so code written against them keeps
+compiling.
 
 Mapping that to RFC 9457 `application/problem+json` is a loop, not a framework:
 

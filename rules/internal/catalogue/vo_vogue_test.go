@@ -5,7 +5,7 @@ package catalogue
 import (
 	"testing"
 
-	"github.com/MathiasHilgert/vogue"
+	"github.com/MathiasHilgert/vogue/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -42,7 +42,7 @@ func TestNewTrimmedName(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "trimmedName", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "trimmedName", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -200,7 +200,7 @@ func TestNewSquishedName(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "squishedName", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "squishedName", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -328,7 +328,7 @@ func TestNewLoweredName(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "loweredName", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "loweredName", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -456,7 +456,7 @@ func TestNewUpperedName(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "upperedName", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "upperedName", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -737,7 +737,7 @@ func TestNewRequiredName(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "requiredName", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "requiredName", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -866,7 +866,7 @@ func TestNewShortName(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "shortName", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "shortName", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -995,7 +995,7 @@ func TestNewLongerName(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "longerName", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "longerName", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -1139,7 +1139,7 @@ func TestNewBoundedName(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "boundedName", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "boundedName", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -1284,7 +1284,7 @@ func TestNewCurrencyCode(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "currencyCode", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "currencyCode", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -1429,7 +1429,7 @@ func TestNewEmailAddress(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "emailAddress", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "emailAddress", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -1574,7 +1574,7 @@ func TestNewMenuLink(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "menuLink", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "menuLink", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -1719,7 +1719,7 @@ func TestNewExternalRef(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "externalRef", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "externalRef", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -1864,7 +1864,7 @@ func TestNewStockCode(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "stockCode", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "stockCode", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -2008,7 +2008,7 @@ func TestNewCurrency(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "currency", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "currency", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -2152,7 +2152,7 @@ func TestNewLetterName(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "letterName", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "letterName", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -2296,7 +2296,7 @@ func TestNewHandle(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "handle", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "handle", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -2441,7 +2441,7 @@ func TestNewPhoneDigits(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "phoneDigits", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "phoneDigits", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -2585,7 +2585,7 @@ func TestNewLegacyCode(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "legacyCode", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "legacyCode", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -2729,7 +2729,7 @@ func TestNewSingleLine(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "singleLine", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "singleLine", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -2873,7 +2873,7 @@ func TestNewSlug(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "slug", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "slug", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -3018,7 +3018,7 @@ func TestNewProductCode(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "productCode", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "productCode", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -3162,7 +3162,7 @@ func TestNewDocumentFile(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "documentFile", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "documentFile", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -3306,7 +3306,7 @@ func TestNewResourcePath(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "resourcePath", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "resourcePath", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -3450,7 +3450,7 @@ func TestNewFlatName(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "flatName", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "flatName", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -3594,7 +3594,7 @@ func TestNewCovers(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "covers", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "covers", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -3716,7 +3716,7 @@ func TestParseCovers(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "covers", Rule: "int"})
+		assert.ErrorIs(t, err, validation.FieldError{Field: "covers", Rule: "int"})
 		assert.True(t, got.IsZero())
 	})
 }
@@ -3770,7 +3770,7 @@ func TestNewSeats(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "seats", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "seats", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -3892,7 +3892,7 @@ func TestParseSeats(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "seats", Rule: "int"})
+		assert.ErrorIs(t, err, validation.FieldError{Field: "seats", Rule: "int"})
 		assert.True(t, got.IsZero())
 	})
 }
@@ -3946,7 +3946,7 @@ func TestNewCourseCount(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "courseCount", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "courseCount", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -4068,7 +4068,7 @@ func TestParseCourseCount(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "courseCount", Rule: "int"})
+		assert.ErrorIs(t, err, validation.FieldError{Field: "courseCount", Rule: "int"})
 		assert.True(t, got.IsZero())
 	})
 }
@@ -4122,7 +4122,7 @@ func TestNewPortions(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "portions", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "portions", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -4244,7 +4244,7 @@ func TestParsePortions(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "portions", Rule: "int"})
+		assert.ErrorIs(t, err, validation.FieldError{Field: "portions", Rule: "int"})
 		assert.True(t, got.IsZero())
 	})
 }
@@ -4298,7 +4298,7 @@ func TestNewStockLevel(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "stockLevel", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "stockLevel", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -4420,7 +4420,7 @@ func TestParseStockLevel(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "stockLevel", Rule: "int"})
+		assert.ErrorIs(t, err, validation.FieldError{Field: "stockLevel", Rule: "int"})
 		assert.True(t, got.IsZero())
 	})
 }
@@ -4474,7 +4474,7 @@ func TestNewSlotMinutes(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "slotMinutes", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "slotMinutes", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -4596,7 +4596,7 @@ func TestParseSlotMinutes(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "slotMinutes", Rule: "int"})
+		assert.ErrorIs(t, err, validation.FieldError{Field: "slotMinutes", Rule: "int"})
 		assert.True(t, got.IsZero())
 	})
 }
@@ -4649,7 +4649,7 @@ func TestNewMinRate(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "minRate", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "minRate", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -4786,7 +4786,7 @@ func TestParseMinRate(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "minRate", Rule: "decimal"})
+		assert.ErrorIs(t, err, validation.FieldError{Field: "minRate", Rule: "decimal"})
 		assert.True(t, got.IsZero())
 	})
 }
@@ -4839,7 +4839,7 @@ func TestNewMaxRate(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "maxRate", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "maxRate", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -4976,7 +4976,7 @@ func TestParseMaxRate(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "maxRate", Rule: "decimal"})
+		assert.ErrorIs(t, err, validation.FieldError{Field: "maxRate", Rule: "decimal"})
 		assert.True(t, got.IsZero())
 	})
 }
@@ -5029,7 +5029,7 @@ func TestNewUnitWeight(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "unitWeight", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "unitWeight", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -5166,7 +5166,7 @@ func TestParseUnitWeight(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "unitWeight", Rule: "decimal"})
+		assert.ErrorIs(t, err, validation.FieldError{Field: "unitWeight", Rule: "decimal"})
 		assert.True(t, got.IsZero())
 	})
 }
@@ -5219,7 +5219,7 @@ func TestNewShelfWeight(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "shelfWeight", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "shelfWeight", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -5356,7 +5356,7 @@ func TestParseShelfWeight(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "shelfWeight", Rule: "decimal"})
+		assert.ErrorIs(t, err, validation.FieldError{Field: "shelfWeight", Rule: "decimal"})
 		assert.True(t, got.IsZero())
 	})
 }
@@ -5408,7 +5408,7 @@ func TestNewTaxRate(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "taxRate", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "taxRate", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -5545,7 +5545,7 @@ func TestParseTaxRate(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "taxRate", Rule: "decimal"})
+		assert.ErrorIs(t, err, validation.FieldError{Field: "taxRate", Rule: "decimal"})
 		assert.True(t, got.IsZero())
 	})
 }
@@ -5597,7 +5597,7 @@ func TestNewPreciseWeight(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "preciseWeight", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "preciseWeight", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -5734,7 +5734,7 @@ func TestParsePreciseWeight(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "preciseWeight", Rule: "decimal"})
+		assert.ErrorIs(t, err, validation.FieldError{Field: "preciseWeight", Rule: "decimal"})
 		assert.True(t, got.IsZero())
 	})
 }
@@ -5787,7 +5787,7 @@ func TestNewAdjustment(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "adjustment", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "adjustment", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -5924,7 +5924,7 @@ func TestParseAdjustment(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "adjustment", Rule: "decimal"})
+		assert.ErrorIs(t, err, validation.FieldError{Field: "adjustment", Rule: "decimal"})
 		assert.True(t, got.IsZero())
 	})
 }

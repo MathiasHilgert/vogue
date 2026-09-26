@@ -26,7 +26,7 @@ func Test{{$n}}FromInt64(t *testing.T) {
 			// Assert
 			if tc.wantErr {
 				require.Error(t, err)
-				assert.ErrorIs(t, err, vogue.FieldError{Field: {{q .Field}}, Rule: "positive"})
+				assert.ErrorIs(t, err, validation.FieldError{Field: {{q .Field}}, Rule: "positive"})
 				assert.True(t, got.IsZero())
 				return
 			}
@@ -60,7 +60,7 @@ func TestParse{{$n}}(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: {{q .Field}}, Rule: "int"})
+		assert.ErrorIs(t, err, validation.FieldError{Field: {{q .Field}}, Rule: "int"})
 		assert.True(t, got.IsZero())
 	})
 
@@ -72,7 +72,7 @@ func TestParse{{$n}}(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: {{q .Field}}, Rule: "positive"})
+		assert.ErrorIs(t, err, validation.FieldError{Field: {{q .Field}}, Rule: "positive"})
 		assert.True(t, got.IsZero())
 	})
 }

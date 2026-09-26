@@ -5,7 +5,7 @@ package domain
 import (
 	"testing"
 
-	"github.com/MathiasHilgert/vogue"
+	"github.com/MathiasHilgert/vogue/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,7 +46,7 @@ func TestNewTaxID(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "taxId", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "taxId", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})
@@ -188,7 +188,7 @@ func TestNewLegalName(t *testing.T) {
 			require.Error(t, err)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
 			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "legalName", Rule: rule},
+				assert.ErrorIs(t, err, validation.FieldError{Field: "legalName", Rule: rule},
 					"the %q rule was expected to reject the input", rule)
 			}
 		})

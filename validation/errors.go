@@ -1,4 +1,4 @@
-package vogue
+package validation
 
 import "strings"
 
@@ -51,11 +51,15 @@ func (e FieldError) Error() string {
 // `<field>.<rule>`, suitable for API error payloads and translation keys.
 func (e FieldError) Code() string { return e.Field + "." + e.Rule }
 
-// Is implements errors.Is matching by example: the target matches when every
-// non-empty field of the target equals the corresponding field of the receiver.
-// This lets callers write errors.Is(err, vogue.FieldError{Rule: "min"}) to ask
-// "did the min rule fail?" without restating the whole failure.
+// Is implements errors.Is. Every FieldError matches [ErrInvalid]. Another
+// FieldError matches by example: the target matches when every non-empty field
+// of the target equals the corresponding field of the receiver. This lets
+// callers write errors.Is(err, validation.FieldError{Rule: "min"}) to ask "did
+// the min rule fail?" without restating the whole failure.
 func (e FieldError) Is(target error) bool {
+	if target == ErrInvalid {
+		return true
+	}
 	t, ok := target.(FieldError)
 	if !ok {
 		return false

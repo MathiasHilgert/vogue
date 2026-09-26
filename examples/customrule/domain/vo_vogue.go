@@ -8,8 +8,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/MathiasHilgert/vogue"
 	"github.com/MathiasHilgert/vogue/examples/customrule/cuit"
+	"github.com/MathiasHilgert/vogue/validation"
 )
 
 // TaxID is the Argentine taxpayer identifier of a supplier. The `cuit` rule is
@@ -20,15 +20,15 @@ type TaxID struct{ v string }
 // NewTaxID validates raw and returns the TaxID it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewTaxID(raw string) (TaxID, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	v = strings.TrimSpace(v)
 	if !(cuit.Valid(v)) {
-		n.Add(vogue.FieldError{Field: "taxId", Rule: "cuit", Value: v, Message: "taxId must be a valid CUIT"})
+		n.Add(validation.FieldError{Field: "taxId", Rule: "cuit", Value: v, Message: "taxId must be a valid CUIT"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -80,7 +80,7 @@ func (t *TaxID) Scan(src any) error {
 	case []byte:
 		return t.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into TaxID", src)
+		return fmt.Errorf("vogue: cannot scan %T into TaxID: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -91,22 +91,22 @@ type LegalName struct{ v string }
 // NewLegalName validates raw and returns the LegalName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewLegalName(raw string) (LegalName, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	v = strings.TrimSpace(v)
 	v = strings.Join(strings.Fields(v), " ")
 	if !(v != "") {
-		n.Add(vogue.FieldError{Field: "legalName", Rule: "required", Value: v, Message: "legalName is required"})
+		n.Add(validation.FieldError{Field: "legalName", Rule: "required", Value: v, Message: "legalName is required"})
 	}
 	if !(utf8.RuneCountInString(v) >= 2) {
-		n.Add(vogue.FieldError{Field: "legalName", Rule: "min", Param: "2", Value: v, Message: "legalName must be at least 2"})
+		n.Add(validation.FieldError{Field: "legalName", Rule: "min", Param: "2", Value: v, Message: "legalName must be at least 2"})
 	}
 	if !(utf8.RuneCountInString(v) <= 200) {
-		n.Add(vogue.FieldError{Field: "legalName", Rule: "max", Param: "200", Value: v, Message: "legalName must be at most 200"})
+		n.Add(validation.FieldError{Field: "legalName", Rule: "max", Param: "200", Value: v, Message: "legalName must be at most 200"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -158,6 +158,6 @@ func (l *LegalName) Scan(src any) error {
 	case []byte:
 		return l.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into LegalName", src)
+		return fmt.Errorf("vogue: cannot scan %T into LegalName: %w", src, validation.ErrUnsupportedSource)
 	}
 }

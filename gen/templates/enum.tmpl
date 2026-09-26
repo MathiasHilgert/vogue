@@ -27,8 +27,8 @@ func Parse{{$n}}(raw string) ({{$n}}, error) {
 		return {{.Const}}, nil
 {{end}}	}
 
-	var n vogue.Notification
-	n.Add(vogue.FieldError{Field: {{q .Field}}, Rule: "oneof", Param: {{q .MemberParam}}, Value: raw, Message: "{{.Field}} must be one of: {{.MemberList}}"})
+	var n validation.Notification
+	n.Add(validation.FieldError{Field: {{q .Field}}, Rule: "oneof", Param: {{q .MemberParam}}, Value: raw, Message: "{{.Field}} must be one of: {{.MemberList}}"})
 	return {{$n}}{}, n.ErrOrNil()
 }
 
@@ -73,6 +73,6 @@ func ({{$r}} *{{$n}}) Scan(src any) error {
 	case []byte:
 		return {{$r}}.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into {{$n}}", src)
+		return fmt.Errorf("vogue: cannot scan %T into {{$n}}: %w", src, validation.ErrUnsupportedSource)
 	}
 }

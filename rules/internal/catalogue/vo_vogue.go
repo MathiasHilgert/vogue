@@ -11,8 +11,8 @@ import (
 	"unicode"
 	"unicode/utf8"
 
-	"github.com/MathiasHilgert/vogue"
 	"github.com/MathiasHilgert/vogue/rules/fn"
+	"github.com/MathiasHilgert/vogue/validation"
 	"github.com/govalues/decimal"
 )
 
@@ -34,15 +34,15 @@ type TrimmedName struct{ v string }
 // NewTrimmedName validates raw and returns the TrimmedName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewTrimmedName(raw string) (TrimmedName, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	v = strings.TrimSpace(v)
 	if !(v != "") {
-		n.Add(vogue.FieldError{Field: "trimmedName", Rule: "required", Value: v, Message: "trimmedName is required"})
+		n.Add(validation.FieldError{Field: "trimmedName", Rule: "required", Value: v, Message: "trimmedName is required"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -94,7 +94,7 @@ func (t *TrimmedName) Scan(src any) error {
 	case []byte:
 		return t.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into TrimmedName", src)
+		return fmt.Errorf("vogue: cannot scan %T into TrimmedName: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -104,15 +104,15 @@ type SquishedName struct{ v string }
 // NewSquishedName validates raw and returns the SquishedName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewSquishedName(raw string) (SquishedName, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	v = strings.Join(strings.Fields(v), " ")
 	if !(v != "") {
-		n.Add(vogue.FieldError{Field: "squishedName", Rule: "required", Value: v, Message: "squishedName is required"})
+		n.Add(validation.FieldError{Field: "squishedName", Rule: "required", Value: v, Message: "squishedName is required"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -164,7 +164,7 @@ func (s *SquishedName) Scan(src any) error {
 	case []byte:
 		return s.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into SquishedName", src)
+		return fmt.Errorf("vogue: cannot scan %T into SquishedName: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -174,15 +174,15 @@ type LoweredName struct{ v string }
 // NewLoweredName validates raw and returns the LoweredName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewLoweredName(raw string) (LoweredName, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	v = strings.ToLower(v)
 	if !(v != "") {
-		n.Add(vogue.FieldError{Field: "loweredName", Rule: "required", Value: v, Message: "loweredName is required"})
+		n.Add(validation.FieldError{Field: "loweredName", Rule: "required", Value: v, Message: "loweredName is required"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -234,7 +234,7 @@ func (l *LoweredName) Scan(src any) error {
 	case []byte:
 		return l.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into LoweredName", src)
+		return fmt.Errorf("vogue: cannot scan %T into LoweredName: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -244,15 +244,15 @@ type UpperedName struct{ v string }
 // NewUpperedName validates raw and returns the UpperedName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewUpperedName(raw string) (UpperedName, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	v = strings.ToUpper(v)
 	if !(v != "") {
-		n.Add(vogue.FieldError{Field: "upperedName", Rule: "required", Value: v, Message: "upperedName is required"})
+		n.Add(validation.FieldError{Field: "upperedName", Rule: "required", Value: v, Message: "upperedName is required"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -304,7 +304,7 @@ func (u *UpperedName) Scan(src any) error {
 	case []byte:
 		return u.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into UpperedName", src)
+		return fmt.Errorf("vogue: cannot scan %T into UpperedName: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -314,11 +314,11 @@ type TrimmedOnly struct{ v string }
 // NewTrimmedOnly validates raw and returns the TrimmedOnly it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewTrimmedOnly(raw string) (TrimmedOnly, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	v = strings.TrimSpace(v)
 
@@ -371,7 +371,7 @@ func (t *TrimmedOnly) Scan(src any) error {
 	case []byte:
 		return t.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into TrimmedOnly", src)
+		return fmt.Errorf("vogue: cannot scan %T into TrimmedOnly: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -381,11 +381,11 @@ type SquishedOnly struct{ v string }
 // NewSquishedOnly validates raw and returns the SquishedOnly it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewSquishedOnly(raw string) (SquishedOnly, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	v = strings.Join(strings.Fields(v), " ")
 
@@ -438,7 +438,7 @@ func (s *SquishedOnly) Scan(src any) error {
 	case []byte:
 		return s.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into SquishedOnly", src)
+		return fmt.Errorf("vogue: cannot scan %T into SquishedOnly: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -448,11 +448,11 @@ type LoweredOnly struct{ v string }
 // NewLoweredOnly validates raw and returns the LoweredOnly it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewLoweredOnly(raw string) (LoweredOnly, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	v = strings.ToLower(v)
 
@@ -505,7 +505,7 @@ func (l *LoweredOnly) Scan(src any) error {
 	case []byte:
 		return l.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into LoweredOnly", src)
+		return fmt.Errorf("vogue: cannot scan %T into LoweredOnly: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -515,11 +515,11 @@ type UpperedOnly struct{ v string }
 // NewUpperedOnly validates raw and returns the UpperedOnly it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewUpperedOnly(raw string) (UpperedOnly, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	v = strings.ToUpper(v)
 
@@ -572,7 +572,7 @@ func (u *UpperedOnly) Scan(src any) error {
 	case []byte:
 		return u.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into UpperedOnly", src)
+		return fmt.Errorf("vogue: cannot scan %T into UpperedOnly: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -582,14 +582,14 @@ type RequiredName struct{ v string }
 // NewRequiredName validates raw and returns the RequiredName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewRequiredName(raw string) (RequiredName, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(v != "") {
-		n.Add(vogue.FieldError{Field: "requiredName", Rule: "required", Value: v, Message: "requiredName is required"})
+		n.Add(validation.FieldError{Field: "requiredName", Rule: "required", Value: v, Message: "requiredName is required"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -641,7 +641,7 @@ func (r *RequiredName) Scan(src any) error {
 	case []byte:
 		return r.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into RequiredName", src)
+		return fmt.Errorf("vogue: cannot scan %T into RequiredName: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -651,14 +651,14 @@ type ShortName struct{ v string }
 // NewShortName validates raw and returns the ShortName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewShortName(raw string) (ShortName, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(utf8.RuneCountInString(v) >= 1) {
-		n.Add(vogue.FieldError{Field: "shortName", Rule: "min", Param: "1", Value: v, Message: "shortName must be at least 1"})
+		n.Add(validation.FieldError{Field: "shortName", Rule: "min", Param: "1", Value: v, Message: "shortName must be at least 1"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -710,7 +710,7 @@ func (s *ShortName) Scan(src any) error {
 	case []byte:
 		return s.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into ShortName", src)
+		return fmt.Errorf("vogue: cannot scan %T into ShortName: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -720,14 +720,14 @@ type LongerName struct{ v string }
 // NewLongerName validates raw and returns the LongerName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewLongerName(raw string) (LongerName, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(utf8.RuneCountInString(v) >= 3) {
-		n.Add(vogue.FieldError{Field: "longerName", Rule: "min", Param: "3", Value: v, Message: "longerName must be at least 3"})
+		n.Add(validation.FieldError{Field: "longerName", Rule: "min", Param: "3", Value: v, Message: "longerName must be at least 3"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -779,7 +779,7 @@ func (l *LongerName) Scan(src any) error {
 	case []byte:
 		return l.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into LongerName", src)
+		return fmt.Errorf("vogue: cannot scan %T into LongerName: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -789,14 +789,14 @@ type BoundedName struct{ v string }
 // NewBoundedName validates raw and returns the BoundedName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewBoundedName(raw string) (BoundedName, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(utf8.RuneCountInString(v) <= 4) {
-		n.Add(vogue.FieldError{Field: "boundedName", Rule: "max", Param: "4", Value: v, Message: "boundedName must be at most 4"})
+		n.Add(validation.FieldError{Field: "boundedName", Rule: "max", Param: "4", Value: v, Message: "boundedName must be at most 4"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -848,7 +848,7 @@ func (b *BoundedName) Scan(src any) error {
 	case []byte:
 		return b.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into BoundedName", src)
+		return fmt.Errorf("vogue: cannot scan %T into BoundedName: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -858,14 +858,14 @@ type CurrencyCode struct{ v string }
 // NewCurrencyCode validates raw and returns the CurrencyCode it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewCurrencyCode(raw string) (CurrencyCode, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(utf8.RuneCountInString(v) == 3) {
-		n.Add(vogue.FieldError{Field: "currencyCode", Rule: "len", Param: "3", Value: v, Message: "currencyCode must be exactly 3 characters long"})
+		n.Add(validation.FieldError{Field: "currencyCode", Rule: "len", Param: "3", Value: v, Message: "currencyCode must be exactly 3 characters long"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -917,7 +917,7 @@ func (c *CurrencyCode) Scan(src any) error {
 	case []byte:
 		return c.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into CurrencyCode", src)
+		return fmt.Errorf("vogue: cannot scan %T into CurrencyCode: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -927,14 +927,14 @@ type EmailAddress struct{ v string }
 // NewEmailAddress validates raw and returns the EmailAddress it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewEmailAddress(raw string) (EmailAddress, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(fn.Email(v)) {
-		n.Add(vogue.FieldError{Field: "emailAddress", Rule: "email", Value: v, Message: "emailAddress must be a valid email address"})
+		n.Add(validation.FieldError{Field: "emailAddress", Rule: "email", Value: v, Message: "emailAddress must be a valid email address"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -986,7 +986,7 @@ func (e *EmailAddress) Scan(src any) error {
 	case []byte:
 		return e.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into EmailAddress", src)
+		return fmt.Errorf("vogue: cannot scan %T into EmailAddress: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -996,14 +996,14 @@ type MenuLink struct{ v string }
 // NewMenuLink validates raw and returns the MenuLink it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewMenuLink(raw string) (MenuLink, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(fn.URL(v)) {
-		n.Add(vogue.FieldError{Field: "menuLink", Rule: "url", Value: v, Message: "menuLink must be a valid http or https URL"})
+		n.Add(validation.FieldError{Field: "menuLink", Rule: "url", Value: v, Message: "menuLink must be a valid http or https URL"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -1055,7 +1055,7 @@ func (m *MenuLink) Scan(src any) error {
 	case []byte:
 		return m.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into MenuLink", src)
+		return fmt.Errorf("vogue: cannot scan %T into MenuLink: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -1065,14 +1065,14 @@ type ExternalRef struct{ v string }
 // NewExternalRef validates raw and returns the ExternalRef it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewExternalRef(raw string) (ExternalRef, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(fn.UUID(v)) {
-		n.Add(vogue.FieldError{Field: "externalRef", Rule: "uuid", Value: v, Message: "externalRef must be a valid UUID"})
+		n.Add(validation.FieldError{Field: "externalRef", Rule: "uuid", Value: v, Message: "externalRef must be a valid UUID"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -1124,7 +1124,7 @@ func (e *ExternalRef) Scan(src any) error {
 	case []byte:
 		return e.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into ExternalRef", src)
+		return fmt.Errorf("vogue: cannot scan %T into ExternalRef: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -1134,14 +1134,14 @@ type StockCode struct{ v string }
 // NewStockCode validates raw and returns the StockCode it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewStockCode(raw string) (StockCode, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(_vogueRegexpa441fc35.MatchString(v)) {
-		n.Add(vogue.FieldError{Field: "stockCode", Rule: "regex", Param: "^[A-Z]{3}-[0-9]{4}$", Value: v, Message: "stockCode must match the pattern ^[A-Z]{3}-[0-9]{4}$"})
+		n.Add(validation.FieldError{Field: "stockCode", Rule: "regex", Param: "^[A-Z]{3}-[0-9]{4}$", Value: v, Message: "stockCode must match the pattern ^[A-Z]{3}-[0-9]{4}$"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -1193,7 +1193,7 @@ func (s *StockCode) Scan(src any) error {
 	case []byte:
 		return s.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into StockCode", src)
+		return fmt.Errorf("vogue: cannot scan %T into StockCode: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -1203,14 +1203,14 @@ type Currency struct{ v string }
 // NewCurrency validates raw and returns the Currency it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewCurrency(raw string) (Currency, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(v == "eur" || v == "usd" || v == "gbp") {
-		n.Add(vogue.FieldError{Field: "currency", Rule: "oneof", Param: "eur,usd,gbp", Value: v, Message: "currency must be one of: eur,usd,gbp"})
+		n.Add(validation.FieldError{Field: "currency", Rule: "oneof", Param: "eur,usd,gbp", Value: v, Message: "currency must be one of: eur,usd,gbp"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -1262,7 +1262,7 @@ func (c *Currency) Scan(src any) error {
 	case []byte:
 		return c.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into Currency", src)
+		return fmt.Errorf("vogue: cannot scan %T into Currency: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -1272,14 +1272,14 @@ type LetterName struct{ v string }
 // NewLetterName validates raw and returns the LetterName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewLetterName(raw string) (LetterName, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(strings.IndexFunc(v, func(r rune) bool { return !unicode.IsLetter(r) }) < 0) {
-		n.Add(vogue.FieldError{Field: "letterName", Rule: "alpha", Value: v, Message: "letterName must contain letters only"})
+		n.Add(validation.FieldError{Field: "letterName", Rule: "alpha", Value: v, Message: "letterName must contain letters only"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -1331,7 +1331,7 @@ func (l *LetterName) Scan(src any) error {
 	case []byte:
 		return l.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into LetterName", src)
+		return fmt.Errorf("vogue: cannot scan %T into LetterName: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -1341,14 +1341,14 @@ type Handle struct{ v string }
 // NewHandle validates raw and returns the Handle it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewHandle(raw string) (Handle, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(strings.IndexFunc(v, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }) < 0) {
-		n.Add(vogue.FieldError{Field: "handle", Rule: "alphanum", Value: v, Message: "handle must contain letters and digits only"})
+		n.Add(validation.FieldError{Field: "handle", Rule: "alphanum", Value: v, Message: "handle must contain letters and digits only"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -1400,7 +1400,7 @@ func (h *Handle) Scan(src any) error {
 	case []byte:
 		return h.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into Handle", src)
+		return fmt.Errorf("vogue: cannot scan %T into Handle: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -1410,14 +1410,14 @@ type PhoneDigits struct{ v string }
 // NewPhoneDigits validates raw and returns the PhoneDigits it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewPhoneDigits(raw string) (PhoneDigits, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(strings.IndexFunc(v, func(r rune) bool { return r < '0' || r > '9' }) < 0) {
-		n.Add(vogue.FieldError{Field: "phoneDigits", Rule: "numeric", Value: v, Message: "phoneDigits must contain digits only"})
+		n.Add(validation.FieldError{Field: "phoneDigits", Rule: "numeric", Value: v, Message: "phoneDigits must contain digits only"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -1469,7 +1469,7 @@ func (p *PhoneDigits) Scan(src any) error {
 	case []byte:
 		return p.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into PhoneDigits", src)
+		return fmt.Errorf("vogue: cannot scan %T into PhoneDigits: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -1479,14 +1479,14 @@ type LegacyCode struct{ v string }
 // NewLegacyCode validates raw and returns the LegacyCode it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewLegacyCode(raw string) (LegacyCode, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(strings.IndexFunc(v, func(r rune) bool { return r >= utf8.RuneSelf }) < 0) {
-		n.Add(vogue.FieldError{Field: "legacyCode", Rule: "ascii", Value: v, Message: "legacyCode must contain ASCII characters only"})
+		n.Add(validation.FieldError{Field: "legacyCode", Rule: "ascii", Value: v, Message: "legacyCode must contain ASCII characters only"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -1538,7 +1538,7 @@ func (l *LegacyCode) Scan(src any) error {
 	case []byte:
 		return l.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into LegacyCode", src)
+		return fmt.Errorf("vogue: cannot scan %T into LegacyCode: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -1548,14 +1548,14 @@ type SingleLine struct{ v string }
 // NewSingleLine validates raw and returns the SingleLine it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewSingleLine(raw string) (SingleLine, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(strings.IndexFunc(v, func(r rune) bool { return !unicode.IsPrint(r) }) < 0) {
-		n.Add(vogue.FieldError{Field: "singleLine", Rule: "printable", Value: v, Message: "singleLine must not contain control characters"})
+		n.Add(validation.FieldError{Field: "singleLine", Rule: "printable", Value: v, Message: "singleLine must not contain control characters"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -1607,7 +1607,7 @@ func (s *SingleLine) Scan(src any) error {
 	case []byte:
 		return s.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into SingleLine", src)
+		return fmt.Errorf("vogue: cannot scan %T into SingleLine: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -1617,14 +1617,14 @@ type Slug struct{ v string }
 // NewSlug validates raw and returns the Slug it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewSlug(raw string) (Slug, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(strings.IndexFunc(v, unicode.IsSpace) < 0) {
-		n.Add(vogue.FieldError{Field: "slug", Rule: "nospace", Value: v, Message: "slug must not contain spaces"})
+		n.Add(validation.FieldError{Field: "slug", Rule: "nospace", Value: v, Message: "slug must not contain spaces"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -1676,7 +1676,7 @@ func (s *Slug) Scan(src any) error {
 	case []byte:
 		return s.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into Slug", src)
+		return fmt.Errorf("vogue: cannot scan %T into Slug: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -1686,14 +1686,14 @@ type ProductCode struct{ v string }
 // NewProductCode validates raw and returns the ProductCode it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewProductCode(raw string) (ProductCode, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(strings.HasPrefix(v, "SKU-")) {
-		n.Add(vogue.FieldError{Field: "productCode", Rule: "prefix", Param: "SKU-", Value: v, Message: "productCode must start with \"SKU-\""})
+		n.Add(validation.FieldError{Field: "productCode", Rule: "prefix", Param: "SKU-", Value: v, Message: "productCode must start with \"SKU-\""})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -1745,7 +1745,7 @@ func (p *ProductCode) Scan(src any) error {
 	case []byte:
 		return p.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into ProductCode", src)
+		return fmt.Errorf("vogue: cannot scan %T into ProductCode: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -1755,14 +1755,14 @@ type DocumentFile struct{ v string }
 // NewDocumentFile validates raw and returns the DocumentFile it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewDocumentFile(raw string) (DocumentFile, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(strings.HasSuffix(v, ".pdf")) {
-		n.Add(vogue.FieldError{Field: "documentFile", Rule: "suffix", Param: ".pdf", Value: v, Message: "documentFile must end with \".pdf\""})
+		n.Add(validation.FieldError{Field: "documentFile", Rule: "suffix", Param: ".pdf", Value: v, Message: "documentFile must end with \".pdf\""})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -1814,7 +1814,7 @@ func (d *DocumentFile) Scan(src any) error {
 	case []byte:
 		return d.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into DocumentFile", src)
+		return fmt.Errorf("vogue: cannot scan %T into DocumentFile: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -1824,14 +1824,14 @@ type ResourcePath struct{ v string }
 // NewResourcePath validates raw and returns the ResourcePath it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewResourcePath(raw string) (ResourcePath, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(strings.Contains(v, "/")) {
-		n.Add(vogue.FieldError{Field: "resourcePath", Rule: "contains", Param: "/", Value: v, Message: "resourcePath must contain \"/\""})
+		n.Add(validation.FieldError{Field: "resourcePath", Rule: "contains", Param: "/", Value: v, Message: "resourcePath must contain \"/\""})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -1883,7 +1883,7 @@ func (r *ResourcePath) Scan(src any) error {
 	case []byte:
 		return r.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into ResourcePath", src)
+		return fmt.Errorf("vogue: cannot scan %T into ResourcePath: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -1893,14 +1893,14 @@ type FlatName struct{ v string }
 // NewFlatName validates raw and returns the FlatName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewFlatName(raw string) (FlatName, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(!strings.Contains(v, "/")) {
-		n.Add(vogue.FieldError{Field: "flatName", Rule: "excludes", Param: "/", Value: v, Message: "flatName must not contain \"/\""})
+		n.Add(validation.FieldError{Field: "flatName", Rule: "excludes", Param: "/", Value: v, Message: "flatName must not contain \"/\""})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -1952,7 +1952,7 @@ func (f *FlatName) Scan(src any) error {
 	case []byte:
 		return f.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into FlatName", src)
+		return fmt.Errorf("vogue: cannot scan %T into FlatName: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -1967,10 +1967,10 @@ type Covers struct{ v int64 }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewCovers(raw int64) (Covers, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(v >= 1) {
-		n.Add(vogue.FieldError{Field: "covers", Rule: "min", Param: "1", Value: strconv.FormatInt(v, 10), Message: "covers must be at least 1"})
+		n.Add(validation.FieldError{Field: "covers", Rule: "min", Param: "1", Value: strconv.FormatInt(v, 10), Message: "covers must be at least 1"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -1983,8 +1983,8 @@ func NewCovers(raw int64) (Covers, error) {
 func ParseCovers(raw string) (Covers, error) {
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "covers", Rule: "int", Value: raw, Message: "covers must be a whole number"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: "covers", Rule: "int", Value: raw, Message: "covers must be a whole number"})
 		return Covers{}, n.ErrOrNil()
 	}
 	return NewCovers(v)
@@ -2044,7 +2044,7 @@ func (c *Covers) Scan(src any) error {
 	case []byte:
 		return c.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into Covers", src)
+		return fmt.Errorf("vogue: cannot scan %T into Covers: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -2059,10 +2059,10 @@ type Seats struct{ v int64 }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewSeats(raw int64) (Seats, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(v <= 200) {
-		n.Add(vogue.FieldError{Field: "seats", Rule: "max", Param: "200", Value: strconv.FormatInt(v, 10), Message: "seats must be at most 200"})
+		n.Add(validation.FieldError{Field: "seats", Rule: "max", Param: "200", Value: strconv.FormatInt(v, 10), Message: "seats must be at most 200"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -2075,8 +2075,8 @@ func NewSeats(raw int64) (Seats, error) {
 func ParseSeats(raw string) (Seats, error) {
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "seats", Rule: "int", Value: raw, Message: "seats must be a whole number"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: "seats", Rule: "int", Value: raw, Message: "seats must be a whole number"})
 		return Seats{}, n.ErrOrNil()
 	}
 	return NewSeats(v)
@@ -2136,7 +2136,7 @@ func (s *Seats) Scan(src any) error {
 	case []byte:
 		return s.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into Seats", src)
+		return fmt.Errorf("vogue: cannot scan %T into Seats: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -2151,10 +2151,10 @@ type CourseCount struct{ v int64 }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewCourseCount(raw int64) (CourseCount, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(v == 1 || v == 2 || v == 4) {
-		n.Add(vogue.FieldError{Field: "courseCount", Rule: "oneof", Param: "1,2,4", Value: strconv.FormatInt(v, 10), Message: "courseCount must be one of: 1,2,4"})
+		n.Add(validation.FieldError{Field: "courseCount", Rule: "oneof", Param: "1,2,4", Value: strconv.FormatInt(v, 10), Message: "courseCount must be one of: 1,2,4"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -2167,8 +2167,8 @@ func NewCourseCount(raw int64) (CourseCount, error) {
 func ParseCourseCount(raw string) (CourseCount, error) {
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "courseCount", Rule: "int", Value: raw, Message: "courseCount must be a whole number"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: "courseCount", Rule: "int", Value: raw, Message: "courseCount must be a whole number"})
 		return CourseCount{}, n.ErrOrNil()
 	}
 	return NewCourseCount(v)
@@ -2228,7 +2228,7 @@ func (c *CourseCount) Scan(src any) error {
 	case []byte:
 		return c.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into CourseCount", src)
+		return fmt.Errorf("vogue: cannot scan %T into CourseCount: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -2243,10 +2243,10 @@ type Portions struct{ v int64 }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewPortions(raw int64) (Portions, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(v > 0) {
-		n.Add(vogue.FieldError{Field: "portions", Rule: "positive", Value: strconv.FormatInt(v, 10), Message: "portions must be greater than zero"})
+		n.Add(validation.FieldError{Field: "portions", Rule: "positive", Value: strconv.FormatInt(v, 10), Message: "portions must be greater than zero"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -2259,8 +2259,8 @@ func NewPortions(raw int64) (Portions, error) {
 func ParsePortions(raw string) (Portions, error) {
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "portions", Rule: "int", Value: raw, Message: "portions must be a whole number"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: "portions", Rule: "int", Value: raw, Message: "portions must be a whole number"})
 		return Portions{}, n.ErrOrNil()
 	}
 	return NewPortions(v)
@@ -2320,7 +2320,7 @@ func (p *Portions) Scan(src any) error {
 	case []byte:
 		return p.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into Portions", src)
+		return fmt.Errorf("vogue: cannot scan %T into Portions: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -2335,10 +2335,10 @@ type StockLevel struct{ v int64 }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewStockLevel(raw int64) (StockLevel, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(v >= 0) {
-		n.Add(vogue.FieldError{Field: "stockLevel", Rule: "nonneg", Value: strconv.FormatInt(v, 10), Message: "stockLevel must not be negative"})
+		n.Add(validation.FieldError{Field: "stockLevel", Rule: "nonneg", Value: strconv.FormatInt(v, 10), Message: "stockLevel must not be negative"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -2351,8 +2351,8 @@ func NewStockLevel(raw int64) (StockLevel, error) {
 func ParseStockLevel(raw string) (StockLevel, error) {
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "stockLevel", Rule: "int", Value: raw, Message: "stockLevel must be a whole number"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: "stockLevel", Rule: "int", Value: raw, Message: "stockLevel must be a whole number"})
 		return StockLevel{}, n.ErrOrNil()
 	}
 	return NewStockLevel(v)
@@ -2412,7 +2412,7 @@ func (s *StockLevel) Scan(src any) error {
 	case []byte:
 		return s.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into StockLevel", src)
+		return fmt.Errorf("vogue: cannot scan %T into StockLevel: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -2427,10 +2427,10 @@ type SlotMinutes struct{ v int64 }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewSlotMinutes(raw int64) (SlotMinutes, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(v%15 == 0) {
-		n.Add(vogue.FieldError{Field: "slotMinutes", Rule: "multipleof", Param: "15", Value: strconv.FormatInt(v, 10), Message: "slotMinutes must be a multiple of 15"})
+		n.Add(validation.FieldError{Field: "slotMinutes", Rule: "multipleof", Param: "15", Value: strconv.FormatInt(v, 10), Message: "slotMinutes must be a multiple of 15"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -2443,8 +2443,8 @@ func NewSlotMinutes(raw int64) (SlotMinutes, error) {
 func ParseSlotMinutes(raw string) (SlotMinutes, error) {
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "slotMinutes", Rule: "int", Value: raw, Message: "slotMinutes must be a whole number"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: "slotMinutes", Rule: "int", Value: raw, Message: "slotMinutes must be a whole number"})
 		return SlotMinutes{}, n.ErrOrNil()
 	}
 	return NewSlotMinutes(v)
@@ -2504,7 +2504,7 @@ func (s *SlotMinutes) Scan(src any) error {
 	case []byte:
 		return s.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into SlotMinutes", src)
+		return fmt.Errorf("vogue: cannot scan %T into SlotMinutes: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -2520,10 +2520,10 @@ type MinRate struct{ v decimal.Decimal }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewMinRate(raw decimal.Decimal) (MinRate, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(v.Cmp(_vogueDecimal350ca8af) >= 0) {
-		n.Add(vogue.FieldError{Field: "minRate", Rule: "min", Param: "0", Value: v.String(), Message: "minRate must be at least 0"})
+		n.Add(validation.FieldError{Field: "minRate", Rule: "min", Param: "0", Value: v.String(), Message: "minRate must be at least 0"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -2538,8 +2538,8 @@ func NewMinRate(raw decimal.Decimal) (MinRate, error) {
 func ParseMinRate(raw string) (MinRate, error) {
 	v, err := decimal.Parse(raw)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "minRate", Rule: "decimal", Value: raw, Message: "minRate must be an exact decimal number"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: "minRate", Rule: "decimal", Value: raw, Message: "minRate must be an exact decimal number"})
 		return MinRate{}, n.ErrOrNil()
 	}
 	return NewMinRate(v)
@@ -2616,9 +2616,9 @@ func (m *MinRate) Scan(src any) error {
 		*m = built
 		return nil
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into MinRate: it has already lost digits; configure the driver to deliver numeric columns as text", src)
+		return fmt.Errorf("vogue: cannot scan the binary float %T into MinRate, configure the driver to deliver numeric columns as text: %w", src, validation.ErrLossySource)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into MinRate", src)
+		return fmt.Errorf("vogue: cannot scan %T into MinRate: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -2634,10 +2634,10 @@ type MaxRate struct{ v decimal.Decimal }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewMaxRate(raw decimal.Decimal) (MaxRate, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(v.Cmp(_vogueDecimal340ca71c) <= 0) {
-		n.Add(vogue.FieldError{Field: "maxRate", Rule: "max", Param: "1", Value: v.String(), Message: "maxRate must be at most 1"})
+		n.Add(validation.FieldError{Field: "maxRate", Rule: "max", Param: "1", Value: v.String(), Message: "maxRate must be at most 1"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -2652,8 +2652,8 @@ func NewMaxRate(raw decimal.Decimal) (MaxRate, error) {
 func ParseMaxRate(raw string) (MaxRate, error) {
 	v, err := decimal.Parse(raw)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "maxRate", Rule: "decimal", Value: raw, Message: "maxRate must be an exact decimal number"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: "maxRate", Rule: "decimal", Value: raw, Message: "maxRate must be an exact decimal number"})
 		return MaxRate{}, n.ErrOrNil()
 	}
 	return NewMaxRate(v)
@@ -2730,9 +2730,9 @@ func (m *MaxRate) Scan(src any) error {
 		*m = built
 		return nil
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into MaxRate: it has already lost digits; configure the driver to deliver numeric columns as text", src)
+		return fmt.Errorf("vogue: cannot scan the binary float %T into MaxRate, configure the driver to deliver numeric columns as text: %w", src, validation.ErrLossySource)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into MaxRate", src)
+		return fmt.Errorf("vogue: cannot scan %T into MaxRate: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -2748,10 +2748,10 @@ type UnitWeight struct{ v decimal.Decimal }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewUnitWeight(raw decimal.Decimal) (UnitWeight, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(v.Sign() > 0) {
-		n.Add(vogue.FieldError{Field: "unitWeight", Rule: "positive", Value: v.String(), Message: "unitWeight must be greater than zero"})
+		n.Add(validation.FieldError{Field: "unitWeight", Rule: "positive", Value: v.String(), Message: "unitWeight must be greater than zero"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -2766,8 +2766,8 @@ func NewUnitWeight(raw decimal.Decimal) (UnitWeight, error) {
 func ParseUnitWeight(raw string) (UnitWeight, error) {
 	v, err := decimal.Parse(raw)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "unitWeight", Rule: "decimal", Value: raw, Message: "unitWeight must be an exact decimal number"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: "unitWeight", Rule: "decimal", Value: raw, Message: "unitWeight must be an exact decimal number"})
 		return UnitWeight{}, n.ErrOrNil()
 	}
 	return NewUnitWeight(v)
@@ -2844,9 +2844,9 @@ func (u *UnitWeight) Scan(src any) error {
 		*u = built
 		return nil
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into UnitWeight: it has already lost digits; configure the driver to deliver numeric columns as text", src)
+		return fmt.Errorf("vogue: cannot scan the binary float %T into UnitWeight, configure the driver to deliver numeric columns as text: %w", src, validation.ErrLossySource)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into UnitWeight", src)
+		return fmt.Errorf("vogue: cannot scan %T into UnitWeight: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -2862,10 +2862,10 @@ type ShelfWeight struct{ v decimal.Decimal }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewShelfWeight(raw decimal.Decimal) (ShelfWeight, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(v.Sign() >= 0) {
-		n.Add(vogue.FieldError{Field: "shelfWeight", Rule: "nonneg", Value: v.String(), Message: "shelfWeight must not be negative"})
+		n.Add(validation.FieldError{Field: "shelfWeight", Rule: "nonneg", Value: v.String(), Message: "shelfWeight must not be negative"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -2880,8 +2880,8 @@ func NewShelfWeight(raw decimal.Decimal) (ShelfWeight, error) {
 func ParseShelfWeight(raw string) (ShelfWeight, error) {
 	v, err := decimal.Parse(raw)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "shelfWeight", Rule: "decimal", Value: raw, Message: "shelfWeight must be an exact decimal number"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: "shelfWeight", Rule: "decimal", Value: raw, Message: "shelfWeight must be an exact decimal number"})
 		return ShelfWeight{}, n.ErrOrNil()
 	}
 	return NewShelfWeight(v)
@@ -2958,9 +2958,9 @@ func (s *ShelfWeight) Scan(src any) error {
 		*s = built
 		return nil
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into ShelfWeight: it has already lost digits; configure the driver to deliver numeric columns as text", src)
+		return fmt.Errorf("vogue: cannot scan the binary float %T into ShelfWeight, configure the driver to deliver numeric columns as text: %w", src, validation.ErrLossySource)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into ShelfWeight", src)
+		return fmt.Errorf("vogue: cannot scan %T into ShelfWeight: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -2976,10 +2976,10 @@ type TaxRate struct{ v decimal.Decimal }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewTaxRate(raw decimal.Decimal) (TaxRate, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(v.Scale() <= 4) {
-		n.Add(vogue.FieldError{Field: "taxRate", Rule: "scale", Param: "4", Value: v.String(), Message: "taxRate must have at most 4 decimal places"})
+		n.Add(validation.FieldError{Field: "taxRate", Rule: "scale", Param: "4", Value: v.String(), Message: "taxRate must have at most 4 decimal places"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -2994,8 +2994,8 @@ func NewTaxRate(raw decimal.Decimal) (TaxRate, error) {
 func ParseTaxRate(raw string) (TaxRate, error) {
 	v, err := decimal.Parse(raw)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "taxRate", Rule: "decimal", Value: raw, Message: "taxRate must be an exact decimal number"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: "taxRate", Rule: "decimal", Value: raw, Message: "taxRate must be an exact decimal number"})
 		return TaxRate{}, n.ErrOrNil()
 	}
 	return NewTaxRate(v)
@@ -3072,9 +3072,9 @@ func (t *TaxRate) Scan(src any) error {
 		*t = built
 		return nil
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into TaxRate: it has already lost digits; configure the driver to deliver numeric columns as text", src)
+		return fmt.Errorf("vogue: cannot scan the binary float %T into TaxRate, configure the driver to deliver numeric columns as text: %w", src, validation.ErrLossySource)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into TaxRate", src)
+		return fmt.Errorf("vogue: cannot scan %T into TaxRate: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -3090,10 +3090,10 @@ type PreciseWeight struct{ v decimal.Decimal }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewPreciseWeight(raw decimal.Decimal) (PreciseWeight, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(v.Scale() <= 3) {
-		n.Add(vogue.FieldError{Field: "preciseWeight", Rule: "scale", Param: "3", Value: v.String(), Message: "preciseWeight must have at most 3 decimal places"})
+		n.Add(validation.FieldError{Field: "preciseWeight", Rule: "scale", Param: "3", Value: v.String(), Message: "preciseWeight must have at most 3 decimal places"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -3108,8 +3108,8 @@ func NewPreciseWeight(raw decimal.Decimal) (PreciseWeight, error) {
 func ParsePreciseWeight(raw string) (PreciseWeight, error) {
 	v, err := decimal.Parse(raw)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "preciseWeight", Rule: "decimal", Value: raw, Message: "preciseWeight must be an exact decimal number"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: "preciseWeight", Rule: "decimal", Value: raw, Message: "preciseWeight must be an exact decimal number"})
 		return PreciseWeight{}, n.ErrOrNil()
 	}
 	return NewPreciseWeight(v)
@@ -3186,9 +3186,9 @@ func (p *PreciseWeight) Scan(src any) error {
 		*p = built
 		return nil
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into PreciseWeight: it has already lost digits; configure the driver to deliver numeric columns as text", src)
+		return fmt.Errorf("vogue: cannot scan the binary float %T into PreciseWeight, configure the driver to deliver numeric columns as text: %w", src, validation.ErrLossySource)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into PreciseWeight", src)
+		return fmt.Errorf("vogue: cannot scan %T into PreciseWeight: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -3204,10 +3204,10 @@ type Adjustment struct{ v decimal.Decimal }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewAdjustment(raw decimal.Decimal) (Adjustment, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(!v.IsZero()) {
-		n.Add(vogue.FieldError{Field: "adjustment", Rule: "nonzero", Value: v.String(), Message: "adjustment must not be zero"})
+		n.Add(validation.FieldError{Field: "adjustment", Rule: "nonzero", Value: v.String(), Message: "adjustment must not be zero"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -3222,8 +3222,8 @@ func NewAdjustment(raw decimal.Decimal) (Adjustment, error) {
 func ParseAdjustment(raw string) (Adjustment, error) {
 	v, err := decimal.Parse(raw)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "adjustment", Rule: "decimal", Value: raw, Message: "adjustment must be an exact decimal number"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: "adjustment", Rule: "decimal", Value: raw, Message: "adjustment must be an exact decimal number"})
 		return Adjustment{}, n.ErrOrNil()
 	}
 	return NewAdjustment(v)
@@ -3300,8 +3300,8 @@ func (a *Adjustment) Scan(src any) error {
 		*a = built
 		return nil
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into Adjustment: it has already lost digits; configure the driver to deliver numeric columns as text", src)
+		return fmt.Errorf("vogue: cannot scan the binary float %T into Adjustment, configure the driver to deliver numeric columns as text: %w", src, validation.ErrLossySource)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into Adjustment", src)
+		return fmt.Errorf("vogue: cannot scan %T into Adjustment: %w", src, validation.ErrUnsupportedSource)
 	}
 }

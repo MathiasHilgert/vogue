@@ -50,6 +50,12 @@
 //	var fe vogue.FieldError
 //	if errors.As(err, &fe) { log.Println(fe.Code()) }
 //
+// Both types live in the runtime package
+// github.com/MathiasHilgert/vogue/validation, which is the only vogue package
+// generated code imports and which depends on the standard library alone;
+// the names here are aliases kept for compatibility. Every failure also
+// matches the sentinel [ErrInvalid].
+//
 // The zero [Notification] is ready to use and allocates nothing until the
 // first failure, so constructing a value object from valid input allocates
 // nothing at all.

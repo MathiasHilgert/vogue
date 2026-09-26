@@ -1,10 +1,10 @@
-package vogue_test
+package validation_test
 
 import (
 	"errors"
 	"testing"
 
-	"github.com/MathiasHilgert/vogue"
+	"github.com/MathiasHilgert/vogue/validation"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -12,10 +12,10 @@ import (
 func TestNotification_Add(t *testing.T) {
 	t.Run("zero value is usable", func(t *testing.T) {
 		// Arrange
-		var n vogue.Notification
+		var n validation.Notification
 
 		// Act
-		n.Add(vogue.FieldError{Field: "title", Rule: "required", Message: "is required"})
+		n.Add(validation.FieldError{Field: "title", Rule: "required", Message: "is required"})
 
 		// Assert
 		assert.Equal(t, 1, n.Len())
@@ -24,7 +24,7 @@ func TestNotification_Add(t *testing.T) {
 
 	t.Run("empty notification reports no errors", func(t *testing.T) {
 		// Arrange
-		var n vogue.Notification
+		var n validation.Notification
 
 		// Act
 		got := n.HasErrors()
@@ -38,14 +38,14 @@ func TestNotification_Add(t *testing.T) {
 
 func TestNotification_Addf(t *testing.T) {
 	// Arrange
-	var n vogue.Notification
+	var n validation.Notification
 
 	// Act
 	n.Addf("title", "min", "3", "ab", "must be at least %d characters", 3)
 
 	// Assert
 	require.Equal(t, 1, n.Len())
-	assert.Equal(t, vogue.FieldError{
+	assert.Equal(t, validation.FieldError{
 		Field:   "title",
 		Rule:    "min",
 		Param:   "3",
@@ -56,9 +56,9 @@ func TestNotification_Addf(t *testing.T) {
 
 func TestNotification_Merge(t *testing.T) {
 	// Arrange
-	var dst, src vogue.Notification
-	dst.Add(vogue.FieldError{Field: "title", Rule: "required", Message: "is required"})
-	src.Add(vogue.FieldError{Field: "email", Rule: "email", Message: "must be a valid email address"})
+	var dst, src validation.Notification
+	dst.Add(validation.FieldError{Field: "title", Rule: "required", Message: "is required"})
+	src.Add(validation.FieldError{Field: "email", Rule: "email", Message: "must be a valid email address"})
 
 	// Act
 	dst.Merge(&src)
@@ -72,8 +72,8 @@ func TestNotification_Merge(t *testing.T) {
 
 func TestNotification_Merge_nilIsNoop(t *testing.T) {
 	// Arrange
-	var dst vogue.Notification
-	dst.Add(vogue.FieldError{Field: "title", Rule: "required", Message: "is required"})
+	var dst validation.Notification
+	dst.Add(validation.FieldError{Field: "title", Rule: "required", Message: "is required"})
 
 	// Act
 	dst.Merge(nil)
@@ -84,8 +84,8 @@ func TestNotification_Merge_nilIsNoop(t *testing.T) {
 
 func TestNotification_Errors(t *testing.T) {
 	// Arrange
-	var n vogue.Notification
-	n.Add(vogue.FieldError{Field: "title", Rule: "required", Message: "is required"})
+	var n validation.Notification
+	n.Add(validation.FieldError{Field: "title", Rule: "required", Message: "is required"})
 
 	// Act
 	got := n.Errors()
@@ -97,10 +97,10 @@ func TestNotification_Errors(t *testing.T) {
 
 func TestNotification_Field(t *testing.T) {
 	// Arrange
-	var n vogue.Notification
-	n.Add(vogue.FieldError{Field: "title", Rule: "required", Message: "is required"})
-	n.Add(vogue.FieldError{Field: "email", Rule: "email", Message: "must be a valid email address"})
-	n.Add(vogue.FieldError{Field: "title", Rule: "min", Param: "1", Message: "too short"})
+	var n validation.Notification
+	n.Add(validation.FieldError{Field: "title", Rule: "required", Message: "is required"})
+	n.Add(validation.FieldError{Field: "email", Rule: "email", Message: "must be a valid email address"})
+	n.Add(validation.FieldError{Field: "title", Rule: "min", Param: "1", Message: "too short"})
 
 	// Act
 	got := n.Field("title")
@@ -116,7 +116,7 @@ func TestNotification_Error(t *testing.T) {
 	// Arrange
 	cases := []struct {
 		name string
-		errs []vogue.FieldError
+		errs []validation.FieldError
 		want string
 	}{
 		{
@@ -125,12 +125,12 @@ func TestNotification_Error(t *testing.T) {
 		},
 		{
 			name: "single",
-			errs: []vogue.FieldError{{Field: "title", Rule: "required", Message: "is required"}},
+			errs: []validation.FieldError{{Field: "title", Rule: "required", Message: "is required"}},
 			want: "1 validation error:\n  - title: is required (rule \"required\")",
 		},
 		{
 			name: "multiple",
-			errs: []vogue.FieldError{
+			errs: []validation.FieldError{
 				{Field: "title", Rule: "min", Param: "1", Message: "too short"},
 				{Field: "email", Rule: "email", Message: "must be a valid email address"},
 			},
@@ -141,7 +141,7 @@ func TestNotification_Error(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Arrange
-			var n vogue.Notification
+			var n validation.Notification
 			for _, e := range tc.errs {
 				n.Add(e)
 			}
@@ -158,7 +158,7 @@ func TestNotification_Error(t *testing.T) {
 func TestNotification_ErrOrNil(t *testing.T) {
 	t.Run("empty returns a truly nil error", func(t *testing.T) {
 		// Arrange
-		var n vogue.Notification
+		var n validation.Notification
 
 		// Act
 		err := n.ErrOrNil()
@@ -170,8 +170,8 @@ func TestNotification_ErrOrNil(t *testing.T) {
 
 	t.Run("non empty returns the notification", func(t *testing.T) {
 		// Arrange
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "title", Rule: "required", Message: "is required"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: "title", Rule: "required", Message: "is required"})
 
 		// Act
 		err := n.ErrOrNil()
@@ -184,20 +184,20 @@ func TestNotification_ErrOrNil(t *testing.T) {
 
 func TestNotification_Unwrap(t *testing.T) {
 	// Arrange
-	var n vogue.Notification
-	n.Add(vogue.FieldError{Field: "title", Rule: "min", Param: "1", Message: "too short"})
-	n.Add(vogue.FieldError{Field: "email", Rule: "email", Message: "must be a valid email address"})
+	var n validation.Notification
+	n.Add(validation.FieldError{Field: "title", Rule: "min", Param: "1", Message: "too short"})
+	n.Add(validation.FieldError{Field: "email", Rule: "email", Message: "must be a valid email address"})
 	err := n.ErrOrNil()
 
 	t.Run("errors.Is finds a rule", func(t *testing.T) {
 		// Act & Assert
-		require.ErrorIs(t, err, vogue.FieldError{Rule: "email"})
-		assert.NotErrorIs(t, err, vogue.FieldError{Rule: "max"})
+		require.ErrorIs(t, err, validation.FieldError{Rule: "email"})
+		assert.NotErrorIs(t, err, validation.FieldError{Rule: "max"})
 	})
 
 	t.Run("errors.As extracts the first field error", func(t *testing.T) {
 		// Act
-		var got vogue.FieldError
+		var got validation.FieldError
 		ok := errors.As(err, &got)
 
 		// Assert
@@ -208,12 +208,12 @@ func TestNotification_Unwrap(t *testing.T) {
 
 func TestNotification_Add_zeroAllocationsWhenEmpty(t *testing.T) {
 	// Arrange
-	var n vogue.Notification
+	var n validation.Notification
 
 	// Act
 	allocs := testing.AllocsPerRun(100, func() {
 		n.Reset()
-		n.Add(vogue.FieldError{Field: "title", Rule: "required", Message: "is required"})
+		n.Add(validation.FieldError{Field: "title", Rule: "required", Message: "is required"})
 	})
 
 	// Assert

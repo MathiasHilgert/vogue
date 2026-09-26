@@ -9,8 +9,8 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/MathiasHilgert/vogue"
 	"github.com/MathiasHilgert/vogue/gen/internal/testrules"
+	"github.com/MathiasHilgert/vogue/validation"
 	"github.com/google/uuid"
 )
 
@@ -20,25 +20,25 @@ type Title struct{ v string }
 // NewTitle validates raw and returns the Title it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
+// working value, checks record a [validation.FieldError] on a notification. Every
 // failure is collected, so the returned error describes the whole input rather
 // than the first thing that went wrong.
 func NewTitle(raw string) (Title, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(v != "") {
-		n.Add(vogue.FieldError{Field: "title", Rule: "required", Value: v, Message: "title is required"})
+		n.Add(validation.FieldError{Field: "title", Rule: "required", Value: v, Message: "title is required"})
 	}
 	v = strings.TrimSpace(v)
 	v = strings.ToLower(v)
 	if !(utf8.RuneCountInString(v) >= 1) {
-		n.Add(vogue.FieldError{Field: "title", Rule: "min", Param: "1", Value: v, Message: "title must be at least 1"})
+		n.Add(validation.FieldError{Field: "title", Rule: "min", Param: "1", Value: v, Message: "title must be at least 1"})
 	}
 	if !(utf8.RuneCountInString(v) <= 120) {
-		n.Add(vogue.FieldError{Field: "title", Rule: "max", Param: "120", Value: v, Message: "title must be at most 120"})
+		n.Add(validation.FieldError{Field: "title", Rule: "max", Param: "120", Value: v, Message: "title must be at most 120"})
 	}
 	if !(testrules.NoDigits(v)) {
-		n.Add(vogue.FieldError{Field: "title", Rule: "nodigits", Value: v, Message: "title must not contain digits"})
+		n.Add(validation.FieldError{Field: "title", Rule: "nodigits", Value: v, Message: "title must not contain digits"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -90,7 +90,7 @@ func (t *Title) Scan(src any) error {
 	case []byte:
 		return t.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into Title", src)
+		return fmt.Errorf("vogue: cannot scan %T into Title: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -105,13 +105,13 @@ type Covers struct{ v int64 }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewCovers(raw int64) (Covers, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(v >= 1) {
-		n.Add(vogue.FieldError{Field: "covers", Rule: "min", Param: "1", Value: strconv.FormatInt(v, 10), Message: "covers must be at least 1"})
+		n.Add(validation.FieldError{Field: "covers", Rule: "min", Param: "1", Value: strconv.FormatInt(v, 10), Message: "covers must be at least 1"})
 	}
 	if !(v <= 200) {
-		n.Add(vogue.FieldError{Field: "covers", Rule: "max", Param: "200", Value: strconv.FormatInt(v, 10), Message: "covers must be at most 200"})
+		n.Add(validation.FieldError{Field: "covers", Rule: "max", Param: "200", Value: strconv.FormatInt(v, 10), Message: "covers must be at most 200"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -124,8 +124,8 @@ func NewCovers(raw int64) (Covers, error) {
 func ParseCovers(raw string) (Covers, error) {
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "covers", Rule: "int", Value: raw, Message: "covers must be a whole number"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: "covers", Rule: "int", Value: raw, Message: "covers must be a whole number"})
 		return Covers{}, n.ErrOrNil()
 	}
 	return NewCovers(v)
@@ -185,7 +185,7 @@ func (c *Covers) Scan(src any) error {
 	case []byte:
 		return c.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into Covers", src)
+		return fmt.Errorf("vogue: cannot scan %T into Covers: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -225,8 +225,8 @@ func ParseTabStatus(raw string) (TabStatus, error) {
 		return TabStatusClosed, nil
 	}
 
-	var n vogue.Notification
-	n.Add(vogue.FieldError{Field: "tabStatus", Rule: "oneof", Param: "open,in_progress,closed", Value: raw, Message: "tabStatus must be one of: open, in_progress, closed"})
+	var n validation.Notification
+	n.Add(validation.FieldError{Field: "tabStatus", Rule: "oneof", Param: "open,in_progress,closed", Value: raw, Message: "tabStatus must be one of: open, in_progress, closed"})
 	return TabStatus{}, n.ErrOrNil()
 }
 
@@ -271,7 +271,7 @@ func (t *TabStatus) Scan(src any) error {
 	case []byte:
 		return t.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into TabStatus", src)
+		return fmt.Errorf("vogue: cannot scan %T into TabStatus: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -297,8 +297,8 @@ func NewTabID() (TabID, error) {
 func ParseTabID(raw string) (TabID, error) {
 	id, err := uuid.Parse(raw)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "tabId", Rule: "uuid", Value: raw, Message: "tabId must be a valid UUID"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: "tabId", Rule: "uuid", Value: raw, Message: "tabId must be a valid UUID"})
 		return TabID{}, n.ErrOrNil()
 	}
 	return TabID{UUID: id}, nil
@@ -322,10 +322,10 @@ type InvoiceNumber struct{ v int64 }
 // positive by definition, so zero and negative values are rejected rather than
 // quietly producing an identifier equal to the zero value.
 func InvoiceNumberFromInt64(raw int64) (InvoiceNumber, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 	if !(v > 0) {
-		n.Add(vogue.FieldError{Field: "invoiceNumber", Rule: "positive", Value: strconv.FormatInt(v, 10), Message: "invoiceNumber must be a positive identifier"})
+		n.Add(validation.FieldError{Field: "invoiceNumber", Rule: "positive", Value: strconv.FormatInt(v, 10), Message: "invoiceNumber must be a positive identifier"})
 	}
 
 	if err := n.ErrOrNil(); err != nil {
@@ -338,8 +338,8 @@ func InvoiceNumberFromInt64(raw int64) (InvoiceNumber, error) {
 func ParseInvoiceNumber(raw string) (InvoiceNumber, error) {
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "invoiceNumber", Rule: "int", Value: raw, Message: "invoiceNumber must be a whole number"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: "invoiceNumber", Rule: "int", Value: raw, Message: "invoiceNumber must be a whole number"})
 		return InvoiceNumber{}, n.ErrOrNil()
 	}
 	return InvoiceNumberFromInt64(v)
@@ -395,6 +395,6 @@ func (i *InvoiceNumber) Scan(src any) error {
 	case []byte:
 		return i.UnmarshalText(value)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into InvoiceNumber", src)
+		return fmt.Errorf("vogue: cannot scan %T into InvoiceNumber: %w", src, validation.ErrUnsupportedSource)
 	}
 }

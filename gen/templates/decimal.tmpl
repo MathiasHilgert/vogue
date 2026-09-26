@@ -11,11 +11,11 @@ type {{$n}} struct{ v decimal.Decimal }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func New{{$n}}(raw decimal.Decimal) ({{$n}}, error) {
-	var n vogue.Notification
+	var n validation.Notification
 	v := raw
 {{range .Steps}}{{if .Normalize}}	{{.Code}}
 {{else}}	if !({{.Code}}) {
-		n.Add(vogue.FieldError{Field: {{q .Field}}, Rule: {{q .Rule}}, {{if .Param}}Param: {{q .Param}}, {{end}}Value: v.String(), Message: {{q .Message}}})
+		n.Add(validation.FieldError{Field: {{q .Field}}, Rule: {{q .Rule}}, {{if .Param}}Param: {{q .Param}}, {{end}}Value: v.String(), Message: {{q .Message}}})
 	}
 {{end}}{{end}}
 	if err := n.ErrOrNil(); err != nil {
@@ -30,8 +30,8 @@ func New{{$n}}(raw decimal.Decimal) ({{$n}}, error) {
 func Parse{{$n}}(raw string) ({{$n}}, error) {
 	v, err := decimal.Parse(raw)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: {{q .Field}}, Rule: "decimal", Value: raw, Message: "{{.Field}} must be an exact decimal number"})
+		var n validation.Notification
+		n.Add(validation.FieldError{Field: {{q .Field}}, Rule: "decimal", Value: raw, Message: "{{.Field}} must be an exact decimal number"})
 		return {{$n}}{}, n.ErrOrNil()
 	}
 	return New{{$n}}(v)
@@ -108,8 +108,8 @@ func ({{$r}} *{{$n}}) Scan(src any) error {
 		*{{$r}} = built
 		return nil
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into {{$n}}: it has already lost digits; configure the driver to deliver numeric columns as text", src)
+		return fmt.Errorf("vogue: cannot scan the binary float %T into {{$n}}, configure the driver to deliver numeric columns as text: %w", src, validation.ErrLossySource)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into {{$n}}", src)
+		return fmt.Errorf("vogue: cannot scan %T into {{$n}}: %w", src, validation.ErrUnsupportedSource)
 	}
 }
