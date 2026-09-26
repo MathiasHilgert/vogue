@@ -96,12 +96,23 @@ type Directive struct {
 	// order the generated constructor evaluates them in. It is empty for the
 	// enum and id kinds.
 	Rules []RuleUse
+	// Examples are the values the directive declares valid with
+	// `example=<value>` tokens, in the order written. The generated test
+	// requires the constructor to accept every one of them and proves the
+	// round trips with the first, which is how a directive whose rules
+	// declare no example that survives all of them still gets a tested
+	// sample. It is empty for the enum and id kinds.
+	Examples []string
 	// Values are the members of an enum, in the order written. It is empty for
 	// every other kind.
 	Values []EnumValue
 	// Strategy selects how an id value object mints its value. It is only
 	// meaningful for the id kind, where its zero value is [IDUUIDv7].
 	Strategy IDStrategy
+	// Catalogue is the name of the empty struct type whose methods expose the
+	// members of an enum, the plural of [Directive.Name]: PlaceKind has
+	// PlaceKinds, TabStatus has TabStatuses. It is empty for every other kind.
+	Catalogue string
 }
 
 // RuleUse is one rule as applied by a directive.
@@ -121,6 +132,11 @@ type RuleUse struct {
 type EnumValue struct {
 	// Value is the wire value as written in the directive.
 	Value string
-	// Const is the Go constant name generated for it, such as TabStatusOpen.
+	// Const is the prefixed Go name of the member, such as TabStatusOpen. The
+	// generator no longer declares it; it is kept for tools that name members
+	// the way vogue 0.1 did.
 	Const string
+	// Method is the name of the catalogue method returning the member, such as
+	// Open for TabStatuses{}.Open().
+	Method string
 }
