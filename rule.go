@@ -115,6 +115,12 @@ type EmitContext struct {
 	// Kind is the value-object kind being generated, so a rule registered for
 	// several kinds can emit the expression each one needs.
 	Kind Kind
+	// Ident is an identifier reserved for this one use of the rule inside the
+	// generated constructor, such as "maxParam". A rule that declares a local
+	// constant through [Rule.Local] names it with Ident (or with Ident as a
+	// prefix) and refers to it from [Rule.Emit], so two rules of the same
+	// directive never declare the same name.
+	Ident string
 }
 
 // FuncRef names a package-level function used as a rule check. The referenced
@@ -261,7 +267,24 @@ type Rule struct {
 	// returned source must therefore be self-contained and must name itself
 	// deterministically from [EmitContext.Param], so that a rule declaring
 	// `var x = ...` also emits an expression referring to that same `x`.
+	//
+	// A package-level variable is exactly what strict linters such as
+	// gochecknoglobals reject in generated code, so the built-in rules no
+	// longer use Declare: they declare constants with [Rule.Local] or call a
+	// runtime helper that caches what it compiles. Declare is kept for custom
+	// rules that need it.
 	Declare func(EmitContext) string
+	// Local returns a declaration placed at the top of the generated
+	// constructor, before the first rule runs, such as the named constant a
+	// bound is compared against:
+	//
+	//	const maxParam = 120
+	//
+	// Naming a number keeps magic-number linters quiet and makes the
+	// constructor read as the directive does. The declaration must name what it
+	// declares after [EmitContext.Ident]. It is optional and requires
+	// [Rule.Emit].
+	Local func(EmitContext) string
 	// Imports are the import paths the emitted code needs, such as "strings"
 	// for a rule whose expression calls strings.HasPrefix. A [Rule.Call] adds
 	// its own package automatically and does not need to repeat it here.
@@ -300,6 +323,9 @@ func (r Rule) Validate() error {
 	}
 	if r.Declare != nil && r.Emit == nil {
 		return fmt.Errorf("vogue: rule %q: Declare requires Emit, a call-backed rule declares nothing", r.Name)
+	}
+	if r.Local != nil && r.Emit == nil {
+		return fmt.Errorf("vogue: rule %q: Local requires Emit, a call-backed rule declares nothing", r.Name)
 	}
 	if r.Call != nil {
 		if r.Normalize {
