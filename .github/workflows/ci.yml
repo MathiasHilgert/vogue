@@ -49,6 +49,7 @@ jobs:
             ./gen/testdata/strict/persistence/
             ./rules/internal/catalogue/
             ./examples/customrule/domain/
+            ./examples/composite/geo/
 
       - name: Check generated code is up to date
         run: |
