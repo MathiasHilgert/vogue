@@ -64,6 +64,7 @@ type config struct {
 	custom         []vogue.Rule
 	withoutBuiltin bool
 	tests          bool
+	sql            bool
 	dryRun         bool
 	stdout, stderr io.Writer
 }
@@ -107,6 +108,14 @@ func WithTests(on bool) Option {
 	return func(c *config) { c.tests = on }
 }
 
+// WithSQL turns the database/sql/driver codec — Value and Scan — on or off.
+// It is on by default. A hexagonal domain package whose linter forbids
+// importing database/sql/driver turns it off and converts at the persistence
+// adapter, through the text codec or the accessors.
+func WithSQL(on bool) Option {
+	return func(c *config) { c.sql = on }
+}
+
 // WithDryRun reports the files that would be written, with their sizes, and
 // writes nothing.
 func WithDryRun(on bool) Option {
@@ -126,7 +135,7 @@ func WithStderr(w io.Writer) Option {
 
 // newConfig resolves the defaults and applies the options.
 func newConfig(opts []Option) *config {
-	c := &config{tests: true, stdout: os.Stdout, stderr: os.Stderr}
+	c := &config{tests: true, sql: true, stdout: os.Stdout, stderr: os.Stderr}
 	for _, opt := range opts {
 		opt(c)
 	}
@@ -176,7 +185,7 @@ func Run(opts ...Option) error {
 
 	importPath := c.resolveImportPath()
 
-	g, err := gen.New(gen.Options{Package: pkg, Rules: set, ImportPath: importPath})
+	g, err := gen.New(gen.Options{Package: pkg, Rules: set, ImportPath: importPath, OmitSQL: !c.sql})
 	if err != nil {
 		return err
 	}
