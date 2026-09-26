@@ -93,3 +93,42 @@ func TestUUID(t *testing.T) {
 		})
 	}
 }
+
+func TestRegexp(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		v       string
+		pattern string
+		want    bool
+	}{
+		{name: "matches an anchored pattern", v: "AR", pattern: "^[A-Z]{2}$", want: true},
+		{name: "rejects a value outside the pattern", v: "ar", pattern: "^[A-Z]{2}$", want: false},
+		{name: "matches unanchored anywhere", v: "x-42-y", pattern: "[0-9]+", want: true},
+		{name: "rejects an invalid pattern rather than panicking", v: "a", pattern: "[", want: false},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			got := fn.Regexp(tc.v, tc.pattern)
+
+			// Assert
+			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestRegexp_compilesOnce(t *testing.T) {
+	// Arrange
+	fn.Regexp("warm", "^w")
+
+	// Act
+	allocs := testing.AllocsPerRun(100, func() { fn.Regexp("warm", "^w") })
+
+	// Assert
+	assert.Zero(t, allocs, "a cached pattern must be matched without compiling it again")
+}
