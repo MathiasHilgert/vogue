@@ -27,9 +27,9 @@ func TestGenerator_Tests(t *testing.T) {
 		got := generateTest(t, body, testrules.Set(testrulesPath))
 
 		// Assert
-		assert.Contains(t, got, "func TestNewTitle(t *testing.T) {")
-		assert.Contains(t, got, `{name: "accepts \"a\"", in: "a"},`)
-		assert.Contains(t, got, "// Arrange")
+		assert.Contains(t, got, "func TestTitle(t *testing.T) {")
+		assert.Contains(t, got, "voguetest.Scalar[Title, *Title, string]{")
+		assert.Regexp(t, `Candidates:\s+\[\]string\{"a"\},`, got)
 		assert.Contains(t, got, "t.Parallel()")
 	})
 
@@ -41,7 +41,7 @@ func TestGenerator_Tests(t *testing.T) {
 		got := generateTest(t, body, testrules.Set(testrulesPath))
 
 		// Assert
-		assert.Contains(t, got, `wantRules: []string{"required", "min"}`)
+		assert.Contains(t, got, `Rules: []string{"required", "min"},`)
 	})
 
 	t.Run("asserts a rejected input against every rule that rejects it", func(t *testing.T) {
@@ -52,11 +52,11 @@ func TestGenerator_Tests(t *testing.T) {
 		got := generateTest(t, body, testrules.Set(testrulesPath))
 
 		// Assert
-		assert.Contains(t, got, `assert.ErrorIs(t, err, validation.FieldError{Field: "title", Rule: rule}`)
-		assert.Contains(t, got, `{name: "rejects a value carrying a digit", in: "a1", wantRules: []string{"nodigits"}},`)
+		assert.Regexp(t, `Field:\s+"title",`, got)
+		assert.Contains(t, got, "Name:  \"rejects a value carrying a digit\",\n\t\t\t\tIn:    \"a1\",\n\t\t\t\tRules: []string{\"nodigits\"},")
 	})
 
-	t.Run("skips a constructor whose rules declare no usable example", func(t *testing.T) {
+	t.Run("hands the suite no candidate when the rules declare no example", func(t *testing.T) {
 		// Arrange
 		set := &vogue.RuleSet{}
 		require.NoError(t, set.Add(vogue.Rule{
@@ -68,9 +68,8 @@ func TestGenerator_Tests(t *testing.T) {
 		got := generateTest(t, "//vogue:string Title opaque\n", set)
 
 		// Assert
-		assert.Contains(t, got, "t.Skip(")
-		assert.Contains(t, got, "add Examples to the rules it uses")
-		assert.NotContains(t, got, "func TestTitle_IsZero")
+		assert.Regexp(t, `Candidates:\s+nil,`, got)
+		assert.Regexp(t, `Rejected:\s+nil,`, got)
 	})
 
 	t.Run("ignores an example the kind cannot express", func(t *testing.T) {
@@ -81,9 +80,9 @@ func TestGenerator_Tests(t *testing.T) {
 		got := generateTest(t, body, testrules.Set(testrulesPath))
 
 		// Assert
-		assert.Contains(t, got, "in        int64")
-		assert.Contains(t, got, `{name: "accepts \"1\"", in: 1},`)
-		assert.NotContains(t, got, `in: "a"`)
+		assert.Contains(t, got, "voguetest.Scalar[Covers, *Covers, int64]{")
+		assert.Regexp(t, `Candidates:\s+\[\]int64\{1, 200\},`, got)
+		assert.NotContains(t, got, `"a"`)
 	})
 
 	t.Run("proves a normalizer rewrites instead of only accepting", func(t *testing.T) {
@@ -94,9 +93,9 @@ func TestGenerator_Tests(t *testing.T) {
 		got := generateTest(t, body, testrules.Set(testrulesPath))
 
 		// Assert
-		assert.Contains(t, got, "func TestNewTitle_Normalizes(t *testing.T) {")
-		assert.Contains(t, got, `in: "  a  ", want: "a"`)
-		assert.NotContains(t, got, "assert.Equal(t, tc.in, got.String())")
+		assert.Contains(t, got, "Normalized: []voguetest.Normalization[string]{")
+		assert.Contains(t, got, "In:   \"  a  \",\n\t\t\t\tOut:  \"a\",")
+		assert.Regexp(t, `Get:\s+nil,`, got)
 	})
 
 	t.Run("asserts the value is held unchanged when no normalizer runs", func(t *testing.T) {
@@ -107,8 +106,8 @@ func TestGenerator_Tests(t *testing.T) {
 		got := generateTest(t, body, testrules.Set(testrulesPath))
 
 		// Assert
-		assert.Contains(t, got, "assert.Equal(t, tc.in, got.String())")
-		assert.NotContains(t, got, "func TestNewTitle_Normalizes")
+		assert.Regexp(t, `Get:\s+Title.String,`, got)
+		assert.Regexp(t, `Normalized:\s+nil,`, got)
 	})
 
 	t.Run("pins the member set and order of an enum", func(t *testing.T) {
@@ -116,9 +115,10 @@ func TestGenerator_Tests(t *testing.T) {
 		got := generateTest(t, "//vogue:enum TabStatus open,closed\n", &vogue.RuleSet{})
 
 		// Assert
-		assert.Contains(t, got, "func TestTabStatusValues(t *testing.T) {")
-		assert.Contains(t, got, `want := []string{"open", "closed"}`)
-		assert.Contains(t, got, `Rule: "oneof", Param: "open,closed"`)
+		assert.Contains(t, got, "voguetest.Enum[TabStatus, *TabStatus]{")
+		assert.Contains(t, got, "All:   TabStatuses{}.All(),")
+		assert.Contains(t, got, "Parse: TabStatuses{}.Parse,")
+		assert.Contains(t, got, "Want: []string{\n\t\t\t\"open\",\n\t\t\t\"closed\",\n\t\t},")
 	})
 
 	t.Run("asserts the version an uuid identifier mints", func(t *testing.T) {
@@ -126,8 +126,9 @@ func TestGenerator_Tests(t *testing.T) {
 		got := generateTest(t, "//vogue:id SessionID uuid4\n", &vogue.RuleSet{})
 
 		// Assert
-		assert.Contains(t, got, "assert.EqualValues(t, 4, first.Version())")
-		assert.Contains(t, got, `assert.ErrorIs(t, err, validation.FieldError{Field: "sessionId", Rule: "uuid"})`)
+		assert.Contains(t, got, "voguetest.UUID[SessionID, *SessionID]{")
+		assert.Contains(t, got, "FromString: NewSessionIDFromString,")
+		assert.Contains(t, got, "Version:    4,")
 	})
 
 	t.Run("covers the positive rule of an int64 identifier", func(t *testing.T) {
@@ -135,9 +136,8 @@ func TestGenerator_Tests(t *testing.T) {
 		got := generateTest(t, "//vogue:id InvoiceNumber int64\n", &vogue.RuleSet{})
 
 		// Assert
-		assert.Contains(t, got, "func TestInvoiceNumberFromInt64(t *testing.T) {")
-		assert.Contains(t, got, `Rule: "positive"`)
-		assert.NotContains(t, got, "func TestNewInvoiceNumber")
+		assert.Contains(t, got, "voguetest.Int64ID[InvoiceNumber, *InvoiceNumber]{")
+		assert.Contains(t, got, "FromInt64:  NewInvoiceNumberFromInt64,")
 	})
 
 	t.Run("names a row after its input when the example carries no note", func(t *testing.T) {
@@ -156,7 +156,7 @@ func TestGenerator_Tests(t *testing.T) {
 		got := generateTest(t, "//vogue:string Title shouty\n", set)
 
 		// Assert
-		assert.Contains(t, got, `{name: "rejects \"hi\" (shouty)", in: "hi", wantRules: []string{"shouty"}},`)
+		assert.Contains(t, got, `Name:  "rejects \"hi\" (shouty)",`)
 	})
 
 	t.Run("names a rewrite after its rule when the normalization carries no note", func(t *testing.T) {
@@ -180,7 +180,7 @@ func TestGenerator_Tests(t *testing.T) {
 		got := generateTest(t, "//vogue:string Title squash any\n", set)
 
 		// Assert
-		assert.Contains(t, got, `name: "squash rewrites \" a \" to \"a\""`)
+		assert.Contains(t, got, `Name: "squash rewrites \" a \" to \"a\"",`)
 	})
 
 	t.Run("drops a rewrite the kind cannot express", func(t *testing.T) {
@@ -204,8 +204,8 @@ func TestGenerator_Tests(t *testing.T) {
 		got := generateTest(t, "//vogue:int Covers squash any\n", set)
 
 		// Assert
-		assert.NotContains(t, got, "_Normalizes")
-		assert.Contains(t, got, "{name: \"accepts \\\"3\\\"\", in: 3},")
+		assert.Regexp(t, `Normalized:\s+nil,`, got)
+		assert.Regexp(t, `Candidates:\s+\[\]int64\{3\},`, got)
 	})
 
 	t.Run("refuses a sample another rule of the same directive rejects", func(t *testing.T) {
@@ -228,8 +228,8 @@ func TestGenerator_Tests(t *testing.T) {
 		got := generateTest(t, "//vogue:string Title first second\n", set)
 
 		// Assert
-		assert.Contains(t, got, `{name: "accepts \"clean\"", in: "clean"},`)
-		assert.Contains(t, got, `{name: "rejects \"clash\" (second)", in: "clash", wantRules: []string{"second"}},`)
+		assert.Regexp(t, `Candidates:\s+\[\]string\{"clean"\},`, got)
+		assert.Contains(t, got, `Name:  "rejects \"clash\" (second)",`)
 	})
 
 	t.Run("generates a test file in the package under test", func(t *testing.T) {
@@ -239,7 +239,7 @@ func TestGenerator_Tests(t *testing.T) {
 		// Assert
 		assert.Contains(t, got, "// Code generated by vogue. DO NOT EDIT.")
 		assert.Contains(t, got, "package tab")
-		assert.Contains(t, got, `"github.com/stretchr/testify/require"`)
+		assert.Contains(t, got, `"github.com/MathiasHilgert/vogue/voguetest"`)
 	})
 }
 

@@ -2,35 +2,47 @@
 {{range .DocLines}}// {{.}}
 {{end}}//
 // The value is assigned by the database, so this type has no generator: an
-// identifier is either read from a row with Scan or Parse{{$n}}, or built from
-// a number the database already handed out with {{$n}}FromInt64.
+// identifier is either read from a row or a payload, or built from a number the
+// database already handed out with New{{$n}}FromInt64.
+{{- if .SQL}}
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+{{- end}}
 type {{$n}} struct{ v int64 }
 
-// {{$n}}FromInt64 wraps a database-assigned identifier. Identifiers are
+// New{{$n}}FromInt64 wraps a database-assigned identifier. Identifiers are
 // positive by definition, so zero and negative values are rejected rather than
 // quietly producing an identifier equal to the zero value.
-func {{$n}}FromInt64(raw int64) ({{$n}}, error) {
-	var n validation.Notification
-	v := raw
-	if !(v > 0) {
-		n.Add(validation.FieldError{Field: {{q .Field}}, Rule: "positive", Value: strconv.FormatInt(v, 10), Message: "{{.Field}} must be a positive identifier"})
+func New{{$n}}FromInt64(raw int64) ({{$n}}, error) {
+	if raw <= 0 {
+		var (
+			zero {{$n}}
+			n    validation.Notification
+		)
+
+		n.Reject({{q .Field}}, "positive", "", strconv.FormatInt(raw, 10), "{{.Field}} must be a positive identifier")
+
+		return zero, &n
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return {{$n}}{}, err
-	}
-	return {{$n}}{v: v}, nil
+	return {{$n}}{v: raw}, nil
 }
 
-// Parse{{$n}} reads a base-10 representation of an identifier.
-func Parse{{$n}}(raw string) ({{$n}}, error) {
+// New{{$n}}FromString reads a base-10 representation of an identifier.
+func New{{$n}}FromString(raw string) ({{$n}}, error) {
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: {{q .Field}}, Rule: "int", Value: raw, Message: "{{.Field}} must be a whole number"})
-		return {{$n}}{}, n.ErrOrNil()
+		var (
+			zero {{$n}}
+			n    validation.Notification
+		)
+
+		n.Reject({{q .Field}}, "int", "", raw, "{{.Field}} must be a whole number")
+
+		return zero, &n
 	}
-	return {{$n}}FromInt64(v)
+
+	return New{{$n}}FromInt64(v)
 }
 
 // Int64 returns the identifier as the database holds it.
@@ -48,20 +60,21 @@ func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.v == other.v }
 // MarshalText implements encoding.TextMarshaler, which encoding/json also
 // uses, so the identifier crosses a JSON boundary as a string and keeps its
 // full precision in a JavaScript client.
-func ({{$r}} {{$n}}) MarshalText() ([]byte, error) {
-	return strconv.AppendInt(nil, {{$r}}.v, 10), nil
-}
+func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.String()), nil }
 
-// UnmarshalText implements encoding.TextUnmarshaler through Parse{{$n}}.
+// UnmarshalText implements encoding.TextUnmarshaler through
+// New{{$n}}FromString.
 func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
-	parsed, err := Parse{{$n}}(string(data))
+	parsed, err := New{{$n}}FromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*{{$r}} = parsed
+
 	return nil
 }
-
+{{if .SQL}}
 // Value implements driver.Valuer.
 func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.v, nil }
 
@@ -69,14 +82,19 @@ func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.v, nil }
 func ({{$r}} *{{$n}}) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*{{$r}} = {{$n}}{}
+		var zero {{$n}}
+
+		*{{$r}} = zero
+
 		return nil
 	case int64:
-		parsed, err := {{$n}}FromInt64(value)
+		parsed, err := New{{$n}}FromInt64(value)
 		if err != nil {
 			return err
 		}
+
 		*{{$r}} = parsed
+
 		return nil
 	case string:
 		return {{$r}}.UnmarshalText([]byte(value))
@@ -86,3 +104,4 @@ func ({{$r}} *{{$n}}) Scan(src any) error {
 		return fmt.Errorf("vogue: cannot scan %T into {{$n}}: %w", src, validation.ErrUnsupportedSource)
 	}
 }
+{{end}}

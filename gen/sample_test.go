@@ -31,8 +31,8 @@ func zeroValidRule(valid ...string) vogue.Rule {
 	}
 }
 
-func TestTestGenerator_AcceptedSample(t *testing.T) {
-	t.Run("skips the zero value when another accepted example is declared", func(t *testing.T) {
+func TestTestGenerator_Candidates(t *testing.T) {
+	t.Run("hands every declared valid example to the suite, the zero value included", func(t *testing.T) {
 		// Arrange
 		set := &vogue.RuleSet{}
 		require.NoError(t, set.Add(zeroValidRule("0", "7")))
@@ -44,17 +44,15 @@ func TestTestGenerator_AcceptedSample(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		require.Len(t, files, 2)
-		test := string(files[1].Content)
-		assert.Contains(t, test, `{name: "accepts \"7\"", in: 7}`)
-		assert.NotContains(t, test, `{name: "accepts \"0\""`)
-		assert.NotContains(t, test, "t.Skip")
+		assert.Regexp(t, `Candidates:\s+\[\]int64\{0, 7\},`, string(files[1].Content),
+			"the suite, not the generator, skips a zero sample when the test runs")
 	})
 
-	t.Run("skips the test rather than asserting a zero sample is not zero", func(t *testing.T) {
+	t.Run("puts the directive's own examples ahead of the candidates", func(t *testing.T) {
 		// Arrange
 		set := &vogue.RuleSet{}
 		require.NoError(t, set.Add(zeroValidRule("0")))
-		pkg := parseSource(t, "//vogue:int Stock nonneg\n", set)
+		pkg := parseSource(t, "//vogue:int Stock nonneg example=12 example=40\n", set)
 
 		// Act
 		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
@@ -62,8 +60,8 @@ func TestTestGenerator_AcceptedSample(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		test := string(files[1].Content)
-		assert.Contains(t, test, "t.Skip")
-		assert.Contains(t, test, "example", "the skip must ask for an example")
+		assert.Regexp(t, `Examples:\s+\[\]int64\{12, 40\},`, test)
+		assert.Regexp(t, `Candidates:\s+\[\]int64\{0\},`, test)
 	})
 }
 
@@ -102,13 +100,11 @@ func TestTestGenerator_NormalizerOnlyDirective(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, files, 2)
 		test := string(files[1].Content)
-		assert.Contains(t, test, "func TestNewCode(t *testing.T)")
-		assert.Contains(t, test, "t.Skip")
-		assert.Contains(t, test, "func TestNewCode_Normalizes(t *testing.T)")
-		assert.Contains(t, test, `want: "ábc"`)
+		assert.Regexp(t, `Candidates:\s+nil,`, test)
+		assert.Contains(t, test, `Out:  "ábc",`)
 	})
 
-	t.Run("imports only what the generated test actually uses", func(t *testing.T) {
+	t.Run("imports only testing and the suites", func(t *testing.T) {
 		// Arrange
 		set := &vogue.RuleSet{}
 		require.NoError(t, set.Add(normalizerOnlyRule()))
@@ -120,9 +116,7 @@ func TestTestGenerator_NormalizerOnlyDirective(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		test := string(files[1].Content)
-		assert.NotContains(t, test, "pkg/vogue\"", "vogue is never referenced by a normalizer-only test")
-		assert.Contains(t, test, "testify/assert")
-		assert.Contains(t, test, "testify/require")
+		assert.Contains(t, test, "import (\n\t\"testing\"\n\n\t\"github.com/MathiasHilgert/vogue/voguetest\"\n)")
 	})
 }
 
@@ -176,7 +170,7 @@ func broadRule() vogue.Rule {
 }
 
 func TestTestGenerator_Normalizations(t *testing.T) {
-	t.Run("drops a rewrite no rule of the directive declares acceptable", func(t *testing.T) {
+	t.Run("hands a rewrite to the suite even when no rule vouches for its output", func(t *testing.T) {
 		// Arrange
 		set := &vogue.RuleSet{}
 		require.NoError(t, set.Add(trimRule(), narrowRule()))
@@ -187,9 +181,8 @@ func TestTestGenerator_Normalizations(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		test := string(files[1].Content)
-		assert.NotContains(t, test, "TestNewTaxID_Normalizes",
-			"asserting that a rewrite is accepted is asserting what the checks of the directive never promised")
+		assert.Contains(t, string(files[1].Content), `Out:  "Tortilla",`,
+			"the suite asks the constructor whether the rest of the directive accepts the rewrite")
 	})
 
 	t.Run("keeps a rewrite the checks of the directive declare acceptable", func(t *testing.T) {
@@ -204,21 +197,7 @@ func TestTestGenerator_Normalizations(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		test := string(files[1].Content)
-		assert.Contains(t, test, "TestNewName_Normalizes")
-		assert.Contains(t, test, `want: "Tortilla"`)
-	})
-
-	t.Run("keeps every rewrite of a directive that checks nothing", func(t *testing.T) {
-		// Arrange
-		set := &vogue.RuleSet{}
-		require.NoError(t, set.Add(trimRule()))
-		pkg := parseSource(t, "//vogue:string Name trim\n", set)
-
-		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
-
-		// Assert
-		require.NoError(t, err)
-		assert.Contains(t, string(files[1].Content), "TestNewName_Normalizes")
+		assert.Contains(t, test, "Normalized: []voguetest.Normalization[string]{")
+		assert.Contains(t, test, `Name: "the blanks are dropped",`)
 	})
 }

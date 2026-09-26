@@ -5,7 +5,6 @@
 package testrules
 
 import (
-	"hash/fnv"
 	"strconv"
 	"strings"
 
@@ -85,7 +84,7 @@ func minRule() vogue.Rule {
 		Message: "{{.Field}} must be at least {{.Param}}",
 		Imports: []string{"unicode/utf8", "github.com/govalues/decimal"},
 		Emit:    func(c vogue.EmitContext) string { return bound(c, ">=") },
-		Declare: boundDecl,
+		Local:   boundConst,
 		Examples: vogue.Examples{
 			Valid: []vogue.Example{
 				{Kinds: vogue.Kinds(vogue.String), Param: "1", In: "a"},
@@ -111,7 +110,7 @@ func maxRule() vogue.Rule {
 		Message: "{{.Field}} must be at most {{.Param}}",
 		Imports: []string{"unicode/utf8", "github.com/govalues/decimal"},
 		Emit:    func(c vogue.EmitContext) string { return bound(c, "<=") },
-		Declare: boundDecl,
+		Local:   boundConst,
 		Examples: vogue.Examples{
 			Valid: []vogue.Example{
 				{Kinds: vogue.Kinds(vogue.String), Param: "2", In: "ab"},
@@ -134,7 +133,8 @@ func scale() vogue.Rule {
 		Doc:     "Rejects values carrying more decimal places than the bound.",
 		Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamInt},
 		Message: "{{.Field}} must have at most {{.Param}} decimal places",
-		Emit:    func(c vogue.EmitContext) string { return c.Var + ".Scale() <= " + c.Param },
+		Emit:    func(c vogue.EmitContext) string { return c.Var + ".Scale() <= " + c.Ident },
+		Local:   func(c vogue.EmitContext) string { return "const " + c.Ident + " = " + c.Param },
 		Examples: vogue.Examples{
 			Valid:   []vogue.Example{{Param: "3", In: "1.25", Note: "two decimal places fit in three"}},
 			Invalid: []vogue.Example{{Param: "3", In: "0.1234", Note: "four decimal places do not"}},
@@ -143,32 +143,27 @@ func scale() vogue.Rule {
 }
 
 // bound emits the comparison a bound rule needs for the kind being generated:
-// a rune count for strings, the value itself for integers, and a Cmp against a
-// once-parsed package-level decimal for the decimal kind.
+// a rune count for strings, the value itself for integers, and a Cmp for the
+// decimal kind, always against the constant [boundConst] declares.
 func bound(c vogue.EmitContext, op string) string {
 	switch c.Kind {
 	case vogue.Int:
-		return c.Var + " " + op + " " + c.Param
+		return c.Var + " " + op + " " + c.Ident
 	case vogue.Decimal:
-		return c.Var + ".Cmp(" + boundVar(c.Param) + ") " + op + " 0"
+		return c.Var + ".Cmp(decimal.MustParse(" + c.Ident + ")) " + op + " 0"
 	default:
-		return "utf8.RuneCountInString(" + c.Var + ") " + op + " " + c.Param
+		return "utf8.RuneCountInString(" + c.Var + ") " + op + " " + c.Ident
 	}
 }
 
-// boundDecl declares the parsed bound a decimal comparison reads.
-func boundDecl(c vogue.EmitContext) string {
-	if c.Kind != vogue.Decimal {
-		return ""
+// boundConst declares the bound inside the constructor: as a number, or as the
+// text of a decimal. The built-in catalogue builds a decimal bound from its
+// coefficient instead of parsing it; the test catalogue keeps the simpler form.
+func boundConst(c vogue.EmitContext) string {
+	if c.Kind == vogue.Decimal {
+		return "const " + c.Ident + " = " + strconv.Quote(c.Param)
 	}
-	return "var " + boundVar(c.Param) + " = decimal.MustParse(" + strconv.Quote(c.Param) + ")"
-}
-
-// boundVar names the declaration deterministically from the bound itself.
-func boundVar(param string) string {
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(param))
-	return "_vogueDecimal" + strconv.FormatUint(uint64(h.Sum32()), 16)
+	return "const " + c.Ident + " = " + c.Param
 }
 
 // noDigits is the call-backed rule of the catalogue, exercising import

@@ -1,229 +1,31 @@
 {{$n := .Name}}
-{{if .Skip}}
-// TestNew{{$n}} has nothing to assert: no example declared by the rules of
-// {{$n}} survives all of them, so any table would either be fabricated or
-// silently green.
-func TestNew{{$n}}(t *testing.T) {
-	t.Parallel()
-	t.Skip({{q .Skip}})
-}
-{{else}}
-// TestNew{{$n}} exercises the constructor against the examples the rules of
-// the directive declare: one accepted input, and one row per rejected input
-// naming every rule that rejects it.
-func TestNew{{$n}}(t *testing.T) {
+// Test{{$n}} runs the value-object suite against the examples the directive
+// and its rules declare.
+func Test{{$n}}(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	cases := []struct {
-		name      string
-		in        {{.InType}}
-		wantRules []string
-	}{
-{{range .Cases}}		{name: {{q .Name}}, in: {{.Lit}}{{if .Rules}}, wantRules: []string{ {{range $i, $rule := .Rules}}{{if $i}}, {{end}}{{q $rule}}{{end}} }{{end}}},
-{{end}}	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Act
-			got, err := {{.Ctor}}(tc.in)
-
-			// Assert
-			if len(tc.wantRules) == 0 {
-				require.NoError(t, err)
-				assert.False(t, got.IsZero())
-{{if .AssertEqual}}				assert.Equal(t, tc.in, got.{{.Accessor}}())
-{{end}}				return
-			}
-			require.Error(t, err)
-			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
-			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, validation.FieldError{Field: {{q .Field}}, Rule: rule},
-					"the %q rule was expected to reject the input", rule)
-			}
-		})
-	}
+	voguetest.Scalar[{{$n}}, *{{$n}}, {{.InType}}]{
+		Field:      {{q .Field}},
+		New:        {{.Ctor}},
+		Get:        {{or .Get "nil"}},
+		FromString: {{or .FromString "nil"}},
+		ParseRule:  {{q .ParseRule}},
+		Examples:   {{if .Examples}}[]{{.InType}}{ {{- range $i, $e := .Examples}}{{if $i}}, {{end}}{{$e}}{{end -}} }{{else}}nil{{end}},
+		Candidates: {{if .Candidates}}[]{{.InType}}{ {{- range $i, $e := .Candidates}}{{if $i}}, {{end}}{{$e}}{{end -}} }{{else}}nil{{end}},
+		Rejected: {{if .Cases}}[]voguetest.Rejection[{{.InType}}]{
+{{range .Cases}}			{
+				Name:  {{q .Name}},
+				In:    {{.Lit}},
+				Rules: []string{ {{- range $i, $rule := .Rules}}{{if $i}}, {{end}}{{q $rule}}{{end -}} },
+			},
+{{end}}		}{{else}}nil{{end}},
+		Normalized: {{if .Normalizations}}[]voguetest.Normalization[{{.InType}}]{
+{{range .Normalizations}}			{
+				Name: {{q .Name}},
+				In:   {{.In}},
+				Out:  {{.Out}},
+			},
+{{end}}		}{{else}}nil{{end}},
+		RefusesFloat: {{.RefusesFloat}},
+	}.Run(t)
 }
-{{end}}
-{{if .Normalizations}}
-// TestNew{{$n}}_Normalizes proves the normalizers of the directive rewrite the
-// value instead of only accepting it.
-func TestNew{{$n}}_Normalizes(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	cases := []struct {
-		name string
-		in   {{.InType}}
-		want {{.InType}}
-	}{
-{{range .Normalizations}}		{name: {{q .Name}}, in: {{.In}}, want: {{.Out}}},
-{{end}}	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Act
-			got, err := {{.Ctor}}(tc.in)
-
-			// Assert
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, got.{{.Accessor}}())
-		})
-	}
-}
-{{end}}
-{{if not .Skip}}
-// Test{{$n}}_TextRoundTrip proves a marshalled value object unmarshals back to
-// an equal one, which is what a JSON boundary does to it.
-func Test{{$n}}_TextRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	want, err := {{.Ctor}}({{.ValidLit}})
-	require.NoError(t, err)
-
-	// Act
-	text, err := want.MarshalText()
-	require.NoError(t, err)
-
-	var got {{$n}}
-	err = got.UnmarshalText(text)
-
-	// Assert
-	require.NoError(t, err)
-	assert.True(t, want.Equal(got), "%s did not survive the text round trip", want.String())
-}
-
-// Test{{$n}}_SQLRoundTrip proves a stored value object reads back equal.
-func Test{{$n}}_SQLRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	want, err := {{.Ctor}}({{.ValidLit}})
-	require.NoError(t, err)
-
-	// Act
-	stored, err := want.Value()
-	require.NoError(t, err)
-
-	var got {{$n}}
-	err = got.Scan(stored)
-
-	// Assert
-	require.NoError(t, err)
-	assert.True(t, want.Equal(got), "%s did not survive the SQL round trip", want.String())
-}
-
-// Test{{$n}}_Scan covers the sources Scan accepts and the ones it refuses.
-func Test{{$n}}_Scan(t *testing.T) {
-	t.Parallel()
-
-	t.Run("a NULL column produces the zero value", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got {{$n}}
-
-		// Act
-		err := got.Scan(nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, got.IsZero())
-	})
-{{if .InvalidRaw}}
-	t.Run("a stored value the rules reject is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got {{$n}}
-
-		// Act
-		err := got.Scan({{q .InvalidRaw}})
-
-		// Assert
-		require.Error(t, err)
-		assert.True(t, got.IsZero())
-	})
-{{end}}
-{{if .RefusesFloat}}	t.Run("a binary float source is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got {{$n}}
-
-		// Act
-		err := got.Scan(1.5)
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "binary float")
-		assert.True(t, got.IsZero())
-	})
-
-{{end}}	t.Run("an unsupported source is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got {{$n}}
-
-		// Act
-		err := got.Scan(struct{}{})
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cannot scan")
-	})
-}
-{{if .HasParse}}
-// TestParse{{$n}} covers the textual entry point of the value object.
-func TestParse{{$n}}(t *testing.T) {
-	t.Parallel()
-
-	t.Run("reads a valid representation", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		want, err := {{.Ctor}}({{.ValidLit}})
-		require.NoError(t, err)
-
-		// Act
-		got, err := Parse{{$n}}({{.ValidRaw}})
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, want.Equal(got))
-	})
-
-	t.Run("rejects a representation that {{.ParseNote}}", func(t *testing.T) {
-		t.Parallel()
-
-		// Act
-		got, err := Parse{{$n}}("not-a-number")
-
-		// Assert
-		require.Error(t, err)
-		assert.ErrorIs(t, err, validation.FieldError{Field: {{q .Field}}, Rule: {{q .ParseRule}}})
-		assert.True(t, got.IsZero())
-	})
-}
-{{end}}
-// Test{{$n}}_IsZero separates the zero value from a validated one.
-func Test{{$n}}_IsZero(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	var zero {{$n}}
-	built, err := {{.Ctor}}({{.ValidLit}})
-	require.NoError(t, err)
-
-	// Act & Assert
-	assert.True(t, zero.IsZero())
-	assert.False(t, built.IsZero())
-	assert.False(t, zero.Equal(built))
-}
-{{end}}

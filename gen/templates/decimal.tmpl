@@ -4,6 +4,10 @@
 // The value is held as a decimal.Decimal: an exact base-10 number with no
 // binary float underneath, so a rate, a percentage or a fractional quantity
 // reads back as the value someone typed.
+{{- if .SQL}}
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+{{- end}}
 type {{$n}} struct{ v decimal.Decimal }
 
 // New{{$n}} validates raw and returns the {{$n}} it describes.
@@ -11,29 +15,26 @@ type {{$n}} struct{ v decimal.Decimal }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func New{{$n}}(raw decimal.Decimal) ({{$n}}, error) {
-	var n validation.Notification
-	v := raw
-{{range .Steps}}{{if .Normalize}}	{{.Code}}
-{{else}}	if !({{.Code}}) {
-		n.Add(validation.FieldError{Field: {{q .Field}}, Rule: {{q .Rule}}, {{if .Param}}Param: {{q .Param}}, {{end}}Value: v.String(), Message: {{q .Message}}})
-	}
-{{end}}{{end}}
-	if err := n.ErrOrNil(); err != nil {
-		return {{$n}}{}, err
-	}
+{{template "validate" .}}
 	return {{$n}}{v: v}, nil
 }
 
-// Parse{{$n}} reads a decimal representation and validates it. A representation
-// decimal.Parse cannot read is reported as a {{q .Field}} failure of the
+// New{{$n}}FromString reads a decimal representation and validates it. A
+// representation decimal.Parse cannot read is reported as a failure of the
 // "decimal" rule, so a caller handles it the same way as every other rule.
-func Parse{{$n}}(raw string) ({{$n}}, error) {
+func New{{$n}}FromString(raw string) ({{$n}}, error) {
 	v, err := decimal.Parse(raw)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: {{q .Field}}, Rule: "decimal", Value: raw, Message: "{{.Field}} must be an exact decimal number"})
-		return {{$n}}{}, n.ErrOrNil()
+		var (
+			zero {{$n}}
+			n    validation.Notification
+		)
+
+		n.Reject({{q .Field}}, "decimal", "", raw, "{{.Field}} must be an exact decimal number")
+
+		return zero, &n
 	}
+
 	return New{{$n}}(v)
 }
 
@@ -45,7 +46,7 @@ func ({{$r}} {{$n}}) Decimal() decimal.Decimal { return {{$r}}.v }
 func ({{$r}} {{$n}}) String() string { return {{$r}}.v.String() }
 
 // IsZero reports whether the receiver holds zero, which is also the zero
-// {{$n}} — the only {{$n}} that never passed validation.
+// {{$n}}: the only {{$n}} that never passed validation.
 func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.v.IsZero() }
 
 // Equal reports whether both value objects hold the same number.
@@ -64,52 +65,65 @@ func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.v.Stri
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a {{$n}} the constructor would have rejected.
 func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
-	parsed, err := Parse{{$n}}(string(data))
+	parsed, err := New{{$n}}FromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*{{$r}} = parsed
+
 	return nil
 }
-
+{{if .SQL}}
 // Value implements driver.Valuer, storing the canonical representation as
 // text. A PostgreSQL `numeric` column accepts it and keeps every digit, which
 // a float parameter would not.
 func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.v.String(), nil }
 
 // Scan implements sql.Scanner for text and integer columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a vogue
-// error.
+// validation so a row that no longer satisfies the rules surfaces as a
+// validation error.
 //
-// A float64 or float32 source is refused rather than converted: it has already
-// lost digits by the time it arrives, and accepting it would undo the reason
-// this kind exists. A driver that hands back a numeric column as a float is
-// misconfigured — with pgx, the numeric codec must deliver text, and a
-// pgtype.Numeric source needs a helper of its own rather than a silent
-// conversion here.
+// A float64 or float32 source is refused with [validation.ErrLossySource]
+// rather than converted: it has already lost digits by the time it arrives,
+// and accepting it would undo the reason this kind exists. A driver that
+// hands back a numeric column as a float is misconfigured; with pgx, the
+// numeric codec must deliver text.
 func ({{$r}} *{{$n}}) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*{{$r}} = {{$n}}{}
+		var zero {{$n}}
+
+		*{{$r}} = zero
+
 		return nil
 	case string:
 		return {{$r}}.UnmarshalText([]byte(value))
 	case []byte:
 		return {{$r}}.UnmarshalText(value)
 	case int64:
-		parsed, err := decimal.New(value, 0)
-		if err != nil {
-			return fmt.Errorf("vogue: cannot scan %d into {{$n}}: %w", value, err)
-		}
-		built, err := New{{$n}}(parsed)
-		if err != nil {
-			return err
-		}
-		*{{$r}} = built
-		return nil
+		return {{$r}}.scanInt64(value)
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into {{$n}}, configure the driver to deliver numeric columns as text: %w", src, validation.ErrLossySource)
+		return fmt.Errorf("vogue: cannot scan the binary float %T into {{$n}}: %w", src, validation.ErrLossySource)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into {{$n}}: %w", src, validation.ErrUnsupportedSource)
 	}
 }
+
+// scanInt64 reads a whole number handed back by an integer column.
+func ({{$r}} *{{$n}}) scanInt64(value int64) error {
+	whole, err := decimal.New(value, 0)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot scan %d into {{$n}}: %w", value, err)
+	}
+
+	parsed, err := New{{$n}}(whole)
+	if err != nil {
+		return err
+	}
+
+	*{{$r}} = parsed
+
+	return nil
+}
+{{end}}

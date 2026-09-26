@@ -2,7 +2,6 @@ package rules_test
 
 import (
 	"sort"
-	"strings"
 	"testing"
 
 	"github.com/MathiasHilgert/vogue"
@@ -224,14 +223,14 @@ func TestEmit(t *testing.T) {
 		{
 			name: "min counts runes on a string",
 			rule: rules.Min,
-			ctx:  vogue.EmitContext{Var: "v", Param: "3", Kind: vogue.String},
-			want: "utf8.RuneCountInString(v) >= 3",
+			ctx:  vogue.EmitContext{Var: "v", Param: "3", Kind: vogue.String, Ident: "minParam"},
+			want: "utf8.RuneCountInString(v) >= minParam",
 		},
 		{
 			name: "min compares the value itself on an integer",
 			rule: rules.Min,
-			ctx:  vogue.EmitContext{Var: "v", Param: "3", Kind: vogue.Int},
-			want: "v >= 3",
+			ctx:  vogue.EmitContext{Var: "v", Param: "3", Kind: vogue.Int, Ident: "minParam"},
+			want: "v >= minParam",
 		},
 		{
 			name: "oneof quotes string items",
@@ -240,16 +239,16 @@ func TestEmit(t *testing.T) {
 			want: `v == "eur" || v == "usd"`,
 		},
 		{
-			name: "oneof leaves integer items unquoted",
+			name: "oneof looks an integer up in a literal slice",
 			rule: rules.OneOf,
 			ctx:  vogue.EmitContext{Var: "v", Param: "1,2", Kind: vogue.Int},
-			want: "v == 1 || v == 2",
+			want: "slices.Contains([]int64{1, 2}, v)",
 		},
 		{
 			name: "multipleof divides",
 			rule: rules.MultipleOf,
-			ctx:  vogue.EmitContext{Var: "v", Param: "15", Kind: vogue.Int},
-			want: "v%15 == 0",
+			ctx:  vogue.EmitContext{Var: "v", Param: "15", Kind: vogue.Int, Ident: "multipleofParam"},
+			want: "v%multipleofParam == 0",
 		},
 		{
 			name: "multipleof of zero accepts only zero, since a modulo by zero would not compile",
@@ -270,27 +269,63 @@ func TestEmit(t *testing.T) {
 	}
 }
 
-func TestRegex_Declare(t *testing.T) {
-	t.Run("names the compiled pattern after the pattern itself", func(t *testing.T) {
-		// Arrange
-		ctx := vogue.EmitContext{Var: "v", Param: "^a+$"}
+func TestLocal(t *testing.T) {
+	cases := []struct {
+		name string
+		rule vogue.Rule
+		ctx  vogue.EmitContext
+		want string
+	}{
+		{
+			name: "a rune bound is a named constant",
+			rule: rules.Max,
+			ctx:  vogue.EmitContext{Param: "120", Kind: vogue.String, Ident: "maxParam"},
+			want: "const maxParam = 120",
+		},
+		{
+			name: "a decimal bound is its coefficient and its scale",
+			rule: rules.Min,
+			ctx:  vogue.EmitContext{Param: "-90.5", Kind: vogue.Decimal, Ident: "minParam"},
+			want: "const (\n\tminParamCoef  = -905\n\tminParamScale = 1\n)",
+		},
+		{
+			name: "a scale is a named constant",
+			rule: rules.Scale,
+			ctx:  vogue.EmitContext{Param: "6", Kind: vogue.Decimal, Ident: "scaleParam"},
+			want: "const scaleParam = 6",
+		},
+		{
+			name: "multipleof of zero declares nothing",
+			rule: rules.MultipleOf,
+			ctx:  vogue.EmitContext{Param: "0", Kind: vogue.Int, Ident: "multipleofParam"},
+			want: "",
+		},
+	}
 
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			// Act
+			got := tc.rule.Local(tc.ctx)
+
+			// Assert
+			assert.Equal(t, tc.want, got)
+		})
+	}
+
+	t.Run("a decimal bound is compared against the coefficient it declares", func(t *testing.T) {
 		// Act
-		decl, expr := rules.Regex.Declare(ctx), rules.Regex.Emit(ctx)
+		got := rules.Min.Emit(vogue.EmitContext{Var: "v", Param: "-90.5", Kind: vogue.Decimal, Ident: "minParam"})
 
 		// Assert
-		assert.Contains(t, decl, `= regexp.MustCompile("^a+$")`)
-		assert.Contains(t, expr, ".MatchString(v)")
-		assert.Contains(t, decl, strings.TrimSuffix(expr, ".MatchString(v)"),
-			"the declaration and the expression must name the same variable")
+		assert.Equal(t, "v.Cmp(decimal.MustNew(minParamCoef, minParamScale)) >= 0", got)
 	})
+}
 
-	t.Run("gives two different patterns two different variables", func(t *testing.T) {
-		// Act
-		first := rules.Regex.Declare(vogue.EmitContext{Param: "^a+$"})
-		second := rules.Regex.Declare(vogue.EmitContext{Param: "^b+$"})
-
+func TestRegex(t *testing.T) {
+	t.Run("calls the caching matcher instead of declaring a package-level pattern", func(t *testing.T) {
 		// Assert
-		assert.NotEqual(t, first, second)
+		assert.Nil(t, rules.Regex.Declare)
+		require.NotNil(t, rules.Regex.Call)
+		assert.Equal(t, "fn.Regexp", rules.Regex.Call.Selector())
 	})
 }

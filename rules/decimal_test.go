@@ -1,7 +1,6 @@
 package rules_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/MathiasHilgert/vogue"
@@ -13,7 +12,7 @@ import (
 // decimalCtx is the emit context of a decimal rule used with the given
 // parameter.
 func decimalCtx(param string) vogue.EmitContext {
-	return vogue.EmitContext{Var: "v", Param: param, Field: "rate", Kind: vogue.Decimal}
+	return vogue.EmitContext{Var: "v", Param: param, Field: "rate", Kind: vogue.Decimal, Ident: "boundParam"}
 }
 
 func TestDecimalRules(t *testing.T) {
@@ -46,28 +45,28 @@ func TestDecimalRules(t *testing.T) {
 			"exact equality against a written list is not a question a scaled decimal answers")
 	})
 
-	t.Run("a bound compares against a once-parsed declaration", func(t *testing.T) {
+	t.Run("a bound compares against a local constant, built without parsing", func(t *testing.T) {
 		t.Parallel()
 
 		// Act
 		expr := rules.Min.Emit(decimalCtx("0.5"))
-		decl := rules.Min.Declare(decimalCtx("0.5"))
+		local := rules.Min.Local(decimalCtx("0.5"))
 
 		// Assert
-		assert.Contains(t, expr, "v.Cmp(")
-		assert.Contains(t, expr, ") >= 0")
-		assert.Contains(t, decl, `decimal.MustParse("0.5")`)
-		assert.Contains(t, expr, declaredVar(t, decl))
+		assert.Equal(t, "v.Cmp(decimal.MustNew(boundParamCoef, boundParamScale)) >= 0", expr)
+		assert.Equal(t, "const (\n\tboundParamCoef  = 5\n\tboundParamScale = 1\n)", local)
+		assert.Nil(t, rules.Min.Declare, "no bound declares a package-level variable any more")
 	})
 
-	t.Run("a bound declares nothing on the kinds that compare without one", func(t *testing.T) {
+	t.Run("a bound whose coefficient overflows an int64 falls back to parsing its text", func(t *testing.T) {
 		t.Parallel()
 
-		// Act
-		got := rules.Max.Declare(vogue.EmitContext{Var: "v", Param: "4", Field: "title", Kind: vogue.String})
+		// Arrange
+		huge := decimalCtx("9999999999999999999")
 
-		// Assert
-		assert.Empty(t, got)
+		// Act & Assert
+		assert.Equal(t, "v.Cmp(decimal.MustParse(boundParam)) <= 0", rules.Max.Emit(huge))
+		assert.Equal(t, `const boundParam = "9999999999999999999"`, rules.Max.Local(huge))
 	})
 
 	t.Run("the sign rules read the sign of the decimal", func(t *testing.T) {
@@ -86,7 +85,7 @@ func TestDecimalRules(t *testing.T) {
 		require.NoError(t, rules.Scale.Validate())
 		assert.Equal(t, vogue.Kinds(vogue.Decimal), rules.Scale.Kinds)
 		assert.Equal(t, vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamInt}, rules.Scale.Param)
-		assert.Equal(t, "v.Scale() <= 4", rules.Scale.Emit(decimalCtx("4")))
+		assert.Equal(t, "v.Scale() <= boundParam", rules.Scale.Emit(decimalCtx("4")))
 		assert.Contains(t, rules.Scale.Doc, "does not round")
 	})
 
@@ -124,16 +123,6 @@ func TestDecimalRules(t *testing.T) {
 				"rule %q applies to decimal but declares no example written for it", rule.Name)
 		}
 	})
-}
-
-// declaredVar returns the variable name a `var <name> = ...` declaration
-// introduces.
-func declaredVar(t *testing.T, decl string) string {
-	t.Helper()
-
-	fields := strings.Fields(decl)
-	require.GreaterOrEqual(t, len(fields), 2, "not a var declaration: %q", decl)
-	return fields[1]
 }
 
 // hasDecimalExample reports whether a rule declares at least one valid and one

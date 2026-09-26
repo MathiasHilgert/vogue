@@ -1,35 +1,49 @@
-{{$n := .Name}}{{$r := .Recv}}
+{{$n := .Name}}{{$r := .Recv}}{{$c := .Catalogue}}
 {{range .DocLines}}// {{.}}
 {{end}}//
-// The members are the package-level {{$n}} variables below. The type stays a
-// struct with an unexported field so its zero value is not a member: an
-// uninitialised {{$n}} reports IsZero and can never be mistaken for a
-// meaningful state.
+// The members are returned by the methods of [{{$c}}]: {{$c}}{}.{{(index .Members 0).Method}}() and
+// its siblings. The type stays a struct with an unexported field so its zero
+// value is not a member: an uninitialised {{$n}} reports IsZero and can never
+// be mistaken for a meaningful state.
+{{- if .SQL}}
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+{{- end}}
 type {{$n}} struct{ v string }
 
-// The members of {{$n}}, in declaration order.
-var (
-{{range .Members}}	// {{.Const}} is the {{q .Value}} member of {{$n}}.
-	{{.Const}} = {{$n}}{v: {{q .Value}}}
-{{end}})
-
-// {{$n}}Values returns every member in declaration order. Ranging over it is
-// what makes a test exhaustive: a member added to the directive shows up here
-// without the test being touched.
-func {{$n}}Values() []{{$n}} {
-	return []{{$n}}{ {{range $i, $m := .Members}}{{if $i}}, {{end}}{{$m.Const}}{{end}} }
+// {{$c}} is the catalogue of the members of {{$n}}. It holds nothing: its zero
+// value is the whole catalogue, so a member is spelled {{$c}}{}.{{(index .Members 0).Method}}().
+type {{$c}} struct{}
+{{range .Members}}
+// {{.Method}} returns the {{q .Value}} member of {{$n}}.
+func ({{$c}}) {{.Method}}() {{$n}} { return {{$n}}{v: {{q .Value}}} }
+{{end}}
+// All returns every member in declaration order. Ranging over it is what makes
+// a test exhaustive: a member added to the directive shows up here without the
+// test being touched.
+func (k {{$c}}) All() []{{$n}} {
+	return []{{$n}}{
+{{range .Members}}		k.{{.Method}}(),
+{{end}}	}
 }
 
-// Parse{{$n}} resolves the wire representation of a member.
-func Parse{{$n}}(raw string) ({{$n}}, error) {
-	switch raw {
-{{range .Members}}	case {{q .Value}}:
-		return {{.Const}}, nil
-{{end}}	}
+// Parse resolves the wire representation of a member, rejecting anything else
+// as a failure of the "oneof" rule.
+func (k {{$c}}) Parse(raw string) ({{$n}}, error) {
+	for _, member := range k.All() {
+		if member.v == raw {
+			return member, nil
+		}
+	}
 
-	var n validation.Notification
-	n.Add(validation.FieldError{Field: {{q .Field}}, Rule: "oneof", Param: {{q .MemberParam}}, Value: raw, Message: "{{.Field}} must be one of: {{.MemberList}}"})
-	return {{$n}}{}, n.ErrOrNil()
+	var (
+		zero {{$n}}
+		n    validation.Notification
+	)
+
+	n.Reject({{q .Field}}, "oneof", {{q .MemberParam}}, raw, "{{.Field}} must be one of: {{.MemberList}}")
+
+	return zero, &n
 }
 
 // String returns the wire representation of the member, empty for the zero
@@ -47,17 +61,19 @@ func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.v == other.v }
 // encoding/json uses, so a member marshals as its wire string.
 func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.v), nil }
 
-// UnmarshalText implements encoding.TextUnmarshaler through Parse{{$n}}, so an
-// unknown member is rejected rather than accepted as a new state.
+// UnmarshalText implements encoding.TextUnmarshaler through {{$c}}.Parse, so
+// an unknown member is rejected rather than accepted as a new state.
 func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
-	parsed, err := Parse{{$n}}(string(data))
+	parsed, err := {{$c}}{}.Parse(string(data))
 	if err != nil {
 		return err
 	}
+
 	*{{$r}} = parsed
+
 	return nil
 }
-
+{{if .SQL}}
 // Value implements driver.Valuer.
 func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.v, nil }
 
@@ -66,7 +82,10 @@ func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.v, nil }
 func ({{$r}} *{{$n}}) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*{{$r}} = {{$n}}{}
+		var zero {{$n}}
+
+		*{{$r}} = zero
+
 		return nil
 	case string:
 		return {{$r}}.UnmarshalText([]byte(value))
@@ -76,3 +95,4 @@ func ({{$r}} *{{$n}}) Scan(src any) error {
 		return fmt.Errorf("vogue: cannot scan %T into {{$n}}: %w", src, validation.ErrUnsupportedSource)
 	}
 }
+{{end}}

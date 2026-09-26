@@ -5,6 +5,7 @@ import (
 
 	"github.com/MathiasHilgert/vogue"
 	"github.com/MathiasHilgert/vogue/gen"
+	"github.com/MathiasHilgert/vogue/gen/internal/testrules"
 	"github.com/MathiasHilgert/vogue/parse"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -57,7 +58,7 @@ func TestGenerator_Files_Kinds(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, got, `// Channel is the enum value object for the field "channel".`)
-		assert.Contains(t, got, `ChannelDineIn = Channel{v: "dine_in"}`)
+		assert.Contains(t, got, `func (Channels) DineIn() Channel { return Channel{v: "dine_in"} }`)
 	})
 
 	t.Run("keeps a doc comment that already opens with the type name", func(t *testing.T) {
@@ -88,8 +89,25 @@ func TestGenerator_Files_Kinds(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, got, `"example.com/checks/v2"`)
-		assert.Contains(t, got, `if !(checks.HasPrefix(v, "SKU-")) {`)
-		assert.Contains(t, got, `Message: "sku must start with SKU-"`)
+		assert.Contains(t, got, `if !checks.HasPrefix(v, "SKU-") {`)
+		assert.Contains(t, got, `n.Reject("sku", "prefix", "SKU-", v, "sku must start with SKU-")`)
+	})
+
+	t.Run("leaves the SQL codec out when asked to", func(t *testing.T) {
+		// Arrange
+		pkg := parseSource(t, "//vogue:string Title required\n//vogue:enum Channel dine_in,takeaway\n", testrules.Set(testrulesPath))
+
+		// Act
+		files, err := filesOf(t, gen.Options{Package: pkg, OmitSQL: true})
+
+		// Assert
+		require.NoError(t, err)
+		code := string(files[0].Content)
+		assert.NotContains(t, code, "database/sql/driver")
+		assert.NotContains(t, code, "Scan(")
+		assert.NotContains(t, code, "Value()")
+		assert.NotContains(t, code, "nolint:recvcheck", "without Scan every method has a value receiver but UnmarshalText")
+		assert.NotContains(t, code, `"fmt"`)
 	})
 
 	t.Run("generates nothing for a file without directives", func(t *testing.T) {

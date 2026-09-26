@@ -5,7 +5,7 @@ package catalogue
 import (
 	"database/sql/driver"
 	"fmt"
-	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode"
@@ -16,38 +16,38 @@ import (
 	"github.com/govalues/decimal"
 )
 
-// _vogueRegexpa441fc35 is the pattern the `regex` rule matches against,
-// compiled once at start-up rather than on every call.
-var _vogueRegexpa441fc35 = regexp.MustCompile("^[A-Z]{3}-[0-9]{4}$")
-
-// _vogueDecimal350ca8af is the bound "0", parsed once.
-var _vogueDecimal350ca8af = decimal.MustParse("0")
-
-// _vogueDecimal340ca71c is the bound "1", parsed once.
-var _vogueDecimal340ca71c = decimal.MustParse("1")
-
 // TrimmedName is a name with the whitespace around it removed. The `required`
 // after it is what proves the normalizer ran: a value that was nothing but
 // whitespace is empty by the time the check sees it.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type TrimmedName struct{ v string }
 
 // NewTrimmedName validates raw and returns the TrimmedName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewTrimmedName(raw string) (TrimmedName, error) {
 	var n validation.Notification
+
 	v := raw
 	v = strings.TrimSpace(v)
-	if !(v != "") {
-		n.Add(validation.FieldError{Field: "trimmedName", Rule: "required", Value: v, Message: "trimmedName is required"})
+	if v == "" {
+		n.Reject("trimmedName", "required", "", v, "trimmedName is required")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return TrimmedName{}, err
+	if n.HasErrors() {
+		var zero TrimmedName
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return TrimmedName{v: v}, nil
 }
 
@@ -74,7 +74,9 @@ func (t *TrimmedName) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*t = parsed
+
 	return nil
 }
 
@@ -82,12 +84,15 @@ func (t *TrimmedName) UnmarshalText(data []byte) error {
 func (t TrimmedName) Value() (driver.Value, error) { return t.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (t *TrimmedName) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*t = TrimmedName{}
+		var zero TrimmedName
+
+		*t = zero
+
 		return nil
 	case string:
 		return t.UnmarshalText([]byte(value))
@@ -99,25 +104,35 @@ func (t *TrimmedName) Scan(src any) error {
 }
 
 // SquishedName is a name whose internal whitespace is collapsed.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type SquishedName struct{ v string }
 
 // NewSquishedName validates raw and returns the SquishedName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewSquishedName(raw string) (SquishedName, error) {
 	var n validation.Notification
+
 	v := raw
 	v = strings.Join(strings.Fields(v), " ")
-	if !(v != "") {
-		n.Add(validation.FieldError{Field: "squishedName", Rule: "required", Value: v, Message: "squishedName is required"})
+	if v == "" {
+		n.Reject("squishedName", "required", "", v, "squishedName is required")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return SquishedName{}, err
+	if n.HasErrors() {
+		var zero SquishedName
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return SquishedName{v: v}, nil
 }
 
@@ -144,7 +159,9 @@ func (s *SquishedName) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*s = parsed
+
 	return nil
 }
 
@@ -152,12 +169,15 @@ func (s *SquishedName) UnmarshalText(data []byte) error {
 func (s SquishedName) Value() (driver.Value, error) { return s.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (s *SquishedName) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*s = SquishedName{}
+		var zero SquishedName
+
+		*s = zero
+
 		return nil
 	case string:
 		return s.UnmarshalText([]byte(value))
@@ -169,25 +189,35 @@ func (s *SquishedName) Scan(src any) error {
 }
 
 // LoweredName is a name folded to lower case.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type LoweredName struct{ v string }
 
 // NewLoweredName validates raw and returns the LoweredName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewLoweredName(raw string) (LoweredName, error) {
 	var n validation.Notification
+
 	v := raw
 	v = strings.ToLower(v)
-	if !(v != "") {
-		n.Add(validation.FieldError{Field: "loweredName", Rule: "required", Value: v, Message: "loweredName is required"})
+	if v == "" {
+		n.Reject("loweredName", "required", "", v, "loweredName is required")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return LoweredName{}, err
+	if n.HasErrors() {
+		var zero LoweredName
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return LoweredName{v: v}, nil
 }
 
@@ -214,7 +244,9 @@ func (l *LoweredName) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*l = parsed
+
 	return nil
 }
 
@@ -222,12 +254,15 @@ func (l *LoweredName) UnmarshalText(data []byte) error {
 func (l LoweredName) Value() (driver.Value, error) { return l.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (l *LoweredName) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*l = LoweredName{}
+		var zero LoweredName
+
+		*l = zero
+
 		return nil
 	case string:
 		return l.UnmarshalText([]byte(value))
@@ -239,25 +274,35 @@ func (l *LoweredName) Scan(src any) error {
 }
 
 // UpperedName is a name folded to upper case.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type UpperedName struct{ v string }
 
 // NewUpperedName validates raw and returns the UpperedName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewUpperedName(raw string) (UpperedName, error) {
 	var n validation.Notification
+
 	v := raw
 	v = strings.ToUpper(v)
-	if !(v != "") {
-		n.Add(validation.FieldError{Field: "upperedName", Rule: "required", Value: v, Message: "upperedName is required"})
+	if v == "" {
+		n.Reject("upperedName", "required", "", v, "upperedName is required")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return UpperedName{}, err
+	if n.HasErrors() {
+		var zero UpperedName
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return UpperedName{v: v}, nil
 }
 
@@ -284,7 +329,9 @@ func (u *UpperedName) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*u = parsed
+
 	return nil
 }
 
@@ -292,12 +339,15 @@ func (u *UpperedName) UnmarshalText(data []byte) error {
 func (u UpperedName) Value() (driver.Value, error) { return u.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (u *UpperedName) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*u = UpperedName{}
+		var zero UpperedName
+
+		*u = zero
+
 		return nil
 	case string:
 		return u.UnmarshalText([]byte(value))
@@ -309,22 +359,32 @@ func (u *UpperedName) Scan(src any) error {
 }
 
 // TrimmedOnly proves what `trim` rewrites.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type TrimmedOnly struct{ v string }
 
 // NewTrimmedOnly validates raw and returns the TrimmedOnly it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewTrimmedOnly(raw string) (TrimmedOnly, error) {
 	var n validation.Notification
+
 	v := raw
 	v = strings.TrimSpace(v)
 
-	if err := n.ErrOrNil(); err != nil {
-		return TrimmedOnly{}, err
+	if n.HasErrors() {
+		var zero TrimmedOnly
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return TrimmedOnly{v: v}, nil
 }
 
@@ -351,7 +411,9 @@ func (t *TrimmedOnly) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*t = parsed
+
 	return nil
 }
 
@@ -359,12 +421,15 @@ func (t *TrimmedOnly) UnmarshalText(data []byte) error {
 func (t TrimmedOnly) Value() (driver.Value, error) { return t.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (t *TrimmedOnly) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*t = TrimmedOnly{}
+		var zero TrimmedOnly
+
+		*t = zero
+
 		return nil
 	case string:
 		return t.UnmarshalText([]byte(value))
@@ -376,22 +441,32 @@ func (t *TrimmedOnly) Scan(src any) error {
 }
 
 // SquishedOnly proves what `squish` rewrites.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type SquishedOnly struct{ v string }
 
 // NewSquishedOnly validates raw and returns the SquishedOnly it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewSquishedOnly(raw string) (SquishedOnly, error) {
 	var n validation.Notification
+
 	v := raw
 	v = strings.Join(strings.Fields(v), " ")
 
-	if err := n.ErrOrNil(); err != nil {
-		return SquishedOnly{}, err
+	if n.HasErrors() {
+		var zero SquishedOnly
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return SquishedOnly{v: v}, nil
 }
 
@@ -418,7 +493,9 @@ func (s *SquishedOnly) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*s = parsed
+
 	return nil
 }
 
@@ -426,12 +503,15 @@ func (s *SquishedOnly) UnmarshalText(data []byte) error {
 func (s SquishedOnly) Value() (driver.Value, error) { return s.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (s *SquishedOnly) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*s = SquishedOnly{}
+		var zero SquishedOnly
+
+		*s = zero
+
 		return nil
 	case string:
 		return s.UnmarshalText([]byte(value))
@@ -443,22 +523,32 @@ func (s *SquishedOnly) Scan(src any) error {
 }
 
 // LoweredOnly proves what `lower` rewrites.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type LoweredOnly struct{ v string }
 
 // NewLoweredOnly validates raw and returns the LoweredOnly it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewLoweredOnly(raw string) (LoweredOnly, error) {
 	var n validation.Notification
+
 	v := raw
 	v = strings.ToLower(v)
 
-	if err := n.ErrOrNil(); err != nil {
-		return LoweredOnly{}, err
+	if n.HasErrors() {
+		var zero LoweredOnly
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return LoweredOnly{v: v}, nil
 }
 
@@ -485,7 +575,9 @@ func (l *LoweredOnly) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*l = parsed
+
 	return nil
 }
 
@@ -493,12 +585,15 @@ func (l *LoweredOnly) UnmarshalText(data []byte) error {
 func (l LoweredOnly) Value() (driver.Value, error) { return l.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (l *LoweredOnly) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*l = LoweredOnly{}
+		var zero LoweredOnly
+
+		*l = zero
+
 		return nil
 	case string:
 		return l.UnmarshalText([]byte(value))
@@ -510,22 +605,32 @@ func (l *LoweredOnly) Scan(src any) error {
 }
 
 // UpperedOnly proves what `upper` rewrites.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type UpperedOnly struct{ v string }
 
 // NewUpperedOnly validates raw and returns the UpperedOnly it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewUpperedOnly(raw string) (UpperedOnly, error) {
 	var n validation.Notification
+
 	v := raw
 	v = strings.ToUpper(v)
 
-	if err := n.ErrOrNil(); err != nil {
-		return UpperedOnly{}, err
+	if n.HasErrors() {
+		var zero UpperedOnly
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return UpperedOnly{v: v}, nil
 }
 
@@ -552,7 +657,9 @@ func (u *UpperedOnly) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*u = parsed
+
 	return nil
 }
 
@@ -560,12 +667,15 @@ func (u *UpperedOnly) UnmarshalText(data []byte) error {
 func (u UpperedOnly) Value() (driver.Value, error) { return u.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (u *UpperedOnly) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*u = UpperedOnly{}
+		var zero UpperedOnly
+
+		*u = zero
+
 		return nil
 	case string:
 		return u.UnmarshalText([]byte(value))
@@ -577,24 +687,34 @@ func (u *UpperedOnly) Scan(src any) error {
 }
 
 // RequiredName is a name that must be given.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type RequiredName struct{ v string }
 
 // NewRequiredName validates raw and returns the RequiredName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewRequiredName(raw string) (RequiredName, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(v != "") {
-		n.Add(validation.FieldError{Field: "requiredName", Rule: "required", Value: v, Message: "requiredName is required"})
+	if v == "" {
+		n.Reject("requiredName", "required", "", v, "requiredName is required")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return RequiredName{}, err
+	if n.HasErrors() {
+		var zero RequiredName
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return RequiredName{v: v}, nil
 }
 
@@ -621,7 +741,9 @@ func (r *RequiredName) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*r = parsed
+
 	return nil
 }
 
@@ -629,12 +751,15 @@ func (r *RequiredName) UnmarshalText(data []byte) error {
 func (r RequiredName) Value() (driver.Value, error) { return r.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (r *RequiredName) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*r = RequiredName{}
+		var zero RequiredName
+
+		*r = zero
+
 		return nil
 	case string:
 		return r.UnmarshalText([]byte(value))
@@ -646,24 +771,36 @@ func (r *RequiredName) Scan(src any) error {
 }
 
 // ShortName is a name of at least one character.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type ShortName struct{ v string }
 
 // NewShortName validates raw and returns the ShortName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewShortName(raw string) (ShortName, error) {
+	const minParam = 1
+
 	var n validation.Notification
+
 	v := raw
-	if !(utf8.RuneCountInString(v) >= 1) {
-		n.Add(validation.FieldError{Field: "shortName", Rule: "min", Param: "1", Value: v, Message: "shortName must be at least 1"})
+	if utf8.RuneCountInString(v) < minParam {
+		n.Reject("shortName", "min", "1", v, "shortName must be at least 1")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return ShortName{}, err
+	if n.HasErrors() {
+		var zero ShortName
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return ShortName{v: v}, nil
 }
 
@@ -690,7 +827,9 @@ func (s *ShortName) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*s = parsed
+
 	return nil
 }
 
@@ -698,12 +837,15 @@ func (s *ShortName) UnmarshalText(data []byte) error {
 func (s ShortName) Value() (driver.Value, error) { return s.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (s *ShortName) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*s = ShortName{}
+		var zero ShortName
+
+		*s = zero
+
 		return nil
 	case string:
 		return s.UnmarshalText([]byte(value))
@@ -715,24 +857,36 @@ func (s *ShortName) Scan(src any) error {
 }
 
 // LongerName is a name of at least three characters.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type LongerName struct{ v string }
 
 // NewLongerName validates raw and returns the LongerName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewLongerName(raw string) (LongerName, error) {
+	const minParam = 3
+
 	var n validation.Notification
+
 	v := raw
-	if !(utf8.RuneCountInString(v) >= 3) {
-		n.Add(validation.FieldError{Field: "longerName", Rule: "min", Param: "3", Value: v, Message: "longerName must be at least 3"})
+	if utf8.RuneCountInString(v) < minParam {
+		n.Reject("longerName", "min", "3", v, "longerName must be at least 3")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return LongerName{}, err
+	if n.HasErrors() {
+		var zero LongerName
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return LongerName{v: v}, nil
 }
 
@@ -759,7 +913,9 @@ func (l *LongerName) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*l = parsed
+
 	return nil
 }
 
@@ -767,12 +923,15 @@ func (l *LongerName) UnmarshalText(data []byte) error {
 func (l LongerName) Value() (driver.Value, error) { return l.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (l *LongerName) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*l = LongerName{}
+		var zero LongerName
+
+		*l = zero
+
 		return nil
 	case string:
 		return l.UnmarshalText([]byte(value))
@@ -784,24 +943,36 @@ func (l *LongerName) Scan(src any) error {
 }
 
 // BoundedName is a name of at most four characters.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type BoundedName struct{ v string }
 
 // NewBoundedName validates raw and returns the BoundedName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewBoundedName(raw string) (BoundedName, error) {
+	const maxParam = 4
+
 	var n validation.Notification
+
 	v := raw
-	if !(utf8.RuneCountInString(v) <= 4) {
-		n.Add(validation.FieldError{Field: "boundedName", Rule: "max", Param: "4", Value: v, Message: "boundedName must be at most 4"})
+	if utf8.RuneCountInString(v) > maxParam {
+		n.Reject("boundedName", "max", "4", v, "boundedName must be at most 4")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return BoundedName{}, err
+	if n.HasErrors() {
+		var zero BoundedName
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return BoundedName{v: v}, nil
 }
 
@@ -828,7 +999,9 @@ func (b *BoundedName) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*b = parsed
+
 	return nil
 }
 
@@ -836,12 +1009,15 @@ func (b *BoundedName) UnmarshalText(data []byte) error {
 func (b BoundedName) Value() (driver.Value, error) { return b.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (b *BoundedName) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*b = BoundedName{}
+		var zero BoundedName
+
+		*b = zero
+
 		return nil
 	case string:
 		return b.UnmarshalText([]byte(value))
@@ -853,24 +1029,36 @@ func (b *BoundedName) Scan(src any) error {
 }
 
 // CurrencyCode is a currency code of exactly three characters.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type CurrencyCode struct{ v string }
 
 // NewCurrencyCode validates raw and returns the CurrencyCode it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewCurrencyCode(raw string) (CurrencyCode, error) {
+	const lenParam = 3
+
 	var n validation.Notification
+
 	v := raw
-	if !(utf8.RuneCountInString(v) == 3) {
-		n.Add(validation.FieldError{Field: "currencyCode", Rule: "len", Param: "3", Value: v, Message: "currencyCode must be exactly 3 characters long"})
+	if utf8.RuneCountInString(v) != lenParam {
+		n.Reject("currencyCode", "len", "3", v, "currencyCode must be exactly 3 characters long")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return CurrencyCode{}, err
+	if n.HasErrors() {
+		var zero CurrencyCode
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return CurrencyCode{v: v}, nil
 }
 
@@ -897,7 +1085,9 @@ func (c *CurrencyCode) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*c = parsed
+
 	return nil
 }
 
@@ -905,12 +1095,15 @@ func (c *CurrencyCode) UnmarshalText(data []byte) error {
 func (c CurrencyCode) Value() (driver.Value, error) { return c.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (c *CurrencyCode) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*c = CurrencyCode{}
+		var zero CurrencyCode
+
+		*c = zero
+
 		return nil
 	case string:
 		return c.UnmarshalText([]byte(value))
@@ -922,24 +1115,34 @@ func (c *CurrencyCode) Scan(src any) error {
 }
 
 // EmailAddress is a mailbox a guest can be written to at.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type EmailAddress struct{ v string }
 
 // NewEmailAddress validates raw and returns the EmailAddress it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewEmailAddress(raw string) (EmailAddress, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(fn.Email(v)) {
-		n.Add(validation.FieldError{Field: "emailAddress", Rule: "email", Value: v, Message: "emailAddress must be a valid email address"})
+	if !fn.Email(v) {
+		n.Reject("emailAddress", "email", "", v, "emailAddress must be a valid email address")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return EmailAddress{}, err
+	if n.HasErrors() {
+		var zero EmailAddress
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return EmailAddress{v: v}, nil
 }
 
@@ -966,7 +1169,9 @@ func (e *EmailAddress) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*e = parsed
+
 	return nil
 }
 
@@ -974,12 +1179,15 @@ func (e *EmailAddress) UnmarshalText(data []byte) error {
 func (e EmailAddress) Value() (driver.Value, error) { return e.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (e *EmailAddress) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*e = EmailAddress{}
+		var zero EmailAddress
+
+		*e = zero
+
 		return nil
 	case string:
 		return e.UnmarshalText([]byte(value))
@@ -991,24 +1199,34 @@ func (e *EmailAddress) Scan(src any) error {
 }
 
 // MenuLink is the address of a published menu.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type MenuLink struct{ v string }
 
 // NewMenuLink validates raw and returns the MenuLink it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewMenuLink(raw string) (MenuLink, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(fn.URL(v)) {
-		n.Add(validation.FieldError{Field: "menuLink", Rule: "url", Value: v, Message: "menuLink must be a valid http or https URL"})
+	if !fn.URL(v) {
+		n.Reject("menuLink", "url", "", v, "menuLink must be a valid http or https URL")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return MenuLink{}, err
+	if n.HasErrors() {
+		var zero MenuLink
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return MenuLink{v: v}, nil
 }
 
@@ -1035,7 +1253,9 @@ func (m *MenuLink) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*m = parsed
+
 	return nil
 }
 
@@ -1043,12 +1263,15 @@ func (m *MenuLink) UnmarshalText(data []byte) error {
 func (m MenuLink) Value() (driver.Value, error) { return m.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (m *MenuLink) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*m = MenuLink{}
+		var zero MenuLink
+
+		*m = zero
+
 		return nil
 	case string:
 		return m.UnmarshalText([]byte(value))
@@ -1060,24 +1283,34 @@ func (m *MenuLink) Scan(src any) error {
 }
 
 // ExternalRef is an identifier another system assigned, written as a UUID.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type ExternalRef struct{ v string }
 
 // NewExternalRef validates raw and returns the ExternalRef it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewExternalRef(raw string) (ExternalRef, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(fn.UUID(v)) {
-		n.Add(validation.FieldError{Field: "externalRef", Rule: "uuid", Value: v, Message: "externalRef must be a valid UUID"})
+	if !fn.UUID(v) {
+		n.Reject("externalRef", "uuid", "", v, "externalRef must be a valid UUID")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return ExternalRef{}, err
+	if n.HasErrors() {
+		var zero ExternalRef
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return ExternalRef{v: v}, nil
 }
 
@@ -1104,7 +1337,9 @@ func (e *ExternalRef) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*e = parsed
+
 	return nil
 }
 
@@ -1112,12 +1347,15 @@ func (e *ExternalRef) UnmarshalText(data []byte) error {
 func (e ExternalRef) Value() (driver.Value, error) { return e.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (e *ExternalRef) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*e = ExternalRef{}
+		var zero ExternalRef
+
+		*e = zero
+
 		return nil
 	case string:
 		return e.UnmarshalText([]byte(value))
@@ -1129,24 +1367,34 @@ func (e *ExternalRef) Scan(src any) error {
 }
 
 // StockCode is a stock code in the documented SKU shape.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type StockCode struct{ v string }
 
 // NewStockCode validates raw and returns the StockCode it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewStockCode(raw string) (StockCode, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(_vogueRegexpa441fc35.MatchString(v)) {
-		n.Add(validation.FieldError{Field: "stockCode", Rule: "regex", Param: "^[A-Z]{3}-[0-9]{4}$", Value: v, Message: "stockCode must match the pattern ^[A-Z]{3}-[0-9]{4}$"})
+	if !fn.Regexp(v, "^[A-Z]{3}-[0-9]{4}$") {
+		n.Reject("stockCode", "regex", "^[A-Z]{3}-[0-9]{4}$", v, "stockCode must match the pattern ^[A-Z]{3}-[0-9]{4}$")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return StockCode{}, err
+	if n.HasErrors() {
+		var zero StockCode
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return StockCode{v: v}, nil
 }
 
@@ -1173,7 +1421,9 @@ func (s *StockCode) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*s = parsed
+
 	return nil
 }
 
@@ -1181,12 +1431,15 @@ func (s *StockCode) UnmarshalText(data []byte) error {
 func (s StockCode) Value() (driver.Value, error) { return s.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (s *StockCode) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*s = StockCode{}
+		var zero StockCode
+
+		*s = zero
+
 		return nil
 	case string:
 		return s.UnmarshalText([]byte(value))
@@ -1198,24 +1451,34 @@ func (s *StockCode) Scan(src any) error {
 }
 
 // Currency is one of the currencies the restaurant takes.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type Currency struct{ v string }
 
 // NewCurrency validates raw and returns the Currency it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewCurrency(raw string) (Currency, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(v == "eur" || v == "usd" || v == "gbp") {
-		n.Add(validation.FieldError{Field: "currency", Rule: "oneof", Param: "eur,usd,gbp", Value: v, Message: "currency must be one of: eur,usd,gbp"})
+	if v != "eur" && v != "usd" && v != "gbp" {
+		n.Reject("currency", "oneof", "eur,usd,gbp", v, "currency must be one of: eur,usd,gbp")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return Currency{}, err
+	if n.HasErrors() {
+		var zero Currency
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return Currency{v: v}, nil
 }
 
@@ -1242,7 +1505,9 @@ func (c *Currency) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*c = parsed
+
 	return nil
 }
 
@@ -1250,12 +1515,15 @@ func (c *Currency) UnmarshalText(data []byte) error {
 func (c Currency) Value() (driver.Value, error) { return c.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (c *Currency) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*c = Currency{}
+		var zero Currency
+
+		*c = zero
+
 		return nil
 	case string:
 		return c.UnmarshalText([]byte(value))
@@ -1267,24 +1535,36 @@ func (c *Currency) Scan(src any) error {
 }
 
 // LetterName is a name written in letters only.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type LetterName struct{ v string }
 
 // NewLetterName validates raw and returns the LetterName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewLetterName(raw string) (LetterName, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(strings.IndexFunc(v, func(r rune) bool { return !unicode.IsLetter(r) }) < 0) {
-		n.Add(validation.FieldError{Field: "letterName", Rule: "alpha", Value: v, Message: "letterName must contain letters only"})
+	if strings.IndexFunc(v, func(r rune) bool {
+		return !unicode.IsLetter(r)
+	}) >= 0 {
+		n.Reject("letterName", "alpha", "", v, "letterName must contain letters only")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return LetterName{}, err
+	if n.HasErrors() {
+		var zero LetterName
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return LetterName{v: v}, nil
 }
 
@@ -1311,7 +1591,9 @@ func (l *LetterName) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*l = parsed
+
 	return nil
 }
 
@@ -1319,12 +1601,15 @@ func (l *LetterName) UnmarshalText(data []byte) error {
 func (l LetterName) Value() (driver.Value, error) { return l.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (l *LetterName) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*l = LetterName{}
+		var zero LetterName
+
+		*l = zero
+
 		return nil
 	case string:
 		return l.UnmarshalText([]byte(value))
@@ -1336,24 +1621,36 @@ func (l *LetterName) Scan(src any) error {
 }
 
 // Handle is a short code of letters and digits.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type Handle struct{ v string }
 
 // NewHandle validates raw and returns the Handle it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewHandle(raw string) (Handle, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(strings.IndexFunc(v, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) }) < 0) {
-		n.Add(validation.FieldError{Field: "handle", Rule: "alphanum", Value: v, Message: "handle must contain letters and digits only"})
+	if strings.IndexFunc(v, func(r rune) bool {
+		return !unicode.IsLetter(r) && !unicode.IsDigit(r)
+	}) >= 0 {
+		n.Reject("handle", "alphanum", "", v, "handle must contain letters and digits only")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return Handle{}, err
+	if n.HasErrors() {
+		var zero Handle
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return Handle{v: v}, nil
 }
 
@@ -1380,7 +1677,9 @@ func (h *Handle) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*h = parsed
+
 	return nil
 }
 
@@ -1388,12 +1687,15 @@ func (h *Handle) UnmarshalText(data []byte) error {
 func (h Handle) Value() (driver.Value, error) { return h.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (h *Handle) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*h = Handle{}
+		var zero Handle
+
+		*h = zero
+
 		return nil
 	case string:
 		return h.UnmarshalText([]byte(value))
@@ -1405,24 +1707,36 @@ func (h *Handle) Scan(src any) error {
 }
 
 // PhoneDigits is a phone number written as digits only.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type PhoneDigits struct{ v string }
 
 // NewPhoneDigits validates raw and returns the PhoneDigits it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewPhoneDigits(raw string) (PhoneDigits, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(strings.IndexFunc(v, func(r rune) bool { return r < '0' || r > '9' }) < 0) {
-		n.Add(validation.FieldError{Field: "phoneDigits", Rule: "numeric", Value: v, Message: "phoneDigits must contain digits only"})
+	if strings.IndexFunc(v, func(r rune) bool {
+		return r < '0' || r > '9'
+	}) >= 0 {
+		n.Reject("phoneDigits", "numeric", "", v, "phoneDigits must contain digits only")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return PhoneDigits{}, err
+	if n.HasErrors() {
+		var zero PhoneDigits
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return PhoneDigits{v: v}, nil
 }
 
@@ -1449,7 +1763,9 @@ func (p *PhoneDigits) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*p = parsed
+
 	return nil
 }
 
@@ -1457,12 +1773,15 @@ func (p *PhoneDigits) UnmarshalText(data []byte) error {
 func (p PhoneDigits) Value() (driver.Value, error) { return p.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (p *PhoneDigits) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*p = PhoneDigits{}
+		var zero PhoneDigits
+
+		*p = zero
+
 		return nil
 	case string:
 		return p.UnmarshalText([]byte(value))
@@ -1474,24 +1793,36 @@ func (p *PhoneDigits) Scan(src any) error {
 }
 
 // LegacyCode is a code an ASCII-only system has to read.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type LegacyCode struct{ v string }
 
 // NewLegacyCode validates raw and returns the LegacyCode it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewLegacyCode(raw string) (LegacyCode, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(strings.IndexFunc(v, func(r rune) bool { return r >= utf8.RuneSelf }) < 0) {
-		n.Add(validation.FieldError{Field: "legacyCode", Rule: "ascii", Value: v, Message: "legacyCode must contain ASCII characters only"})
+	if strings.IndexFunc(v, func(r rune) bool {
+		return r >= utf8.RuneSelf
+	}) >= 0 {
+		n.Reject("legacyCode", "ascii", "", v, "legacyCode must contain ASCII characters only")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return LegacyCode{}, err
+	if n.HasErrors() {
+		var zero LegacyCode
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return LegacyCode{v: v}, nil
 }
 
@@ -1518,7 +1849,9 @@ func (l *LegacyCode) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*l = parsed
+
 	return nil
 }
 
@@ -1526,12 +1859,15 @@ func (l *LegacyCode) UnmarshalText(data []byte) error {
 func (l LegacyCode) Value() (driver.Value, error) { return l.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (l *LegacyCode) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*l = LegacyCode{}
+		var zero LegacyCode
+
+		*l = zero
+
 		return nil
 	case string:
 		return l.UnmarshalText([]byte(value))
@@ -1543,24 +1879,36 @@ func (l *LegacyCode) Scan(src any) error {
 }
 
 // SingleLine is a line of text carrying no control characters.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type SingleLine struct{ v string }
 
 // NewSingleLine validates raw and returns the SingleLine it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewSingleLine(raw string) (SingleLine, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(strings.IndexFunc(v, func(r rune) bool { return !unicode.IsPrint(r) }) < 0) {
-		n.Add(validation.FieldError{Field: "singleLine", Rule: "printable", Value: v, Message: "singleLine must not contain control characters"})
+	if strings.IndexFunc(v, func(r rune) bool {
+		return !unicode.IsPrint(r)
+	}) >= 0 {
+		n.Reject("singleLine", "printable", "", v, "singleLine must not contain control characters")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return SingleLine{}, err
+	if n.HasErrors() {
+		var zero SingleLine
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return SingleLine{v: v}, nil
 }
 
@@ -1587,7 +1935,9 @@ func (s *SingleLine) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*s = parsed
+
 	return nil
 }
 
@@ -1595,12 +1945,15 @@ func (s *SingleLine) UnmarshalText(data []byte) error {
 func (s SingleLine) Value() (driver.Value, error) { return s.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (s *SingleLine) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*s = SingleLine{}
+		var zero SingleLine
+
+		*s = zero
+
 		return nil
 	case string:
 		return s.UnmarshalText([]byte(value))
@@ -1612,24 +1965,34 @@ func (s *SingleLine) Scan(src any) error {
 }
 
 // Slug is a URL-safe token carrying no whitespace.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type Slug struct{ v string }
 
 // NewSlug validates raw and returns the Slug it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewSlug(raw string) (Slug, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(strings.IndexFunc(v, unicode.IsSpace) < 0) {
-		n.Add(validation.FieldError{Field: "slug", Rule: "nospace", Value: v, Message: "slug must not contain spaces"})
+	if strings.IndexFunc(v, unicode.IsSpace) >= 0 {
+		n.Reject("slug", "nospace", "", v, "slug must not contain spaces")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return Slug{}, err
+	if n.HasErrors() {
+		var zero Slug
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return Slug{v: v}, nil
 }
 
@@ -1656,7 +2019,9 @@ func (s *Slug) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*s = parsed
+
 	return nil
 }
 
@@ -1664,12 +2029,15 @@ func (s *Slug) UnmarshalText(data []byte) error {
 func (s Slug) Value() (driver.Value, error) { return s.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (s *Slug) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*s = Slug{}
+		var zero Slug
+
+		*s = zero
+
 		return nil
 	case string:
 		return s.UnmarshalText([]byte(value))
@@ -1681,24 +2049,34 @@ func (s *Slug) Scan(src any) error {
 }
 
 // ProductCode is a code inside the SKU namespace.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type ProductCode struct{ v string }
 
 // NewProductCode validates raw and returns the ProductCode it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewProductCode(raw string) (ProductCode, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(strings.HasPrefix(v, "SKU-")) {
-		n.Add(validation.FieldError{Field: "productCode", Rule: "prefix", Param: "SKU-", Value: v, Message: "productCode must start with \"SKU-\""})
+	if !strings.HasPrefix(v, "SKU-") {
+		n.Reject("productCode", "prefix", "SKU-", v, "productCode must start with \"SKU-\"")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return ProductCode{}, err
+	if n.HasErrors() {
+		var zero ProductCode
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return ProductCode{v: v}, nil
 }
 
@@ -1725,7 +2103,9 @@ func (p *ProductCode) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*p = parsed
+
 	return nil
 }
 
@@ -1733,12 +2113,15 @@ func (p *ProductCode) UnmarshalText(data []byte) error {
 func (p ProductCode) Value() (driver.Value, error) { return p.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (p *ProductCode) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*p = ProductCode{}
+		var zero ProductCode
+
+		*p = zero
+
 		return nil
 	case string:
 		return p.UnmarshalText([]byte(value))
@@ -1750,24 +2133,34 @@ func (p *ProductCode) Scan(src any) error {
 }
 
 // DocumentFile is the name of a PDF document.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type DocumentFile struct{ v string }
 
 // NewDocumentFile validates raw and returns the DocumentFile it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewDocumentFile(raw string) (DocumentFile, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(strings.HasSuffix(v, ".pdf")) {
-		n.Add(validation.FieldError{Field: "documentFile", Rule: "suffix", Param: ".pdf", Value: v, Message: "documentFile must end with \".pdf\""})
+	if !strings.HasSuffix(v, ".pdf") {
+		n.Reject("documentFile", "suffix", ".pdf", v, "documentFile must end with \".pdf\"")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return DocumentFile{}, err
+	if n.HasErrors() {
+		var zero DocumentFile
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return DocumentFile{v: v}, nil
 }
 
@@ -1794,7 +2187,9 @@ func (d *DocumentFile) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*d = parsed
+
 	return nil
 }
 
@@ -1802,12 +2197,15 @@ func (d *DocumentFile) UnmarshalText(data []byte) error {
 func (d DocumentFile) Value() (driver.Value, error) { return d.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (d *DocumentFile) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*d = DocumentFile{}
+		var zero DocumentFile
+
+		*d = zero
+
 		return nil
 	case string:
 		return d.UnmarshalText([]byte(value))
@@ -1819,24 +2217,34 @@ func (d *DocumentFile) Scan(src any) error {
 }
 
 // ResourcePath is a path carrying a separator.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type ResourcePath struct{ v string }
 
 // NewResourcePath validates raw and returns the ResourcePath it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewResourcePath(raw string) (ResourcePath, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(strings.Contains(v, "/")) {
-		n.Add(validation.FieldError{Field: "resourcePath", Rule: "contains", Param: "/", Value: v, Message: "resourcePath must contain \"/\""})
+	if !strings.Contains(v, "/") {
+		n.Reject("resourcePath", "contains", "/", v, "resourcePath must contain \"/\"")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return ResourcePath{}, err
+	if n.HasErrors() {
+		var zero ResourcePath
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return ResourcePath{v: v}, nil
 }
 
@@ -1863,7 +2271,9 @@ func (r *ResourcePath) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*r = parsed
+
 	return nil
 }
 
@@ -1871,12 +2281,15 @@ func (r *ResourcePath) UnmarshalText(data []byte) error {
 func (r ResourcePath) Value() (driver.Value, error) { return r.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (r *ResourcePath) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*r = ResourcePath{}
+		var zero ResourcePath
+
+		*r = zero
+
 		return nil
 	case string:
 		return r.UnmarshalText([]byte(value))
@@ -1888,24 +2301,34 @@ func (r *ResourcePath) Scan(src any) error {
 }
 
 // FlatName is a name carrying no separator.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type FlatName struct{ v string }
 
 // NewFlatName validates raw and returns the FlatName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewFlatName(raw string) (FlatName, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(!strings.Contains(v, "/")) {
-		n.Add(validation.FieldError{Field: "flatName", Rule: "excludes", Param: "/", Value: v, Message: "flatName must not contain \"/\""})
+	if strings.Contains(v, "/") {
+		n.Reject("flatName", "excludes", "/", v, "flatName must not contain \"/\"")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return FlatName{}, err
+	if n.HasErrors() {
+		var zero FlatName
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return FlatName{v: v}, nil
 }
 
@@ -1932,7 +2355,9 @@ func (f *FlatName) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*f = parsed
+
 	return nil
 }
 
@@ -1940,12 +2365,15 @@ func (f *FlatName) UnmarshalText(data []byte) error {
 func (f FlatName) Value() (driver.Value, error) { return f.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (f *FlatName) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*f = FlatName{}
+		var zero FlatName
+
+		*f = zero
+
 		return nil
 	case string:
 		return f.UnmarshalText([]byte(value))
@@ -1960,6 +2388,8 @@ func (f *FlatName) Scan(src any) error {
 //
 // The value is held as an int64 so it survives every database driver and JSON
 // number without a widening conversion at the boundary.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type Covers struct{ v int64 }
 
 // NewCovers validates raw and returns the Covers it describes.
@@ -1967,26 +2397,44 @@ type Covers struct{ v int64 }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewCovers(raw int64) (Covers, error) {
+	const minParam = 1
+
 	var n validation.Notification
+
 	v := raw
-	if !(v >= 1) {
-		n.Add(validation.FieldError{Field: "covers", Rule: "min", Param: "1", Value: strconv.FormatInt(v, 10), Message: "covers must be at least 1"})
+	if v < minParam {
+		n.Reject("covers", "min", "1", strconv.FormatInt(v, 10), "covers must be at least 1")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return Covers{}, err
+	if n.HasErrors() {
+		var zero Covers
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return Covers{v: v}, nil
 }
 
-// ParseCovers reads a base-10 representation and validates it.
-func ParseCovers(raw string) (Covers, error) {
+// NewCoversFromString reads a base-10 representation and validates it. A
+// representation that is not a whole number is reported as a failure of the
+// "int" rule, so a caller handles it like every other rule.
+func NewCoversFromString(raw string) (Covers, error) {
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "covers", Rule: "int", Value: raw, Message: "covers must be a whole number"})
-		return Covers{}, n.ErrOrNil()
+		var (
+			zero Covers
+			n    validation.Notification
+		)
+
+		n.Reject("covers", "int", "", raw, "covers must be a whole number")
+
+		return zero, &n
 	}
+
 	return NewCovers(v)
 }
 
@@ -2006,18 +2454,18 @@ func (c Covers) Equal(other Covers) bool { return c.v == other.v }
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Covers round-trips through JSON without
 // a MarshalJSON of its own.
-func (c Covers) MarshalText() ([]byte, error) {
-	return strconv.AppendInt(nil, c.v, 10), nil
-}
+func (c Covers) MarshalText() ([]byte, error) { return []byte(c.String()), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a Covers the constructor would have rejected.
 func (c *Covers) UnmarshalText(data []byte) error {
-	parsed, err := ParseCovers(string(data))
+	parsed, err := NewCoversFromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*c = parsed
+
 	return nil
 }
 
@@ -2025,19 +2473,24 @@ func (c *Covers) UnmarshalText(data []byte) error {
 func (c Covers) Value() (driver.Value, error) { return c.v, nil }
 
 // Scan implements sql.Scanner for integer and text columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a vogue
-// error.
+// validation so a row that no longer satisfies the rules surfaces as a
+// validation error.
 func (c *Covers) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*c = Covers{}
+		var zero Covers
+
+		*c = zero
+
 		return nil
 	case int64:
 		parsed, err := NewCovers(value)
 		if err != nil {
 			return err
 		}
+
 		*c = parsed
+
 		return nil
 	case string:
 		return c.UnmarshalText([]byte(value))
@@ -2052,6 +2505,8 @@ func (c *Covers) Scan(src any) error {
 //
 // The value is held as an int64 so it survives every database driver and JSON
 // number without a widening conversion at the boundary.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type Seats struct{ v int64 }
 
 // NewSeats validates raw and returns the Seats it describes.
@@ -2059,26 +2514,44 @@ type Seats struct{ v int64 }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewSeats(raw int64) (Seats, error) {
+	const maxParam = 200
+
 	var n validation.Notification
+
 	v := raw
-	if !(v <= 200) {
-		n.Add(validation.FieldError{Field: "seats", Rule: "max", Param: "200", Value: strconv.FormatInt(v, 10), Message: "seats must be at most 200"})
+	if v > maxParam {
+		n.Reject("seats", "max", "200", strconv.FormatInt(v, 10), "seats must be at most 200")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return Seats{}, err
+	if n.HasErrors() {
+		var zero Seats
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return Seats{v: v}, nil
 }
 
-// ParseSeats reads a base-10 representation and validates it.
-func ParseSeats(raw string) (Seats, error) {
+// NewSeatsFromString reads a base-10 representation and validates it. A
+// representation that is not a whole number is reported as a failure of the
+// "int" rule, so a caller handles it like every other rule.
+func NewSeatsFromString(raw string) (Seats, error) {
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "seats", Rule: "int", Value: raw, Message: "seats must be a whole number"})
-		return Seats{}, n.ErrOrNil()
+		var (
+			zero Seats
+			n    validation.Notification
+		)
+
+		n.Reject("seats", "int", "", raw, "seats must be a whole number")
+
+		return zero, &n
 	}
+
 	return NewSeats(v)
 }
 
@@ -2098,18 +2571,18 @@ func (s Seats) Equal(other Seats) bool { return s.v == other.v }
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Seats round-trips through JSON without
 // a MarshalJSON of its own.
-func (s Seats) MarshalText() ([]byte, error) {
-	return strconv.AppendInt(nil, s.v, 10), nil
-}
+func (s Seats) MarshalText() ([]byte, error) { return []byte(s.String()), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a Seats the constructor would have rejected.
 func (s *Seats) UnmarshalText(data []byte) error {
-	parsed, err := ParseSeats(string(data))
+	parsed, err := NewSeatsFromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*s = parsed
+
 	return nil
 }
 
@@ -2117,19 +2590,24 @@ func (s *Seats) UnmarshalText(data []byte) error {
 func (s Seats) Value() (driver.Value, error) { return s.v, nil }
 
 // Scan implements sql.Scanner for integer and text columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a vogue
-// error.
+// validation so a row that no longer satisfies the rules surfaces as a
+// validation error.
 func (s *Seats) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*s = Seats{}
+		var zero Seats
+
+		*s = zero
+
 		return nil
 	case int64:
 		parsed, err := NewSeats(value)
 		if err != nil {
 			return err
 		}
+
 		*s = parsed
+
 		return nil
 	case string:
 		return s.UnmarshalText([]byte(value))
@@ -2144,6 +2622,8 @@ func (s *Seats) Scan(src any) error {
 //
 // The value is held as an int64 so it survives every database driver and JSON
 // number without a widening conversion at the boundary.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type CourseCount struct{ v int64 }
 
 // NewCourseCount validates raw and returns the CourseCount it describes.
@@ -2152,25 +2632,41 @@ type CourseCount struct{ v int64 }
 // collected into one error rather than the first one aborting the rest.
 func NewCourseCount(raw int64) (CourseCount, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(v == 1 || v == 2 || v == 4) {
-		n.Add(validation.FieldError{Field: "courseCount", Rule: "oneof", Param: "1,2,4", Value: strconv.FormatInt(v, 10), Message: "courseCount must be one of: 1,2,4"})
+	if !slices.Contains([]int64{1, 2, 4}, v) {
+		n.Reject("courseCount", "oneof", "1,2,4", strconv.FormatInt(v, 10), "courseCount must be one of: 1,2,4")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return CourseCount{}, err
+	if n.HasErrors() {
+		var zero CourseCount
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return CourseCount{v: v}, nil
 }
 
-// ParseCourseCount reads a base-10 representation and validates it.
-func ParseCourseCount(raw string) (CourseCount, error) {
+// NewCourseCountFromString reads a base-10 representation and validates it. A
+// representation that is not a whole number is reported as a failure of the
+// "int" rule, so a caller handles it like every other rule.
+func NewCourseCountFromString(raw string) (CourseCount, error) {
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "courseCount", Rule: "int", Value: raw, Message: "courseCount must be a whole number"})
-		return CourseCount{}, n.ErrOrNil()
+		var (
+			zero CourseCount
+			n    validation.Notification
+		)
+
+		n.Reject("courseCount", "int", "", raw, "courseCount must be a whole number")
+
+		return zero, &n
 	}
+
 	return NewCourseCount(v)
 }
 
@@ -2190,18 +2686,18 @@ func (c CourseCount) Equal(other CourseCount) bool { return c.v == other.v }
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so CourseCount round-trips through JSON without
 // a MarshalJSON of its own.
-func (c CourseCount) MarshalText() ([]byte, error) {
-	return strconv.AppendInt(nil, c.v, 10), nil
-}
+func (c CourseCount) MarshalText() ([]byte, error) { return []byte(c.String()), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a CourseCount the constructor would have rejected.
 func (c *CourseCount) UnmarshalText(data []byte) error {
-	parsed, err := ParseCourseCount(string(data))
+	parsed, err := NewCourseCountFromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*c = parsed
+
 	return nil
 }
 
@@ -2209,19 +2705,24 @@ func (c *CourseCount) UnmarshalText(data []byte) error {
 func (c CourseCount) Value() (driver.Value, error) { return c.v, nil }
 
 // Scan implements sql.Scanner for integer and text columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a vogue
-// error.
+// validation so a row that no longer satisfies the rules surfaces as a
+// validation error.
 func (c *CourseCount) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*c = CourseCount{}
+		var zero CourseCount
+
+		*c = zero
+
 		return nil
 	case int64:
 		parsed, err := NewCourseCount(value)
 		if err != nil {
 			return err
 		}
+
 		*c = parsed
+
 		return nil
 	case string:
 		return c.UnmarshalText([]byte(value))
@@ -2236,6 +2737,8 @@ func (c *CourseCount) Scan(src any) error {
 //
 // The value is held as an int64 so it survives every database driver and JSON
 // number without a widening conversion at the boundary.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type Portions struct{ v int64 }
 
 // NewPortions validates raw and returns the Portions it describes.
@@ -2244,25 +2747,41 @@ type Portions struct{ v int64 }
 // collected into one error rather than the first one aborting the rest.
 func NewPortions(raw int64) (Portions, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(v > 0) {
-		n.Add(validation.FieldError{Field: "portions", Rule: "positive", Value: strconv.FormatInt(v, 10), Message: "portions must be greater than zero"})
+	if v <= 0 {
+		n.Reject("portions", "positive", "", strconv.FormatInt(v, 10), "portions must be greater than zero")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return Portions{}, err
+	if n.HasErrors() {
+		var zero Portions
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return Portions{v: v}, nil
 }
 
-// ParsePortions reads a base-10 representation and validates it.
-func ParsePortions(raw string) (Portions, error) {
+// NewPortionsFromString reads a base-10 representation and validates it. A
+// representation that is not a whole number is reported as a failure of the
+// "int" rule, so a caller handles it like every other rule.
+func NewPortionsFromString(raw string) (Portions, error) {
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "portions", Rule: "int", Value: raw, Message: "portions must be a whole number"})
-		return Portions{}, n.ErrOrNil()
+		var (
+			zero Portions
+			n    validation.Notification
+		)
+
+		n.Reject("portions", "int", "", raw, "portions must be a whole number")
+
+		return zero, &n
 	}
+
 	return NewPortions(v)
 }
 
@@ -2282,18 +2801,18 @@ func (p Portions) Equal(other Portions) bool { return p.v == other.v }
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Portions round-trips through JSON without
 // a MarshalJSON of its own.
-func (p Portions) MarshalText() ([]byte, error) {
-	return strconv.AppendInt(nil, p.v, 10), nil
-}
+func (p Portions) MarshalText() ([]byte, error) { return []byte(p.String()), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a Portions the constructor would have rejected.
 func (p *Portions) UnmarshalText(data []byte) error {
-	parsed, err := ParsePortions(string(data))
+	parsed, err := NewPortionsFromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*p = parsed
+
 	return nil
 }
 
@@ -2301,19 +2820,24 @@ func (p *Portions) UnmarshalText(data []byte) error {
 func (p Portions) Value() (driver.Value, error) { return p.v, nil }
 
 // Scan implements sql.Scanner for integer and text columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a vogue
-// error.
+// validation so a row that no longer satisfies the rules surfaces as a
+// validation error.
 func (p *Portions) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*p = Portions{}
+		var zero Portions
+
+		*p = zero
+
 		return nil
 	case int64:
 		parsed, err := NewPortions(value)
 		if err != nil {
 			return err
 		}
+
 		*p = parsed
+
 		return nil
 	case string:
 		return p.UnmarshalText([]byte(value))
@@ -2328,6 +2852,8 @@ func (p *Portions) Scan(src any) error {
 //
 // The value is held as an int64 so it survives every database driver and JSON
 // number without a widening conversion at the boundary.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type StockLevel struct{ v int64 }
 
 // NewStockLevel validates raw and returns the StockLevel it describes.
@@ -2336,25 +2862,41 @@ type StockLevel struct{ v int64 }
 // collected into one error rather than the first one aborting the rest.
 func NewStockLevel(raw int64) (StockLevel, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(v >= 0) {
-		n.Add(validation.FieldError{Field: "stockLevel", Rule: "nonneg", Value: strconv.FormatInt(v, 10), Message: "stockLevel must not be negative"})
+	if v < 0 {
+		n.Reject("stockLevel", "nonneg", "", strconv.FormatInt(v, 10), "stockLevel must not be negative")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return StockLevel{}, err
+	if n.HasErrors() {
+		var zero StockLevel
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return StockLevel{v: v}, nil
 }
 
-// ParseStockLevel reads a base-10 representation and validates it.
-func ParseStockLevel(raw string) (StockLevel, error) {
+// NewStockLevelFromString reads a base-10 representation and validates it. A
+// representation that is not a whole number is reported as a failure of the
+// "int" rule, so a caller handles it like every other rule.
+func NewStockLevelFromString(raw string) (StockLevel, error) {
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "stockLevel", Rule: "int", Value: raw, Message: "stockLevel must be a whole number"})
-		return StockLevel{}, n.ErrOrNil()
+		var (
+			zero StockLevel
+			n    validation.Notification
+		)
+
+		n.Reject("stockLevel", "int", "", raw, "stockLevel must be a whole number")
+
+		return zero, &n
 	}
+
 	return NewStockLevel(v)
 }
 
@@ -2374,18 +2916,18 @@ func (s StockLevel) Equal(other StockLevel) bool { return s.v == other.v }
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so StockLevel round-trips through JSON without
 // a MarshalJSON of its own.
-func (s StockLevel) MarshalText() ([]byte, error) {
-	return strconv.AppendInt(nil, s.v, 10), nil
-}
+func (s StockLevel) MarshalText() ([]byte, error) { return []byte(s.String()), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a StockLevel the constructor would have rejected.
 func (s *StockLevel) UnmarshalText(data []byte) error {
-	parsed, err := ParseStockLevel(string(data))
+	parsed, err := NewStockLevelFromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*s = parsed
+
 	return nil
 }
 
@@ -2393,19 +2935,24 @@ func (s *StockLevel) UnmarshalText(data []byte) error {
 func (s StockLevel) Value() (driver.Value, error) { return s.v, nil }
 
 // Scan implements sql.Scanner for integer and text columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a vogue
-// error.
+// validation so a row that no longer satisfies the rules surfaces as a
+// validation error.
 func (s *StockLevel) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*s = StockLevel{}
+		var zero StockLevel
+
+		*s = zero
+
 		return nil
 	case int64:
 		parsed, err := NewStockLevel(value)
 		if err != nil {
 			return err
 		}
+
 		*s = parsed
+
 		return nil
 	case string:
 		return s.UnmarshalText([]byte(value))
@@ -2420,6 +2967,8 @@ func (s *StockLevel) Scan(src any) error {
 //
 // The value is held as an int64 so it survives every database driver and JSON
 // number without a widening conversion at the boundary.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type SlotMinutes struct{ v int64 }
 
 // NewSlotMinutes validates raw and returns the SlotMinutes it describes.
@@ -2427,26 +2976,44 @@ type SlotMinutes struct{ v int64 }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewSlotMinutes(raw int64) (SlotMinutes, error) {
+	const multipleofParam = 15
+
 	var n validation.Notification
+
 	v := raw
-	if !(v%15 == 0) {
-		n.Add(validation.FieldError{Field: "slotMinutes", Rule: "multipleof", Param: "15", Value: strconv.FormatInt(v, 10), Message: "slotMinutes must be a multiple of 15"})
+	if v%multipleofParam != 0 {
+		n.Reject("slotMinutes", "multipleof", "15", strconv.FormatInt(v, 10), "slotMinutes must be a multiple of 15")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return SlotMinutes{}, err
+	if n.HasErrors() {
+		var zero SlotMinutes
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return SlotMinutes{v: v}, nil
 }
 
-// ParseSlotMinutes reads a base-10 representation and validates it.
-func ParseSlotMinutes(raw string) (SlotMinutes, error) {
+// NewSlotMinutesFromString reads a base-10 representation and validates it. A
+// representation that is not a whole number is reported as a failure of the
+// "int" rule, so a caller handles it like every other rule.
+func NewSlotMinutesFromString(raw string) (SlotMinutes, error) {
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "slotMinutes", Rule: "int", Value: raw, Message: "slotMinutes must be a whole number"})
-		return SlotMinutes{}, n.ErrOrNil()
+		var (
+			zero SlotMinutes
+			n    validation.Notification
+		)
+
+		n.Reject("slotMinutes", "int", "", raw, "slotMinutes must be a whole number")
+
+		return zero, &n
 	}
+
 	return NewSlotMinutes(v)
 }
 
@@ -2466,18 +3033,18 @@ func (s SlotMinutes) Equal(other SlotMinutes) bool { return s.v == other.v }
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so SlotMinutes round-trips through JSON without
 // a MarshalJSON of its own.
-func (s SlotMinutes) MarshalText() ([]byte, error) {
-	return strconv.AppendInt(nil, s.v, 10), nil
-}
+func (s SlotMinutes) MarshalText() ([]byte, error) { return []byte(s.String()), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a SlotMinutes the constructor would have rejected.
 func (s *SlotMinutes) UnmarshalText(data []byte) error {
-	parsed, err := ParseSlotMinutes(string(data))
+	parsed, err := NewSlotMinutesFromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*s = parsed
+
 	return nil
 }
 
@@ -2485,19 +3052,24 @@ func (s *SlotMinutes) UnmarshalText(data []byte) error {
 func (s SlotMinutes) Value() (driver.Value, error) { return s.v, nil }
 
 // Scan implements sql.Scanner for integer and text columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a vogue
-// error.
+// validation so a row that no longer satisfies the rules surfaces as a
+// validation error.
 func (s *SlotMinutes) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*s = SlotMinutes{}
+		var zero SlotMinutes
+
+		*s = zero
+
 		return nil
 	case int64:
 		parsed, err := NewSlotMinutes(value)
 		if err != nil {
 			return err
 		}
+
 		*s = parsed
+
 		return nil
 	case string:
 		return s.UnmarshalText([]byte(value))
@@ -2513,6 +3085,8 @@ func (s *SlotMinutes) Scan(src any) error {
 // The value is held as a decimal.Decimal: an exact base-10 number with no
 // binary float underneath, so a rate, a percentage or a fractional quantity
 // reads back as the value someone typed.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type MinRate struct{ v decimal.Decimal }
 
 // NewMinRate validates raw and returns the MinRate it describes.
@@ -2520,28 +3094,47 @@ type MinRate struct{ v decimal.Decimal }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewMinRate(raw decimal.Decimal) (MinRate, error) {
+	const (
+		minParamCoef  = 0
+		minParamScale = 0
+	)
+
 	var n validation.Notification
+
 	v := raw
-	if !(v.Cmp(_vogueDecimal350ca8af) >= 0) {
-		n.Add(validation.FieldError{Field: "minRate", Rule: "min", Param: "0", Value: v.String(), Message: "minRate must be at least 0"})
+	if v.Cmp(decimal.MustNew(minParamCoef, minParamScale)) < 0 {
+		n.Reject("minRate", "min", "0", v.String(), "minRate must be at least 0")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return MinRate{}, err
+	if n.HasErrors() {
+		var zero MinRate
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return MinRate{v: v}, nil
 }
 
-// ParseMinRate reads a decimal representation and validates it. A representation
-// decimal.Parse cannot read is reported as a "minRate" failure of the
+// NewMinRateFromString reads a decimal representation and validates it. A
+// representation decimal.Parse cannot read is reported as a failure of the
 // "decimal" rule, so a caller handles it the same way as every other rule.
-func ParseMinRate(raw string) (MinRate, error) {
+func NewMinRateFromString(raw string) (MinRate, error) {
 	v, err := decimal.Parse(raw)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "minRate", Rule: "decimal", Value: raw, Message: "minRate must be an exact decimal number"})
-		return MinRate{}, n.ErrOrNil()
+		var (
+			zero MinRate
+			n    validation.Notification
+		)
+
+		n.Reject("minRate", "decimal", "", raw, "minRate must be an exact decimal number")
+
+		return zero, &n
 	}
+
 	return NewMinRate(v)
 }
 
@@ -2553,7 +3146,7 @@ func (m MinRate) Decimal() decimal.Decimal { return m.v }
 func (m MinRate) String() string { return m.v.String() }
 
 // IsZero reports whether the receiver holds zero, which is also the zero
-// MinRate — the only MinRate that never passed validation.
+// MinRate: the only MinRate that never passed validation.
 func (m MinRate) IsZero() bool { return m.v.IsZero() }
 
 // Equal reports whether both value objects hold the same number.
@@ -2572,11 +3165,13 @@ func (m MinRate) MarshalText() ([]byte, error) { return []byte(m.v.String()), ni
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a MinRate the constructor would have rejected.
 func (m *MinRate) UnmarshalText(data []byte) error {
-	parsed, err := ParseMinRate(string(data))
+	parsed, err := NewMinRateFromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*m = parsed
+
 	return nil
 }
 
@@ -2586,40 +3181,50 @@ func (m *MinRate) UnmarshalText(data []byte) error {
 func (m MinRate) Value() (driver.Value, error) { return m.v.String(), nil }
 
 // Scan implements sql.Scanner for text and integer columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a vogue
-// error.
+// validation so a row that no longer satisfies the rules surfaces as a
+// validation error.
 //
-// A float64 or float32 source is refused rather than converted: it has already
-// lost digits by the time it arrives, and accepting it would undo the reason
-// this kind exists. A driver that hands back a numeric column as a float is
-// misconfigured — with pgx, the numeric codec must deliver text, and a
-// pgtype.Numeric source needs a helper of its own rather than a silent
-// conversion here.
+// A float64 or float32 source is refused with [validation.ErrLossySource]
+// rather than converted: it has already lost digits by the time it arrives,
+// and accepting it would undo the reason this kind exists. A driver that
+// hands back a numeric column as a float is misconfigured; with pgx, the
+// numeric codec must deliver text.
 func (m *MinRate) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*m = MinRate{}
+		var zero MinRate
+
+		*m = zero
+
 		return nil
 	case string:
 		return m.UnmarshalText([]byte(value))
 	case []byte:
 		return m.UnmarshalText(value)
 	case int64:
-		parsed, err := decimal.New(value, 0)
-		if err != nil {
-			return fmt.Errorf("vogue: cannot scan %d into MinRate: %w", value, err)
-		}
-		built, err := NewMinRate(parsed)
-		if err != nil {
-			return err
-		}
-		*m = built
-		return nil
+		return m.scanInt64(value)
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into MinRate, configure the driver to deliver numeric columns as text: %w", src, validation.ErrLossySource)
+		return fmt.Errorf("vogue: cannot scan the binary float %T into MinRate: %w", src, validation.ErrLossySource)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into MinRate: %w", src, validation.ErrUnsupportedSource)
 	}
+}
+
+// scanInt64 reads a whole number handed back by an integer column.
+func (m *MinRate) scanInt64(value int64) error {
+	whole, err := decimal.New(value, 0)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot scan %d into MinRate: %w", value, err)
+	}
+
+	parsed, err := NewMinRate(whole)
+	if err != nil {
+		return err
+	}
+
+	*m = parsed
+
+	return nil
 }
 
 // MaxRate is a share of a bill, which cannot exceed the whole.
@@ -2627,6 +3232,8 @@ func (m *MinRate) Scan(src any) error {
 // The value is held as a decimal.Decimal: an exact base-10 number with no
 // binary float underneath, so a rate, a percentage or a fractional quantity
 // reads back as the value someone typed.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type MaxRate struct{ v decimal.Decimal }
 
 // NewMaxRate validates raw and returns the MaxRate it describes.
@@ -2634,28 +3241,47 @@ type MaxRate struct{ v decimal.Decimal }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewMaxRate(raw decimal.Decimal) (MaxRate, error) {
+	const (
+		maxParamCoef  = 1
+		maxParamScale = 0
+	)
+
 	var n validation.Notification
+
 	v := raw
-	if !(v.Cmp(_vogueDecimal340ca71c) <= 0) {
-		n.Add(validation.FieldError{Field: "maxRate", Rule: "max", Param: "1", Value: v.String(), Message: "maxRate must be at most 1"})
+	if v.Cmp(decimal.MustNew(maxParamCoef, maxParamScale)) > 0 {
+		n.Reject("maxRate", "max", "1", v.String(), "maxRate must be at most 1")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return MaxRate{}, err
+	if n.HasErrors() {
+		var zero MaxRate
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return MaxRate{v: v}, nil
 }
 
-// ParseMaxRate reads a decimal representation and validates it. A representation
-// decimal.Parse cannot read is reported as a "maxRate" failure of the
+// NewMaxRateFromString reads a decimal representation and validates it. A
+// representation decimal.Parse cannot read is reported as a failure of the
 // "decimal" rule, so a caller handles it the same way as every other rule.
-func ParseMaxRate(raw string) (MaxRate, error) {
+func NewMaxRateFromString(raw string) (MaxRate, error) {
 	v, err := decimal.Parse(raw)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "maxRate", Rule: "decimal", Value: raw, Message: "maxRate must be an exact decimal number"})
-		return MaxRate{}, n.ErrOrNil()
+		var (
+			zero MaxRate
+			n    validation.Notification
+		)
+
+		n.Reject("maxRate", "decimal", "", raw, "maxRate must be an exact decimal number")
+
+		return zero, &n
 	}
+
 	return NewMaxRate(v)
 }
 
@@ -2667,7 +3293,7 @@ func (m MaxRate) Decimal() decimal.Decimal { return m.v }
 func (m MaxRate) String() string { return m.v.String() }
 
 // IsZero reports whether the receiver holds zero, which is also the zero
-// MaxRate — the only MaxRate that never passed validation.
+// MaxRate: the only MaxRate that never passed validation.
 func (m MaxRate) IsZero() bool { return m.v.IsZero() }
 
 // Equal reports whether both value objects hold the same number.
@@ -2686,11 +3312,13 @@ func (m MaxRate) MarshalText() ([]byte, error) { return []byte(m.v.String()), ni
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a MaxRate the constructor would have rejected.
 func (m *MaxRate) UnmarshalText(data []byte) error {
-	parsed, err := ParseMaxRate(string(data))
+	parsed, err := NewMaxRateFromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*m = parsed
+
 	return nil
 }
 
@@ -2700,40 +3328,50 @@ func (m *MaxRate) UnmarshalText(data []byte) error {
 func (m MaxRate) Value() (driver.Value, error) { return m.v.String(), nil }
 
 // Scan implements sql.Scanner for text and integer columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a vogue
-// error.
+// validation so a row that no longer satisfies the rules surfaces as a
+// validation error.
 //
-// A float64 or float32 source is refused rather than converted: it has already
-// lost digits by the time it arrives, and accepting it would undo the reason
-// this kind exists. A driver that hands back a numeric column as a float is
-// misconfigured — with pgx, the numeric codec must deliver text, and a
-// pgtype.Numeric source needs a helper of its own rather than a silent
-// conversion here.
+// A float64 or float32 source is refused with [validation.ErrLossySource]
+// rather than converted: it has already lost digits by the time it arrives,
+// and accepting it would undo the reason this kind exists. A driver that
+// hands back a numeric column as a float is misconfigured; with pgx, the
+// numeric codec must deliver text.
 func (m *MaxRate) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*m = MaxRate{}
+		var zero MaxRate
+
+		*m = zero
+
 		return nil
 	case string:
 		return m.UnmarshalText([]byte(value))
 	case []byte:
 		return m.UnmarshalText(value)
 	case int64:
-		parsed, err := decimal.New(value, 0)
-		if err != nil {
-			return fmt.Errorf("vogue: cannot scan %d into MaxRate: %w", value, err)
-		}
-		built, err := NewMaxRate(parsed)
-		if err != nil {
-			return err
-		}
-		*m = built
-		return nil
+		return m.scanInt64(value)
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into MaxRate, configure the driver to deliver numeric columns as text: %w", src, validation.ErrLossySource)
+		return fmt.Errorf("vogue: cannot scan the binary float %T into MaxRate: %w", src, validation.ErrLossySource)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into MaxRate: %w", src, validation.ErrUnsupportedSource)
 	}
+}
+
+// scanInt64 reads a whole number handed back by an integer column.
+func (m *MaxRate) scanInt64(value int64) error {
+	whole, err := decimal.New(value, 0)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot scan %d into MaxRate: %w", value, err)
+	}
+
+	parsed, err := NewMaxRate(whole)
+	if err != nil {
+		return err
+	}
+
+	*m = parsed
+
+	return nil
 }
 
 // UnitWeight is a weight on a scale, which only means something above zero.
@@ -2741,6 +3379,8 @@ func (m *MaxRate) Scan(src any) error {
 // The value is held as a decimal.Decimal: an exact base-10 number with no
 // binary float underneath, so a rate, a percentage or a fractional quantity
 // reads back as the value someone typed.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type UnitWeight struct{ v decimal.Decimal }
 
 // NewUnitWeight validates raw and returns the UnitWeight it describes.
@@ -2749,27 +3389,41 @@ type UnitWeight struct{ v decimal.Decimal }
 // collected into one error rather than the first one aborting the rest.
 func NewUnitWeight(raw decimal.Decimal) (UnitWeight, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(v.Sign() > 0) {
-		n.Add(validation.FieldError{Field: "unitWeight", Rule: "positive", Value: v.String(), Message: "unitWeight must be greater than zero"})
+	if v.Sign() <= 0 {
+		n.Reject("unitWeight", "positive", "", v.String(), "unitWeight must be greater than zero")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return UnitWeight{}, err
+	if n.HasErrors() {
+		var zero UnitWeight
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return UnitWeight{v: v}, nil
 }
 
-// ParseUnitWeight reads a decimal representation and validates it. A representation
-// decimal.Parse cannot read is reported as a "unitWeight" failure of the
+// NewUnitWeightFromString reads a decimal representation and validates it. A
+// representation decimal.Parse cannot read is reported as a failure of the
 // "decimal" rule, so a caller handles it the same way as every other rule.
-func ParseUnitWeight(raw string) (UnitWeight, error) {
+func NewUnitWeightFromString(raw string) (UnitWeight, error) {
 	v, err := decimal.Parse(raw)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "unitWeight", Rule: "decimal", Value: raw, Message: "unitWeight must be an exact decimal number"})
-		return UnitWeight{}, n.ErrOrNil()
+		var (
+			zero UnitWeight
+			n    validation.Notification
+		)
+
+		n.Reject("unitWeight", "decimal", "", raw, "unitWeight must be an exact decimal number")
+
+		return zero, &n
 	}
+
 	return NewUnitWeight(v)
 }
 
@@ -2781,7 +3435,7 @@ func (u UnitWeight) Decimal() decimal.Decimal { return u.v }
 func (u UnitWeight) String() string { return u.v.String() }
 
 // IsZero reports whether the receiver holds zero, which is also the zero
-// UnitWeight — the only UnitWeight that never passed validation.
+// UnitWeight: the only UnitWeight that never passed validation.
 func (u UnitWeight) IsZero() bool { return u.v.IsZero() }
 
 // Equal reports whether both value objects hold the same number.
@@ -2800,11 +3454,13 @@ func (u UnitWeight) MarshalText() ([]byte, error) { return []byte(u.v.String()),
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a UnitWeight the constructor would have rejected.
 func (u *UnitWeight) UnmarshalText(data []byte) error {
-	parsed, err := ParseUnitWeight(string(data))
+	parsed, err := NewUnitWeightFromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*u = parsed
+
 	return nil
 }
 
@@ -2814,40 +3470,50 @@ func (u *UnitWeight) UnmarshalText(data []byte) error {
 func (u UnitWeight) Value() (driver.Value, error) { return u.v.String(), nil }
 
 // Scan implements sql.Scanner for text and integer columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a vogue
-// error.
+// validation so a row that no longer satisfies the rules surfaces as a
+// validation error.
 //
-// A float64 or float32 source is refused rather than converted: it has already
-// lost digits by the time it arrives, and accepting it would undo the reason
-// this kind exists. A driver that hands back a numeric column as a float is
-// misconfigured — with pgx, the numeric codec must deliver text, and a
-// pgtype.Numeric source needs a helper of its own rather than a silent
-// conversion here.
+// A float64 or float32 source is refused with [validation.ErrLossySource]
+// rather than converted: it has already lost digits by the time it arrives,
+// and accepting it would undo the reason this kind exists. A driver that
+// hands back a numeric column as a float is misconfigured; with pgx, the
+// numeric codec must deliver text.
 func (u *UnitWeight) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*u = UnitWeight{}
+		var zero UnitWeight
+
+		*u = zero
+
 		return nil
 	case string:
 		return u.UnmarshalText([]byte(value))
 	case []byte:
 		return u.UnmarshalText(value)
 	case int64:
-		parsed, err := decimal.New(value, 0)
-		if err != nil {
-			return fmt.Errorf("vogue: cannot scan %d into UnitWeight: %w", value, err)
-		}
-		built, err := NewUnitWeight(parsed)
-		if err != nil {
-			return err
-		}
-		*u = built
-		return nil
+		return u.scanInt64(value)
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into UnitWeight, configure the driver to deliver numeric columns as text: %w", src, validation.ErrLossySource)
+		return fmt.Errorf("vogue: cannot scan the binary float %T into UnitWeight: %w", src, validation.ErrLossySource)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into UnitWeight: %w", src, validation.ErrUnsupportedSource)
 	}
+}
+
+// scanInt64 reads a whole number handed back by an integer column.
+func (u *UnitWeight) scanInt64(value int64) error {
+	whole, err := decimal.New(value, 0)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot scan %d into UnitWeight: %w", value, err)
+	}
+
+	parsed, err := NewUnitWeight(whole)
+	if err != nil {
+		return err
+	}
+
+	*u = parsed
+
+	return nil
 }
 
 // ShelfWeight is a stock weight, which may be nothing but never less.
@@ -2855,6 +3521,8 @@ func (u *UnitWeight) Scan(src any) error {
 // The value is held as a decimal.Decimal: an exact base-10 number with no
 // binary float underneath, so a rate, a percentage or a fractional quantity
 // reads back as the value someone typed.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type ShelfWeight struct{ v decimal.Decimal }
 
 // NewShelfWeight validates raw and returns the ShelfWeight it describes.
@@ -2863,27 +3531,41 @@ type ShelfWeight struct{ v decimal.Decimal }
 // collected into one error rather than the first one aborting the rest.
 func NewShelfWeight(raw decimal.Decimal) (ShelfWeight, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(v.Sign() >= 0) {
-		n.Add(validation.FieldError{Field: "shelfWeight", Rule: "nonneg", Value: v.String(), Message: "shelfWeight must not be negative"})
+	if v.Sign() < 0 {
+		n.Reject("shelfWeight", "nonneg", "", v.String(), "shelfWeight must not be negative")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return ShelfWeight{}, err
+	if n.HasErrors() {
+		var zero ShelfWeight
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return ShelfWeight{v: v}, nil
 }
 
-// ParseShelfWeight reads a decimal representation and validates it. A representation
-// decimal.Parse cannot read is reported as a "shelfWeight" failure of the
+// NewShelfWeightFromString reads a decimal representation and validates it. A
+// representation decimal.Parse cannot read is reported as a failure of the
 // "decimal" rule, so a caller handles it the same way as every other rule.
-func ParseShelfWeight(raw string) (ShelfWeight, error) {
+func NewShelfWeightFromString(raw string) (ShelfWeight, error) {
 	v, err := decimal.Parse(raw)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "shelfWeight", Rule: "decimal", Value: raw, Message: "shelfWeight must be an exact decimal number"})
-		return ShelfWeight{}, n.ErrOrNil()
+		var (
+			zero ShelfWeight
+			n    validation.Notification
+		)
+
+		n.Reject("shelfWeight", "decimal", "", raw, "shelfWeight must be an exact decimal number")
+
+		return zero, &n
 	}
+
 	return NewShelfWeight(v)
 }
 
@@ -2895,7 +3577,7 @@ func (s ShelfWeight) Decimal() decimal.Decimal { return s.v }
 func (s ShelfWeight) String() string { return s.v.String() }
 
 // IsZero reports whether the receiver holds zero, which is also the zero
-// ShelfWeight — the only ShelfWeight that never passed validation.
+// ShelfWeight: the only ShelfWeight that never passed validation.
 func (s ShelfWeight) IsZero() bool { return s.v.IsZero() }
 
 // Equal reports whether both value objects hold the same number.
@@ -2914,11 +3596,13 @@ func (s ShelfWeight) MarshalText() ([]byte, error) { return []byte(s.v.String())
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a ShelfWeight the constructor would have rejected.
 func (s *ShelfWeight) UnmarshalText(data []byte) error {
-	parsed, err := ParseShelfWeight(string(data))
+	parsed, err := NewShelfWeightFromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*s = parsed
+
 	return nil
 }
 
@@ -2928,40 +3612,50 @@ func (s *ShelfWeight) UnmarshalText(data []byte) error {
 func (s ShelfWeight) Value() (driver.Value, error) { return s.v.String(), nil }
 
 // Scan implements sql.Scanner for text and integer columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a vogue
-// error.
+// validation so a row that no longer satisfies the rules surfaces as a
+// validation error.
 //
-// A float64 or float32 source is refused rather than converted: it has already
-// lost digits by the time it arrives, and accepting it would undo the reason
-// this kind exists. A driver that hands back a numeric column as a float is
-// misconfigured — with pgx, the numeric codec must deliver text, and a
-// pgtype.Numeric source needs a helper of its own rather than a silent
-// conversion here.
+// A float64 or float32 source is refused with [validation.ErrLossySource]
+// rather than converted: it has already lost digits by the time it arrives,
+// and accepting it would undo the reason this kind exists. A driver that
+// hands back a numeric column as a float is misconfigured; with pgx, the
+// numeric codec must deliver text.
 func (s *ShelfWeight) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*s = ShelfWeight{}
+		var zero ShelfWeight
+
+		*s = zero
+
 		return nil
 	case string:
 		return s.UnmarshalText([]byte(value))
 	case []byte:
 		return s.UnmarshalText(value)
 	case int64:
-		parsed, err := decimal.New(value, 0)
-		if err != nil {
-			return fmt.Errorf("vogue: cannot scan %d into ShelfWeight: %w", value, err)
-		}
-		built, err := NewShelfWeight(parsed)
-		if err != nil {
-			return err
-		}
-		*s = built
-		return nil
+		return s.scanInt64(value)
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into ShelfWeight, configure the driver to deliver numeric columns as text: %w", src, validation.ErrLossySource)
+		return fmt.Errorf("vogue: cannot scan the binary float %T into ShelfWeight: %w", src, validation.ErrLossySource)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into ShelfWeight: %w", src, validation.ErrUnsupportedSource)
 	}
+}
+
+// scanInt64 reads a whole number handed back by an integer column.
+func (s *ShelfWeight) scanInt64(value int64) error {
+	whole, err := decimal.New(value, 0)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot scan %d into ShelfWeight: %w", value, err)
+	}
+
+	parsed, err := NewShelfWeight(whole)
+	if err != nil {
+		return err
+	}
+
+	*s = parsed
+
+	return nil
 }
 
 // TaxRate is a rate stored in a numeric column of scale four.
@@ -2969,6 +3663,8 @@ func (s *ShelfWeight) Scan(src any) error {
 // The value is held as a decimal.Decimal: an exact base-10 number with no
 // binary float underneath, so a rate, a percentage or a fractional quantity
 // reads back as the value someone typed.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type TaxRate struct{ v decimal.Decimal }
 
 // NewTaxRate validates raw and returns the TaxRate it describes.
@@ -2976,28 +3672,44 @@ type TaxRate struct{ v decimal.Decimal }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewTaxRate(raw decimal.Decimal) (TaxRate, error) {
+	const scaleParam = 4
+
 	var n validation.Notification
+
 	v := raw
-	if !(v.Scale() <= 4) {
-		n.Add(validation.FieldError{Field: "taxRate", Rule: "scale", Param: "4", Value: v.String(), Message: "taxRate must have at most 4 decimal places"})
+	if v.Scale() > scaleParam {
+		n.Reject("taxRate", "scale", "4", v.String(), "taxRate must have at most 4 decimal places")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return TaxRate{}, err
+	if n.HasErrors() {
+		var zero TaxRate
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return TaxRate{v: v}, nil
 }
 
-// ParseTaxRate reads a decimal representation and validates it. A representation
-// decimal.Parse cannot read is reported as a "taxRate" failure of the
+// NewTaxRateFromString reads a decimal representation and validates it. A
+// representation decimal.Parse cannot read is reported as a failure of the
 // "decimal" rule, so a caller handles it the same way as every other rule.
-func ParseTaxRate(raw string) (TaxRate, error) {
+func NewTaxRateFromString(raw string) (TaxRate, error) {
 	v, err := decimal.Parse(raw)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "taxRate", Rule: "decimal", Value: raw, Message: "taxRate must be an exact decimal number"})
-		return TaxRate{}, n.ErrOrNil()
+		var (
+			zero TaxRate
+			n    validation.Notification
+		)
+
+		n.Reject("taxRate", "decimal", "", raw, "taxRate must be an exact decimal number")
+
+		return zero, &n
 	}
+
 	return NewTaxRate(v)
 }
 
@@ -3009,7 +3721,7 @@ func (t TaxRate) Decimal() decimal.Decimal { return t.v }
 func (t TaxRate) String() string { return t.v.String() }
 
 // IsZero reports whether the receiver holds zero, which is also the zero
-// TaxRate — the only TaxRate that never passed validation.
+// TaxRate: the only TaxRate that never passed validation.
 func (t TaxRate) IsZero() bool { return t.v.IsZero() }
 
 // Equal reports whether both value objects hold the same number.
@@ -3028,11 +3740,13 @@ func (t TaxRate) MarshalText() ([]byte, error) { return []byte(t.v.String()), ni
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a TaxRate the constructor would have rejected.
 func (t *TaxRate) UnmarshalText(data []byte) error {
-	parsed, err := ParseTaxRate(string(data))
+	parsed, err := NewTaxRateFromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*t = parsed
+
 	return nil
 }
 
@@ -3042,40 +3756,50 @@ func (t *TaxRate) UnmarshalText(data []byte) error {
 func (t TaxRate) Value() (driver.Value, error) { return t.v.String(), nil }
 
 // Scan implements sql.Scanner for text and integer columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a vogue
-// error.
+// validation so a row that no longer satisfies the rules surfaces as a
+// validation error.
 //
-// A float64 or float32 source is refused rather than converted: it has already
-// lost digits by the time it arrives, and accepting it would undo the reason
-// this kind exists. A driver that hands back a numeric column as a float is
-// misconfigured — with pgx, the numeric codec must deliver text, and a
-// pgtype.Numeric source needs a helper of its own rather than a silent
-// conversion here.
+// A float64 or float32 source is refused with [validation.ErrLossySource]
+// rather than converted: it has already lost digits by the time it arrives,
+// and accepting it would undo the reason this kind exists. A driver that
+// hands back a numeric column as a float is misconfigured; with pgx, the
+// numeric codec must deliver text.
 func (t *TaxRate) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*t = TaxRate{}
+		var zero TaxRate
+
+		*t = zero
+
 		return nil
 	case string:
 		return t.UnmarshalText([]byte(value))
 	case []byte:
 		return t.UnmarshalText(value)
 	case int64:
-		parsed, err := decimal.New(value, 0)
-		if err != nil {
-			return fmt.Errorf("vogue: cannot scan %d into TaxRate: %w", value, err)
-		}
-		built, err := NewTaxRate(parsed)
-		if err != nil {
-			return err
-		}
-		*t = built
-		return nil
+		return t.scanInt64(value)
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into TaxRate, configure the driver to deliver numeric columns as text: %w", src, validation.ErrLossySource)
+		return fmt.Errorf("vogue: cannot scan the binary float %T into TaxRate: %w", src, validation.ErrLossySource)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into TaxRate: %w", src, validation.ErrUnsupportedSource)
 	}
+}
+
+// scanInt64 reads a whole number handed back by an integer column.
+func (t *TaxRate) scanInt64(value int64) error {
+	whole, err := decimal.New(value, 0)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot scan %d into TaxRate: %w", value, err)
+	}
+
+	parsed, err := NewTaxRate(whole)
+	if err != nil {
+		return err
+	}
+
+	*t = parsed
+
+	return nil
 }
 
 // PreciseWeight is a weight measured to the gram and no finer.
@@ -3083,6 +3807,8 @@ func (t *TaxRate) Scan(src any) error {
 // The value is held as a decimal.Decimal: an exact base-10 number with no
 // binary float underneath, so a rate, a percentage or a fractional quantity
 // reads back as the value someone typed.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type PreciseWeight struct{ v decimal.Decimal }
 
 // NewPreciseWeight validates raw and returns the PreciseWeight it describes.
@@ -3090,28 +3816,44 @@ type PreciseWeight struct{ v decimal.Decimal }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewPreciseWeight(raw decimal.Decimal) (PreciseWeight, error) {
+	const scaleParam = 3
+
 	var n validation.Notification
+
 	v := raw
-	if !(v.Scale() <= 3) {
-		n.Add(validation.FieldError{Field: "preciseWeight", Rule: "scale", Param: "3", Value: v.String(), Message: "preciseWeight must have at most 3 decimal places"})
+	if v.Scale() > scaleParam {
+		n.Reject("preciseWeight", "scale", "3", v.String(), "preciseWeight must have at most 3 decimal places")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return PreciseWeight{}, err
+	if n.HasErrors() {
+		var zero PreciseWeight
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return PreciseWeight{v: v}, nil
 }
 
-// ParsePreciseWeight reads a decimal representation and validates it. A representation
-// decimal.Parse cannot read is reported as a "preciseWeight" failure of the
+// NewPreciseWeightFromString reads a decimal representation and validates it. A
+// representation decimal.Parse cannot read is reported as a failure of the
 // "decimal" rule, so a caller handles it the same way as every other rule.
-func ParsePreciseWeight(raw string) (PreciseWeight, error) {
+func NewPreciseWeightFromString(raw string) (PreciseWeight, error) {
 	v, err := decimal.Parse(raw)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "preciseWeight", Rule: "decimal", Value: raw, Message: "preciseWeight must be an exact decimal number"})
-		return PreciseWeight{}, n.ErrOrNil()
+		var (
+			zero PreciseWeight
+			n    validation.Notification
+		)
+
+		n.Reject("preciseWeight", "decimal", "", raw, "preciseWeight must be an exact decimal number")
+
+		return zero, &n
 	}
+
 	return NewPreciseWeight(v)
 }
 
@@ -3123,7 +3865,7 @@ func (p PreciseWeight) Decimal() decimal.Decimal { return p.v }
 func (p PreciseWeight) String() string { return p.v.String() }
 
 // IsZero reports whether the receiver holds zero, which is also the zero
-// PreciseWeight — the only PreciseWeight that never passed validation.
+// PreciseWeight: the only PreciseWeight that never passed validation.
 func (p PreciseWeight) IsZero() bool { return p.v.IsZero() }
 
 // Equal reports whether both value objects hold the same number.
@@ -3142,11 +3884,13 @@ func (p PreciseWeight) MarshalText() ([]byte, error) { return []byte(p.v.String(
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a PreciseWeight the constructor would have rejected.
 func (p *PreciseWeight) UnmarshalText(data []byte) error {
-	parsed, err := ParsePreciseWeight(string(data))
+	parsed, err := NewPreciseWeightFromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*p = parsed
+
 	return nil
 }
 
@@ -3156,40 +3900,50 @@ func (p *PreciseWeight) UnmarshalText(data []byte) error {
 func (p PreciseWeight) Value() (driver.Value, error) { return p.v.String(), nil }
 
 // Scan implements sql.Scanner for text and integer columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a vogue
-// error.
+// validation so a row that no longer satisfies the rules surfaces as a
+// validation error.
 //
-// A float64 or float32 source is refused rather than converted: it has already
-// lost digits by the time it arrives, and accepting it would undo the reason
-// this kind exists. A driver that hands back a numeric column as a float is
-// misconfigured — with pgx, the numeric codec must deliver text, and a
-// pgtype.Numeric source needs a helper of its own rather than a silent
-// conversion here.
+// A float64 or float32 source is refused with [validation.ErrLossySource]
+// rather than converted: it has already lost digits by the time it arrives,
+// and accepting it would undo the reason this kind exists. A driver that
+// hands back a numeric column as a float is misconfigured; with pgx, the
+// numeric codec must deliver text.
 func (p *PreciseWeight) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*p = PreciseWeight{}
+		var zero PreciseWeight
+
+		*p = zero
+
 		return nil
 	case string:
 		return p.UnmarshalText([]byte(value))
 	case []byte:
 		return p.UnmarshalText(value)
 	case int64:
-		parsed, err := decimal.New(value, 0)
-		if err != nil {
-			return fmt.Errorf("vogue: cannot scan %d into PreciseWeight: %w", value, err)
-		}
-		built, err := NewPreciseWeight(parsed)
-		if err != nil {
-			return err
-		}
-		*p = built
-		return nil
+		return p.scanInt64(value)
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into PreciseWeight, configure the driver to deliver numeric columns as text: %w", src, validation.ErrLossySource)
+		return fmt.Errorf("vogue: cannot scan the binary float %T into PreciseWeight: %w", src, validation.ErrLossySource)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into PreciseWeight: %w", src, validation.ErrUnsupportedSource)
 	}
+}
+
+// scanInt64 reads a whole number handed back by an integer column.
+func (p *PreciseWeight) scanInt64(value int64) error {
+	whole, err := decimal.New(value, 0)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot scan %d into PreciseWeight: %w", value, err)
+	}
+
+	parsed, err := NewPreciseWeight(whole)
+	if err != nil {
+		return err
+	}
+
+	*p = parsed
+
+	return nil
 }
 
 // Adjustment is a correction to a bill, which is pointless when it is zero.
@@ -3197,6 +3951,8 @@ func (p *PreciseWeight) Scan(src any) error {
 // The value is held as a decimal.Decimal: an exact base-10 number with no
 // binary float underneath, so a rate, a percentage or a fractional quantity
 // reads back as the value someone typed.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type Adjustment struct{ v decimal.Decimal }
 
 // NewAdjustment validates raw and returns the Adjustment it describes.
@@ -3205,27 +3961,41 @@ type Adjustment struct{ v decimal.Decimal }
 // collected into one error rather than the first one aborting the rest.
 func NewAdjustment(raw decimal.Decimal) (Adjustment, error) {
 	var n validation.Notification
+
 	v := raw
-	if !(!v.IsZero()) {
-		n.Add(validation.FieldError{Field: "adjustment", Rule: "nonzero", Value: v.String(), Message: "adjustment must not be zero"})
+	if v.IsZero() {
+		n.Reject("adjustment", "nonzero", "", v.String(), "adjustment must not be zero")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return Adjustment{}, err
+	if n.HasErrors() {
+		var zero Adjustment
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return Adjustment{v: v}, nil
 }
 
-// ParseAdjustment reads a decimal representation and validates it. A representation
-// decimal.Parse cannot read is reported as a "adjustment" failure of the
+// NewAdjustmentFromString reads a decimal representation and validates it. A
+// representation decimal.Parse cannot read is reported as a failure of the
 // "decimal" rule, so a caller handles it the same way as every other rule.
-func ParseAdjustment(raw string) (Adjustment, error) {
+func NewAdjustmentFromString(raw string) (Adjustment, error) {
 	v, err := decimal.Parse(raw)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "adjustment", Rule: "decimal", Value: raw, Message: "adjustment must be an exact decimal number"})
-		return Adjustment{}, n.ErrOrNil()
+		var (
+			zero Adjustment
+			n    validation.Notification
+		)
+
+		n.Reject("adjustment", "decimal", "", raw, "adjustment must be an exact decimal number")
+
+		return zero, &n
 	}
+
 	return NewAdjustment(v)
 }
 
@@ -3237,7 +4007,7 @@ func (a Adjustment) Decimal() decimal.Decimal { return a.v }
 func (a Adjustment) String() string { return a.v.String() }
 
 // IsZero reports whether the receiver holds zero, which is also the zero
-// Adjustment — the only Adjustment that never passed validation.
+// Adjustment: the only Adjustment that never passed validation.
 func (a Adjustment) IsZero() bool { return a.v.IsZero() }
 
 // Equal reports whether both value objects hold the same number.
@@ -3256,11 +4026,13 @@ func (a Adjustment) MarshalText() ([]byte, error) { return []byte(a.v.String()),
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a Adjustment the constructor would have rejected.
 func (a *Adjustment) UnmarshalText(data []byte) error {
-	parsed, err := ParseAdjustment(string(data))
+	parsed, err := NewAdjustmentFromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*a = parsed
+
 	return nil
 }
 
@@ -3270,38 +4042,48 @@ func (a *Adjustment) UnmarshalText(data []byte) error {
 func (a Adjustment) Value() (driver.Value, error) { return a.v.String(), nil }
 
 // Scan implements sql.Scanner for text and integer columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a vogue
-// error.
+// validation so a row that no longer satisfies the rules surfaces as a
+// validation error.
 //
-// A float64 or float32 source is refused rather than converted: it has already
-// lost digits by the time it arrives, and accepting it would undo the reason
-// this kind exists. A driver that hands back a numeric column as a float is
-// misconfigured — with pgx, the numeric codec must deliver text, and a
-// pgtype.Numeric source needs a helper of its own rather than a silent
-// conversion here.
+// A float64 or float32 source is refused with [validation.ErrLossySource]
+// rather than converted: it has already lost digits by the time it arrives,
+// and accepting it would undo the reason this kind exists. A driver that
+// hands back a numeric column as a float is misconfigured; with pgx, the
+// numeric codec must deliver text.
 func (a *Adjustment) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*a = Adjustment{}
+		var zero Adjustment
+
+		*a = zero
+
 		return nil
 	case string:
 		return a.UnmarshalText([]byte(value))
 	case []byte:
 		return a.UnmarshalText(value)
 	case int64:
-		parsed, err := decimal.New(value, 0)
-		if err != nil {
-			return fmt.Errorf("vogue: cannot scan %d into Adjustment: %w", value, err)
-		}
-		built, err := NewAdjustment(parsed)
-		if err != nil {
-			return err
-		}
-		*a = built
-		return nil
+		return a.scanInt64(value)
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into Adjustment, configure the driver to deliver numeric columns as text: %w", src, validation.ErrLossySource)
+		return fmt.Errorf("vogue: cannot scan the binary float %T into Adjustment: %w", src, validation.ErrLossySource)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into Adjustment: %w", src, validation.ErrUnsupportedSource)
 	}
+}
+
+// scanInt64 reads a whole number handed back by an integer column.
+func (a *Adjustment) scanInt64(value int64) error {
+	whole, err := decimal.New(value, 0)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot scan %d into Adjustment: %w", value, err)
+	}
+
+	parsed, err := NewAdjustment(whole)
+	if err != nil {
+		return err
+	}
+
+	*a = parsed
+
+	return nil
 }

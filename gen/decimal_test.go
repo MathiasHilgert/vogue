@@ -41,7 +41,7 @@ func TestGenerateDecimal(t *testing.T) {
 		assert.Contains(t, code, `"github.com/govalues/decimal"`)
 		assert.Contains(t, code, "type Weight struct{ v decimal.Decimal }")
 		assert.Contains(t, code, "func NewWeight(raw decimal.Decimal) (Weight, error)")
-		assert.Contains(t, code, "func ParseWeight(raw string) (Weight, error)")
+		assert.Contains(t, code, "func NewWeightFromString(raw string) (Weight, error)")
 		assert.Contains(t, code, "func (w Weight) Decimal() decimal.Decimal")
 		assert.Contains(t, code, "func (w Weight) String() string")
 		assert.Contains(t, code, "func (w Weight) IsZero() bool")
@@ -71,26 +71,16 @@ func TestGenerateDecimal(t *testing.T) {
 		assert.Contains(t, code, "cannot scan the binary float %T into Weight")
 	})
 
-	t.Run("a bound is parsed once into a package-level declaration", func(t *testing.T) {
-		t.Parallel()
-
-		// Act
-		code, _ := generateDecimal(t, "//vogue:decimal Weight min=0.5\n")
-
-		// Assert
-		assert.Contains(t, code, `= decimal.MustParse("0.5")`)
-		assert.Contains(t, code, ".Cmp(_vogueDecimal")
-		assert.NotContains(t, code, "decimal.MustParse(\"0.5\")) >= 0")
-	})
-
-	t.Run("a bound shared by two directives is declared once", func(t *testing.T) {
+	t.Run("a bound is a constant local to the constructor, not a package-level variable", func(t *testing.T) {
 		t.Parallel()
 
 		// Act
 		code, _ := generateDecimal(t, "//vogue:decimal Weight min=0.5\n\n//vogue:decimal Rate min=0.5\n")
 
 		// Assert
-		assert.Equal(t, 1, countOf(code, `decimal.MustParse("0.5")`))
+		assert.Equal(t, 2, countOf(code, "\tconst minParam = \"0.5\"\n"), "each constructor names its own bound")
+		assert.Contains(t, code, "if v.Cmp(decimal.MustParse(minParam)) < 0 {")
+		assert.NotContains(t, code, "\nvar ")
 	})
 
 	t.Run("a parse failure is reported as a decimal field error", func(t *testing.T) {
@@ -100,7 +90,7 @@ func TestGenerateDecimal(t *testing.T) {
 		code, _ := generateDecimal(t, "//vogue:decimal Weight min=0\n")
 
 		// Assert
-		assert.Contains(t, code, `Rule: "decimal"`)
+		assert.Contains(t, code, `n.Reject("weight", "decimal", "", raw, "weight must be an exact decimal number")`)
 		assert.Contains(t, code, "weight must be an exact decimal number")
 	})
 
@@ -111,20 +101,20 @@ func TestGenerateDecimal(t *testing.T) {
 		code, _ := generateDecimal(t, "//vogue:decimal Weight scale=3\n")
 
 		// Assert
-		assert.Contains(t, code, "v.Scale() <= 3")
+		assert.Contains(t, code, "const scaleParam = 3")
+		assert.Contains(t, code, "if v.Scale() > scaleParam {")
 	})
 
-	t.Run("the generated test drives the constructor through Parse", func(t *testing.T) {
+	t.Run("the generated test drives the constructor through its textual form", func(t *testing.T) {
 		t.Parallel()
 
 		// Act
 		_, test := generateDecimal(t, "//vogue:decimal Weight min=0\n")
 
 		// Assert
-		assert.Contains(t, test, "func TestNewWeight(t *testing.T)")
-		assert.Contains(t, test, "in        string")
-		assert.Contains(t, test, "got, err := ParseWeight(tc.in)")
-		assert.Contains(t, test, "a binary float source is refused")
+		assert.Contains(t, test, "voguetest.Scalar[Weight, *Weight, string]{")
+		assert.Regexp(t, `New:\s+NewWeightFromString,`, test)
+		assert.Regexp(t, `RefusesFloat: true,`, test)
 	})
 
 	t.Run("a string directive does not import decimal", func(t *testing.T) {

@@ -62,7 +62,7 @@ func TestWeight(t *testing.T) {
 		t.Parallel()
 
 		// Act
-		_, err := fixture.ParseWeight("one and a half")
+		_, err := fixture.NewWeightFromString("one and a half")
 
 		// Assert
 		require.Error(t, err)
@@ -73,9 +73,9 @@ func TestWeight(t *testing.T) {
 		t.Parallel()
 
 		// Arrange
-		plain, err := fixture.ParseWeight("1.5")
+		plain, err := fixture.NewWeightFromString("1.5")
 		require.NoError(t, err)
-		padded, err := fixture.ParseWeight("1.500")
+		padded, err := fixture.NewWeightFromString("1.500")
 		require.NoError(t, err)
 
 		// Act & Assert
@@ -87,7 +87,7 @@ func TestWeight(t *testing.T) {
 		t.Parallel()
 
 		// Arrange
-		want, err := fixture.ParseWeight("0.125")
+		want, err := fixture.NewWeightFromString("0.125")
 		require.NoError(t, err)
 
 		// Act
@@ -147,7 +147,7 @@ func TestWeight(t *testing.T) {
 		t.Parallel()
 
 		// Arrange
-		want, err := fixture.ParseWeight("0.125")
+		want, err := fixture.NewWeightFromString("0.125")
 		require.NoError(t, err)
 
 		// Act

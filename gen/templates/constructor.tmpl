@@ -1,0 +1,26 @@
+{{/*
+The body every validating constructor shares: the constants its rules
+declared, the rules in directive order, and the failure branch. The template
+is rendered with the voView of the value object; ValueExpr renders the working
+value as the text a FieldError carries.
+*/}}
+{{define "validate"}}{{range .Locals}}	{{.}}
+
+{{end}}	var n validation.Notification
+
+	v := raw
+{{range .Steps}}{{if .Normalize}}	{{.Code}}
+{{else}}	if {{.Failed}} {
+		n.Reject({{q .Field}}, {{q .Rule}}, {{q .Param}}, {{$.ValueExpr}}, {{q .Message}})
+	}
+{{end}}{{end}}
+	if n.HasErrors() {
+		var zero {{.Name}}
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
+	}
+{{end}}

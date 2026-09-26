@@ -64,6 +64,11 @@ type Options struct {
 	// rule dispatches to a function in that same package, the call is emitted
 	// unqualified and the package is not imported into itself. It may be empty.
 	ImportPath string
+	// OmitSQL leaves the database/sql/driver codec (Value and Scan) out of
+	// the generated code. A hexagonal domain package that must not import
+	// database/sql/driver sets it and converts at the persistence adapter
+	// through the text codec or the accessors instead.
+	OmitSQL bool
 }
 
 // OutFile is one generated file: the path it belongs at and its formatted

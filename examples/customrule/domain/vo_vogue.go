@@ -15,25 +15,35 @@ import (
 // TaxID is the Argentine taxpayer identifier of a supplier. The `cuit` rule is
 // this project's own; `trim` is a built-in, and writing it first is what makes
 // the check run on the value that will actually be stored.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type TaxID struct{ v string }
 
 // NewTaxID validates raw and returns the TaxID it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewTaxID(raw string) (TaxID, error) {
 	var n validation.Notification
+
 	v := raw
 	v = strings.TrimSpace(v)
-	if !(cuit.Valid(v)) {
-		n.Add(validation.FieldError{Field: "taxId", Rule: "cuit", Value: v, Message: "taxId must be a valid CUIT"})
+	if !cuit.Valid(v) {
+		n.Reject("taxId", "cuit", "", v, "taxId must be a valid CUIT")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return TaxID{}, err
+	if n.HasErrors() {
+		var zero TaxID
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return TaxID{v: v}, nil
 }
 
@@ -60,7 +70,9 @@ func (t *TaxID) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*t = parsed
+
 	return nil
 }
 
@@ -68,12 +80,15 @@ func (t *TaxID) UnmarshalText(data []byte) error {
 func (t TaxID) Value() (driver.Value, error) { return t.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (t *TaxID) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*t = TaxID{}
+		var zero TaxID
+
+		*t = zero
+
 		return nil
 	case string:
 		return t.UnmarshalText([]byte(value))
@@ -86,32 +101,46 @@ func (t *TaxID) Scan(src any) error {
 
 // LegalName is the name a supplier is registered under. It uses nothing but
 // built-ins, which is what the same generator does for the rest of a project.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type LegalName struct{ v string }
 
 // NewLegalName validates raw and returns the LegalName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewLegalName(raw string) (LegalName, error) {
+	const minParam = 2
+
+	const maxParam = 200
+
 	var n validation.Notification
+
 	v := raw
 	v = strings.TrimSpace(v)
 	v = strings.Join(strings.Fields(v), " ")
-	if !(v != "") {
-		n.Add(validation.FieldError{Field: "legalName", Rule: "required", Value: v, Message: "legalName is required"})
+	if v == "" {
+		n.Reject("legalName", "required", "", v, "legalName is required")
 	}
-	if !(utf8.RuneCountInString(v) >= 2) {
-		n.Add(validation.FieldError{Field: "legalName", Rule: "min", Param: "2", Value: v, Message: "legalName must be at least 2"})
+	if utf8.RuneCountInString(v) < minParam {
+		n.Reject("legalName", "min", "2", v, "legalName must be at least 2")
 	}
-	if !(utf8.RuneCountInString(v) <= 200) {
-		n.Add(validation.FieldError{Field: "legalName", Rule: "max", Param: "200", Value: v, Message: "legalName must be at most 200"})
+	if utf8.RuneCountInString(v) > maxParam {
+		n.Reject("legalName", "max", "200", v, "legalName must be at most 200")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return LegalName{}, err
+	if n.HasErrors() {
+		var zero LegalName
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return LegalName{v: v}, nil
 }
 
@@ -138,7 +167,9 @@ func (l *LegalName) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*l = parsed
+
 	return nil
 }
 
@@ -146,12 +177,15 @@ func (l *LegalName) UnmarshalText(data []byte) error {
 func (l LegalName) Value() (driver.Value, error) { return l.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (l *LegalName) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*l = LegalName{}
+		var zero LegalName
+
+		*l = zero
+
 		return nil
 	case string:
 		return l.UnmarshalText([]byte(value))

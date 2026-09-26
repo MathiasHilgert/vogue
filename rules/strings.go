@@ -46,7 +46,7 @@ var Min = vogue.Rule{
 	Message: "{{.Field}} must be at least {{.Param}}",
 	Imports: []string{importUTF8, importDecimal},
 	Emit:    func(c vogue.EmitContext) string { return compare(c, ">=") },
-	Declare: declareBound,
+	Local:   boundConst,
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{Kinds: str, Param: "1", In: "a", Note: "a single rune meets a bound of one"},
@@ -81,7 +81,7 @@ var Max = vogue.Rule{
 	Message: "{{.Field}} must be at most {{.Param}}",
 	Imports: []string{importUTF8, importDecimal},
 	Emit:    func(c vogue.EmitContext) string { return compare(c, "<=") },
-	Declare: declareBound,
+	Local:   boundConst,
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{Kinds: str, Param: "4", In: "abcd", Note: "the bound itself is accepted"},
@@ -114,6 +114,7 @@ var Len = vogue.Rule{
 	Message: "{{.Field}} must be exactly {{.Param}} characters long",
 	Imports: []string{importUTF8},
 	Emit:    func(c vogue.EmitContext) string { return compare(c, "==") },
+	Local:   boundConst,
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{Param: "3", In: "EUR", Note: "a currency code of the expected width"},
@@ -209,22 +210,14 @@ var Regex = vogue.Rule{
 	Kinds: str,
 	Doc: "Requires the value to match the given RE2 pattern. The pattern is compiled at generate " +
 		"time, so a malformed one is a generator error naming the directive rather than a panic in " +
-		"production, and it is compiled again into a package-level variable in the generated file, " +
-		"so the constructor only matches. The match is unanchored: write ^ and $ when the whole " +
+		"production, and the generated constructor calls fn.Regexp, which compiles it on first use " +
+		"and caches it, so every later call only matches. The match is unanchored: write ^ and $ when the whole " +
 		"value must match. The pattern may not contain a space, because a directive is read as " +
 		"whitespace-separated tokens; use `[[:space:]]` or `\\s` for one. Reach for a named rule " +
 		"first — `alphanum`, `prefix`, `len` — and keep this for a shape that has no name.",
 	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamRegex},
 	Message: "{{.Field}} must match the pattern {{.Param}}",
-	Imports: []string{importRegexp},
-	Declare: func(c vogue.EmitContext) string {
-		return "// " + regexpVar(c.Param) + " is the pattern the `regex` rule matches against,\n" +
-			"// compiled once at start-up rather than on every call.\n" +
-			"var " + regexpVar(c.Param) + " = regexp.MustCompile(" + strconv.Quote(c.Param) + ")"
-	},
-	Emit: func(c vogue.EmitContext) string {
-		return regexpVar(c.Param) + ".MatchString(" + c.Var + ")"
-	},
+	Call:    &vogue.FuncRef{Path: importFn, Name: "Regexp"},
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{Param: "^[A-Z]{3}-[0-9]{4}$", In: "SKU-0042", Note: "a code in the documented shape"},
@@ -250,6 +243,7 @@ var OneOf = vogue.Rule{
 		"list that stays a plain string or number.",
 	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamList},
 	Message: "{{.Field}} must be one of: {{.Param}}",
+	Imports: []string{importSlices},
 	Emit:    anyOf,
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{

@@ -1,24 +1,18 @@
 {{$n := .Name}}{{$r := .Recv}}
 {{range .DocLines}}// {{.}}
+{{end}}
+{{- if .SQL}}//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 {{end}}type {{$n}} struct{ v string }
 
 // New{{$n}} validates raw and returns the {{$n}} it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func New{{$n}}(raw string) ({{$n}}, error) {
-	var n validation.Notification
-	v := raw
-{{range .Steps}}{{if .Normalize}}	{{.Code}}
-{{else}}	if !({{.Code}}) {
-		n.Add(validation.FieldError{Field: {{q .Field}}, Rule: {{q .Rule}}, {{if .Param}}Param: {{q .Param}}, {{end}}Value: v, Message: {{q .Message}}})
-	}
-{{end}}{{end}}
-	if err := n.ErrOrNil(); err != nil {
-		return {{$n}}{}, err
-	}
+{{template "validate" .}}
 	return {{$n}}{v: v}, nil
 }
 
@@ -45,20 +39,25 @@ func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*{{$r}} = parsed
+
 	return nil
 }
-
+{{if .SQL}}
 // Value implements driver.Valuer.
 func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func ({{$r}} *{{$n}}) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*{{$r}} = {{$n}}{}
+		var zero {{$n}}
+
+		*{{$r}} = zero
+
 		return nil
 	case string:
 		return {{$r}}.UnmarshalText([]byte(value))
@@ -68,3 +67,4 @@ func ({{$r}} *{{$n}}) Scan(src any) error {
 		return fmt.Errorf("vogue: cannot scan %T into {{$n}}: %w", src, validation.ErrUnsupportedSource)
 	}
 }
+{{end}}

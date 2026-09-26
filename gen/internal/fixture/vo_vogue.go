@@ -14,39 +14,51 @@ import (
 	"github.com/govalues/decimal"
 )
 
-var _vogueDecimal350ca8af = decimal.MustParse("0")
-
 // Title is the name of a tab, as the waiter typed it. It is trimmed and folded
 // to lower case before its bounds are checked.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type Title struct{ v string }
 
 // NewTitle validates raw and returns the Title it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewTitle(raw string) (Title, error) {
+	const minParam = 1
+
+	const maxParam = 120
+
 	var n validation.Notification
+
 	v := raw
-	if !(v != "") {
-		n.Add(validation.FieldError{Field: "title", Rule: "required", Value: v, Message: "title is required"})
+	if v == "" {
+		n.Reject("title", "required", "", v, "title is required")
 	}
 	v = strings.TrimSpace(v)
 	v = strings.ToLower(v)
-	if !(utf8.RuneCountInString(v) >= 1) {
-		n.Add(validation.FieldError{Field: "title", Rule: "min", Param: "1", Value: v, Message: "title must be at least 1"})
+	if utf8.RuneCountInString(v) < minParam {
+		n.Reject("title", "min", "1", v, "title must be at least 1")
 	}
-	if !(utf8.RuneCountInString(v) <= 120) {
-		n.Add(validation.FieldError{Field: "title", Rule: "max", Param: "120", Value: v, Message: "title must be at most 120"})
+	if utf8.RuneCountInString(v) > maxParam {
+		n.Reject("title", "max", "120", v, "title must be at most 120")
 	}
-	if !(NoDigits(v)) {
-		n.Add(validation.FieldError{Field: "title", Rule: "nodigits", Value: v, Message: "title must not contain digits"})
+	if !NoDigits(v) {
+		n.Reject("title", "nodigits", "", v, "title must not contain digits")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return Title{}, err
+	if n.HasErrors() {
+		var zero Title
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return Title{v: v}, nil
 }
 
@@ -73,7 +85,9 @@ func (t *Title) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*t = parsed
+
 	return nil
 }
 
@@ -81,12 +95,15 @@ func (t *Title) UnmarshalText(data []byte) error {
 func (t Title) Value() (driver.Value, error) { return t.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (t *Title) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*t = Title{}
+		var zero Title
+
+		*t = zero
+
 		return nil
 	case string:
 		return t.UnmarshalText([]byte(value))
@@ -101,6 +118,8 @@ func (t *Title) Scan(src any) error {
 //
 // The value is held as an int64 so it survives every database driver and JSON
 // number without a widening conversion at the boundary.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type Covers struct{ v int64 }
 
 // NewCovers validates raw and returns the Covers it describes.
@@ -108,29 +127,49 @@ type Covers struct{ v int64 }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewCovers(raw int64) (Covers, error) {
+	const minParam = 1
+
+	const maxParam = 200
+
 	var n validation.Notification
+
 	v := raw
-	if !(v >= 1) {
-		n.Add(validation.FieldError{Field: "covers", Rule: "min", Param: "1", Value: strconv.FormatInt(v, 10), Message: "covers must be at least 1"})
+	if v < minParam {
+		n.Reject("covers", "min", "1", strconv.FormatInt(v, 10), "covers must be at least 1")
 	}
-	if !(v <= 200) {
-		n.Add(validation.FieldError{Field: "covers", Rule: "max", Param: "200", Value: strconv.FormatInt(v, 10), Message: "covers must be at most 200"})
+	if v > maxParam {
+		n.Reject("covers", "max", "200", strconv.FormatInt(v, 10), "covers must be at most 200")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return Covers{}, err
+	if n.HasErrors() {
+		var zero Covers
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return Covers{v: v}, nil
 }
 
-// ParseCovers reads a base-10 representation and validates it.
-func ParseCovers(raw string) (Covers, error) {
+// NewCoversFromString reads a base-10 representation and validates it. A
+// representation that is not a whole number is reported as a failure of the
+// "int" rule, so a caller handles it like every other rule.
+func NewCoversFromString(raw string) (Covers, error) {
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "covers", Rule: "int", Value: raw, Message: "covers must be a whole number"})
-		return Covers{}, n.ErrOrNil()
+		var (
+			zero Covers
+			n    validation.Notification
+		)
+
+		n.Reject("covers", "int", "", raw, "covers must be a whole number")
+
+		return zero, &n
 	}
+
 	return NewCovers(v)
 }
 
@@ -150,18 +189,18 @@ func (c Covers) Equal(other Covers) bool { return c.v == other.v }
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Covers round-trips through JSON without
 // a MarshalJSON of its own.
-func (c Covers) MarshalText() ([]byte, error) {
-	return strconv.AppendInt(nil, c.v, 10), nil
-}
+func (c Covers) MarshalText() ([]byte, error) { return []byte(c.String()), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a Covers the constructor would have rejected.
 func (c *Covers) UnmarshalText(data []byte) error {
-	parsed, err := ParseCovers(string(data))
+	parsed, err := NewCoversFromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*c = parsed
+
 	return nil
 }
 
@@ -169,19 +208,24 @@ func (c *Covers) UnmarshalText(data []byte) error {
 func (c Covers) Value() (driver.Value, error) { return c.v, nil }
 
 // Scan implements sql.Scanner for integer and text columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a vogue
-// error.
+// validation so a row that no longer satisfies the rules surfaces as a
+// validation error.
 func (c *Covers) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*c = Covers{}
+		var zero Covers
+
+		*c = zero
+
 		return nil
 	case int64:
 		parsed, err := NewCovers(value)
 		if err != nil {
 			return err
 		}
+
 		*c = parsed
+
 		return nil
 	case string:
 		return c.UnmarshalText([]byte(value))
@@ -194,43 +238,55 @@ func (c *Covers) Scan(src any) error {
 
 // TabStatus is the lifecycle state of a tab.
 //
-// The members are the package-level TabStatus variables below. The type stays a
-// struct with an unexported field so its zero value is not a member: an
-// uninitialised TabStatus reports IsZero and can never be mistaken for a
-// meaningful state.
+// The members are returned by the methods of [TabStatuses]: TabStatuses{}.Open() and
+// its siblings. The type stays a struct with an unexported field so its zero
+// value is not a member: an uninitialised TabStatus reports IsZero and can never
+// be mistaken for a meaningful state.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type TabStatus struct{ v string }
 
-// The members of TabStatus, in declaration order.
-var (
-	// TabStatusOpen is the "open" member of TabStatus.
-	TabStatusOpen = TabStatus{v: "open"}
-	// TabStatusInProgress is the "in_progress" member of TabStatus.
-	TabStatusInProgress = TabStatus{v: "in_progress"}
-	// TabStatusClosed is the "closed" member of TabStatus.
-	TabStatusClosed = TabStatus{v: "closed"}
-)
+// TabStatuses is the catalogue of the members of TabStatus. It holds nothing: its zero
+// value is the whole catalogue, so a member is spelled TabStatuses{}.Open().
+type TabStatuses struct{}
 
-// TabStatusValues returns every member in declaration order. Ranging over it is
-// what makes a test exhaustive: a member added to the directive shows up here
-// without the test being touched.
-func TabStatusValues() []TabStatus {
-	return []TabStatus{TabStatusOpen, TabStatusInProgress, TabStatusClosed}
+// Open returns the "open" member of TabStatus.
+func (TabStatuses) Open() TabStatus { return TabStatus{v: "open"} }
+
+// InProgress returns the "in_progress" member of TabStatus.
+func (TabStatuses) InProgress() TabStatus { return TabStatus{v: "in_progress"} }
+
+// Closed returns the "closed" member of TabStatus.
+func (TabStatuses) Closed() TabStatus { return TabStatus{v: "closed"} }
+
+// All returns every member in declaration order. Ranging over it is what makes
+// a test exhaustive: a member added to the directive shows up here without the
+// test being touched.
+func (k TabStatuses) All() []TabStatus {
+	return []TabStatus{
+		k.Open(),
+		k.InProgress(),
+		k.Closed(),
+	}
 }
 
-// ParseTabStatus resolves the wire representation of a member.
-func ParseTabStatus(raw string) (TabStatus, error) {
-	switch raw {
-	case "open":
-		return TabStatusOpen, nil
-	case "in_progress":
-		return TabStatusInProgress, nil
-	case "closed":
-		return TabStatusClosed, nil
+// Parse resolves the wire representation of a member, rejecting anything else
+// as a failure of the "oneof" rule.
+func (k TabStatuses) Parse(raw string) (TabStatus, error) {
+	for _, member := range k.All() {
+		if member.v == raw {
+			return member, nil
+		}
 	}
 
-	var n validation.Notification
-	n.Add(validation.FieldError{Field: "tabStatus", Rule: "oneof", Param: "open,in_progress,closed", Value: raw, Message: "tabStatus must be one of: open, in_progress, closed"})
-	return TabStatus{}, n.ErrOrNil()
+	var (
+		zero TabStatus
+		n    validation.Notification
+	)
+
+	n.Reject("tabStatus", "oneof", "open,in_progress,closed", raw, "tabStatus must be one of: open, in_progress, closed")
+
+	return zero, &n
 }
 
 // String returns the wire representation of the member, empty for the zero
@@ -248,14 +304,16 @@ func (t TabStatus) Equal(other TabStatus) bool { return t.v == other.v }
 // encoding/json uses, so a member marshals as its wire string.
 func (t TabStatus) MarshalText() ([]byte, error) { return []byte(t.v), nil }
 
-// UnmarshalText implements encoding.TextUnmarshaler through ParseTabStatus, so an
-// unknown member is rejected rather than accepted as a new state.
+// UnmarshalText implements encoding.TextUnmarshaler through TabStatuses.Parse, so
+// an unknown member is rejected rather than accepted as a new state.
 func (t *TabStatus) UnmarshalText(data []byte) error {
-	parsed, err := ParseTabStatus(string(data))
+	parsed, err := TabStatuses{}.Parse(string(data))
 	if err != nil {
 		return err
 	}
+
 	*t = parsed
+
 	return nil
 }
 
@@ -267,7 +325,10 @@ func (t TabStatus) Value() (driver.Value, error) { return t.v, nil }
 func (t *TabStatus) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*t = TabStatus{}
+		var zero TabStatus
+
+		*t = zero
+
 		return nil
 	case string:
 		return t.UnmarshalText([]byte(value))
@@ -290,20 +351,29 @@ type TabID struct{ uuid.UUID }
 func NewTabID() (TabID, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
-		return TabID{}, fmt.Errorf("vogue: minting TabID: %w", err)
+		var zero TabID
+
+		return zero, fmt.Errorf("vogue: minting TabID: %w", err)
 	}
+
 	return TabID{UUID: id}, nil
 }
 
-// ParseTabID reads any RFC 4122 UUID, not only the version this type mints,
-// so identifiers written by an earlier schema stay readable.
-func ParseTabID(raw string) (TabID, error) {
+// NewTabIDFromString reads any RFC 4122 UUID, not only the version this type
+// mints, so identifiers written by an earlier schema stay readable.
+func NewTabIDFromString(raw string) (TabID, error) {
 	id, err := uuid.Parse(raw)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "tabId", Rule: "uuid", Value: raw, Message: "tabId must be a valid UUID"})
-		return TabID{}, n.ErrOrNil()
+		var (
+			zero TabID
+			n    validation.Notification
+		)
+
+		n.Reject("tabId", "uuid", "", raw, "tabId must be a valid UUID")
+
+		return zero, &n
 	}
+
 	return TabID{UUID: id}, nil
 }
 
@@ -317,35 +387,45 @@ func (t TabID) Equal(other TabID) bool { return t.UUID == other.UUID }
 // InvoiceNumber is the sequence the accounting system assigns to an invoice.
 //
 // The value is assigned by the database, so this type has no generator: an
-// identifier is either read from a row with Scan or ParseInvoiceNumber, or built from
-// a number the database already handed out with InvoiceNumberFromInt64.
+// identifier is either read from a row or a payload, or built from a number the
+// database already handed out with NewInvoiceNumberFromInt64.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type InvoiceNumber struct{ v int64 }
 
-// InvoiceNumberFromInt64 wraps a database-assigned identifier. Identifiers are
+// NewInvoiceNumberFromInt64 wraps a database-assigned identifier. Identifiers are
 // positive by definition, so zero and negative values are rejected rather than
 // quietly producing an identifier equal to the zero value.
-func InvoiceNumberFromInt64(raw int64) (InvoiceNumber, error) {
-	var n validation.Notification
-	v := raw
-	if !(v > 0) {
-		n.Add(validation.FieldError{Field: "invoiceNumber", Rule: "positive", Value: strconv.FormatInt(v, 10), Message: "invoiceNumber must be a positive identifier"})
+func NewInvoiceNumberFromInt64(raw int64) (InvoiceNumber, error) {
+	if raw <= 0 {
+		var (
+			zero InvoiceNumber
+			n    validation.Notification
+		)
+
+		n.Reject("invoiceNumber", "positive", "", strconv.FormatInt(raw, 10), "invoiceNumber must be a positive identifier")
+
+		return zero, &n
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return InvoiceNumber{}, err
-	}
-	return InvoiceNumber{v: v}, nil
+	return InvoiceNumber{v: raw}, nil
 }
 
-// ParseInvoiceNumber reads a base-10 representation of an identifier.
-func ParseInvoiceNumber(raw string) (InvoiceNumber, error) {
+// NewInvoiceNumberFromString reads a base-10 representation of an identifier.
+func NewInvoiceNumberFromString(raw string) (InvoiceNumber, error) {
 	v, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "invoiceNumber", Rule: "int", Value: raw, Message: "invoiceNumber must be a whole number"})
-		return InvoiceNumber{}, n.ErrOrNil()
+		var (
+			zero InvoiceNumber
+			n    validation.Notification
+		)
+
+		n.Reject("invoiceNumber", "int", "", raw, "invoiceNumber must be a whole number")
+
+		return zero, &n
 	}
-	return InvoiceNumberFromInt64(v)
+
+	return NewInvoiceNumberFromInt64(v)
 }
 
 // Int64 returns the identifier as the database holds it.
@@ -363,17 +443,18 @@ func (i InvoiceNumber) Equal(other InvoiceNumber) bool { return i.v == other.v }
 // MarshalText implements encoding.TextMarshaler, which encoding/json also
 // uses, so the identifier crosses a JSON boundary as a string and keeps its
 // full precision in a JavaScript client.
-func (i InvoiceNumber) MarshalText() ([]byte, error) {
-	return strconv.AppendInt(nil, i.v, 10), nil
-}
+func (i InvoiceNumber) MarshalText() ([]byte, error) { return []byte(i.String()), nil }
 
-// UnmarshalText implements encoding.TextUnmarshaler through ParseInvoiceNumber.
+// UnmarshalText implements encoding.TextUnmarshaler through
+// NewInvoiceNumberFromString.
 func (i *InvoiceNumber) UnmarshalText(data []byte) error {
-	parsed, err := ParseInvoiceNumber(string(data))
+	parsed, err := NewInvoiceNumberFromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*i = parsed
+
 	return nil
 }
 
@@ -384,14 +465,19 @@ func (i InvoiceNumber) Value() (driver.Value, error) { return i.v, nil }
 func (i *InvoiceNumber) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*i = InvoiceNumber{}
+		var zero InvoiceNumber
+
+		*i = zero
+
 		return nil
 	case int64:
-		parsed, err := InvoiceNumberFromInt64(value)
+		parsed, err := NewInvoiceNumberFromInt64(value)
 		if err != nil {
 			return err
 		}
+
 		*i = parsed
+
 		return nil
 	case string:
 		return i.UnmarshalText([]byte(value))
@@ -405,22 +491,32 @@ func (i *InvoiceNumber) Scan(src any) error {
 // Slug is the tab name folded for lookups. It is normalizer-only, which is
 // the directive shape that leaves the generated constructor table without an
 // accepted sample: the rewrite is still proven, the table is not invented.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type Slug struct{ v string }
 
 // NewSlug validates raw and returns the Slug it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewSlug(raw string) (Slug, error) {
 	var n validation.Notification
+
 	v := raw
 	v = strings.ToLower(v)
 
-	if err := n.ErrOrNil(); err != nil {
-		return Slug{}, err
+	if n.HasErrors() {
+		var zero Slug
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return Slug{v: v}, nil
 }
 
@@ -447,7 +543,9 @@ func (s *Slug) UnmarshalText(data []byte) error {
 	if err != nil {
 		return err
 	}
+
 	*s = parsed
+
 	return nil
 }
 
@@ -455,12 +553,15 @@ func (s *Slug) UnmarshalText(data []byte) error {
 func (s Slug) Value() (driver.Value, error) { return s.v, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
 func (s *Slug) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*s = Slug{}
+		var zero Slug
+
+		*s = zero
+
 		return nil
 	case string:
 		return s.UnmarshalText([]byte(value))
@@ -478,6 +579,8 @@ func (s *Slug) Scan(src any) error {
 // The value is held as a decimal.Decimal: an exact base-10 number with no
 // binary float underneath, so a rate, a percentage or a fractional quantity
 // reads back as the value someone typed.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type Weight struct{ v decimal.Decimal }
 
 // NewWeight validates raw and returns the Weight it describes.
@@ -485,31 +588,49 @@ type Weight struct{ v decimal.Decimal }
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewWeight(raw decimal.Decimal) (Weight, error) {
+	const minParam = "0"
+
+	const scaleParam = 3
+
 	var n validation.Notification
+
 	v := raw
-	if !(v.Cmp(_vogueDecimal350ca8af) >= 0) {
-		n.Add(validation.FieldError{Field: "weight", Rule: "min", Param: "0", Value: v.String(), Message: "weight must be at least 0"})
+	if v.Cmp(decimal.MustParse(minParam)) < 0 {
+		n.Reject("weight", "min", "0", v.String(), "weight must be at least 0")
 	}
-	if !(v.Scale() <= 3) {
-		n.Add(validation.FieldError{Field: "weight", Rule: "scale", Param: "3", Value: v.String(), Message: "weight must have at most 3 decimal places"})
+	if v.Scale() > scaleParam {
+		n.Reject("weight", "scale", "3", v.String(), "weight must have at most 3 decimal places")
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return Weight{}, err
+	if n.HasErrors() {
+		var zero Weight
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := n
+
+		return zero, &failed
 	}
+
 	return Weight{v: v}, nil
 }
 
-// ParseWeight reads a decimal representation and validates it. A representation
-// decimal.Parse cannot read is reported as a "weight" failure of the
+// NewWeightFromString reads a decimal representation and validates it. A
+// representation decimal.Parse cannot read is reported as a failure of the
 // "decimal" rule, so a caller handles it the same way as every other rule.
-func ParseWeight(raw string) (Weight, error) {
+func NewWeightFromString(raw string) (Weight, error) {
 	v, err := decimal.Parse(raw)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "weight", Rule: "decimal", Value: raw, Message: "weight must be an exact decimal number"})
-		return Weight{}, n.ErrOrNil()
+		var (
+			zero Weight
+			n    validation.Notification
+		)
+
+		n.Reject("weight", "decimal", "", raw, "weight must be an exact decimal number")
+
+		return zero, &n
 	}
+
 	return NewWeight(v)
 }
 
@@ -521,7 +642,7 @@ func (w Weight) Decimal() decimal.Decimal { return w.v }
 func (w Weight) String() string { return w.v.String() }
 
 // IsZero reports whether the receiver holds zero, which is also the zero
-// Weight — the only Weight that never passed validation.
+// Weight: the only Weight that never passed validation.
 func (w Weight) IsZero() bool { return w.v.IsZero() }
 
 // Equal reports whether both value objects hold the same number.
@@ -540,11 +661,13 @@ func (w Weight) MarshalText() ([]byte, error) { return []byte(w.v.String()), nil
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a Weight the constructor would have rejected.
 func (w *Weight) UnmarshalText(data []byte) error {
-	parsed, err := ParseWeight(string(data))
+	parsed, err := NewWeightFromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*w = parsed
+
 	return nil
 }
 
@@ -554,38 +677,48 @@ func (w *Weight) UnmarshalText(data []byte) error {
 func (w Weight) Value() (driver.Value, error) { return w.v.String(), nil }
 
 // Scan implements sql.Scanner for text and integer columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a vogue
-// error.
+// validation so a row that no longer satisfies the rules surfaces as a
+// validation error.
 //
-// A float64 or float32 source is refused rather than converted: it has already
-// lost digits by the time it arrives, and accepting it would undo the reason
-// this kind exists. A driver that hands back a numeric column as a float is
-// misconfigured — with pgx, the numeric codec must deliver text, and a
-// pgtype.Numeric source needs a helper of its own rather than a silent
-// conversion here.
+// A float64 or float32 source is refused with [validation.ErrLossySource]
+// rather than converted: it has already lost digits by the time it arrives,
+// and accepting it would undo the reason this kind exists. A driver that
+// hands back a numeric column as a float is misconfigured; with pgx, the
+// numeric codec must deliver text.
 func (w *Weight) Scan(src any) error {
 	switch value := src.(type) {
 	case nil:
-		*w = Weight{}
+		var zero Weight
+
+		*w = zero
+
 		return nil
 	case string:
 		return w.UnmarshalText([]byte(value))
 	case []byte:
 		return w.UnmarshalText(value)
 	case int64:
-		parsed, err := decimal.New(value, 0)
-		if err != nil {
-			return fmt.Errorf("vogue: cannot scan %d into Weight: %w", value, err)
-		}
-		built, err := NewWeight(parsed)
-		if err != nil {
-			return err
-		}
-		*w = built
-		return nil
+		return w.scanInt64(value)
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into Weight, configure the driver to deliver numeric columns as text: %w", src, validation.ErrLossySource)
+		return fmt.Errorf("vogue: cannot scan the binary float %T into Weight: %w", src, validation.ErrLossySource)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into Weight: %w", src, validation.ErrUnsupportedSource)
 	}
+}
+
+// scanInt64 reads a whole number handed back by an integer column.
+func (w *Weight) scanInt64(value int64) error {
+	whole, err := decimal.New(value, 0)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot scan %d into Weight: %w", value, err)
+	}
+
+	parsed, err := NewWeight(whole)
+	if err != nil {
+		return err
+	}
+
+	*w = parsed
+
+	return nil
 }

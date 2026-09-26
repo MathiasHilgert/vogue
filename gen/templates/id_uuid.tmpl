@@ -11,20 +11,29 @@ type {{$n}} struct{ uuid.UUID }
 func New{{$n}}() ({{$n}}, error) {
 	id, err := {{.Mint}}()
 	if err != nil {
-		return {{$n}}{}, fmt.Errorf("vogue: minting {{$n}}: %w", err)
+		var zero {{$n}}
+
+		return zero, fmt.Errorf("vogue: minting {{$n}}: %w", err)
 	}
+
 	return {{$n}}{UUID: id}, nil
 }
 
-// Parse{{$n}} reads any RFC 4122 UUID, not only the version this type mints,
-// so identifiers written by an earlier schema stay readable.
-func Parse{{$n}}(raw string) ({{$n}}, error) {
+// New{{$n}}FromString reads any RFC 4122 UUID, not only the version this type
+// mints, so identifiers written by an earlier schema stay readable.
+func New{{$n}}FromString(raw string) ({{$n}}, error) {
 	id, err := uuid.Parse(raw)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: {{q .Field}}, Rule: "uuid", Value: raw, Message: "{{.Field}} must be a valid UUID"})
-		return {{$n}}{}, n.ErrOrNil()
+		var (
+			zero {{$n}}
+			n    validation.Notification
+		)
+
+		n.Reject({{q .Field}}, "uuid", "", raw, "{{.Field}} must be a valid UUID")
+
+		return zero, &n
 	}
+
 	return {{$n}}{UUID: id}, nil
 }
 
