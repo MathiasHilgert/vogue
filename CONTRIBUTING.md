@@ -29,6 +29,18 @@
   CI fails the build if `go generate ./...` produces a diff, so regenerate and
   commit the result before opening a pull request.
 
+- Generated code must pass a strict lint profile with no exclusion for
+  generated files. The golden packages under `gen/testdata/strict` are
+  rewritten by `go test ./gen/... -update`; their tests and the strict lint
+  run like this:
+
+  ```sh
+  go test ./gen/testdata/strict/...
+  golangci-lint run --config gen/testdata/strict/golangci.yml \
+    ./gen/testdata/strict/domain/ ./gen/testdata/strict/persistence/ \
+    ./rules/internal/catalogue/ ./examples/customrule/domain/
+  ```
+
 ## Commit messages
 
 This repository uses [Conventional Commits](https://www.conventionalcommits.org/)

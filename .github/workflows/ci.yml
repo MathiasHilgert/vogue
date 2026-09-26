@@ -27,10 +27,28 @@ jobs:
       - name: Test
         run: go test ./... -race -count=1
 
+      - name: Test the generated golden output
+        # testdata is outside ./..., so the tests generated into the strict
+        # golden packages are run by name.
+        run: go test ./gen/testdata/strict/... -race -count=1
+
       - name: Lint
         uses: golangci/golangci-lint-action@v9
         with:
           version: v2.13.2
+
+      - name: Lint generated code with a consumer's strict configuration
+        # No exclusion for generated files: the golden output, the whole rule
+        # catalogue and the custom-rule example must pass as if hand-written.
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.13.2
+          args: >-
+            --config gen/testdata/strict/golangci.yml
+            ./gen/testdata/strict/domain/
+            ./gen/testdata/strict/persistence/
+            ./rules/internal/catalogue/
+            ./examples/customrule/domain/
 
       - name: Check generated code is up to date
         run: |
