@@ -65,6 +65,7 @@ type config struct {
 	withoutBuiltin bool
 	tests          bool
 	sql            bool
+	schema         bool
 	dryRun         bool
 	stdout, stderr io.Writer
 }
@@ -114,6 +115,13 @@ func WithTests(on bool) Option {
 // adapter, through the text codec or the accessors.
 func WithSQL(on bool) Option {
 	return func(c *config) { c.sql = on }
+}
+
+// WithSchema adds a JSONSchema method to every value object, returning the
+// neutral github.com/MathiasHilgert/vogue/schema description an HTTP adapter
+// publishes in its OpenAPI document. It is off by default.
+func WithSchema(on bool) Option {
+	return func(c *config) { c.schema = on }
 }
 
 // WithDryRun reports the files that would be written, with their sizes, and
@@ -185,7 +193,7 @@ func Run(opts ...Option) error {
 
 	importPath := c.resolveImportPath()
 
-	g, err := gen.New(gen.Options{Package: pkg, Rules: set, ImportPath: importPath, OmitSQL: !c.sql})
+	g, err := gen.New(gen.Options{Package: pkg, Rules: set, ImportPath: importPath, OmitSQL: !c.sql, Schema: c.schema})
 	if err != nil {
 		return err
 	}

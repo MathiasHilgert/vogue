@@ -85,6 +85,39 @@ hexagonal domain package needs when its linter forbids importing
 `database/sql/...` there: the persistence adapter converts through `String`,
 `Int64` or `Decimal` and the `New` constructors instead.
 
+### OpenAPI
+
+`-schema` (`generator.WithSchema(true)`) adds a method to every value object:
+
+```go
+func (CountryCode) JSONSchema() schema.Schema
+```
+
+[`schema`](schema) is a standard-library-only package describing how the value
+crosses JSON: its type (always `string`, since every value object marshals as
+text), format (`email`, `uri`, `uuid`, `int64`, `decimal`), pattern, enum
+members, length limits and numeric limits, derived from the directive and its
+built-in rules. A custom rule adds nothing, because the generator cannot know
+what it accepts. The generated test checks that every value the constructor
+accepts satisfies the schema.
+
+The method returns a neutral struct rather than implementing
+`huma.SchemaProvider` on purpose: that would make the domain package import an
+HTTP framework, which a hexagonal domain forbids. The adapter translates
+instead. With Huma v2, wrap the registry so every type that implements
+`schema.Provider` gets its schema from it:
+
+```go
+type voRegistry struct{ huma.Registry }
+
+func (r voRegistry) Schema(t reflect.Type, allowRef bool, hint string) *huma.Schema {
+	if p, ok := reflect.New(t).Elem().Interface().(schema.Provider); ok {
+		return toHuma(p.JSONSchema()) // Type, Format, Pattern, Enum, MinLength, ...
+	}
+	return r.Registry.Schema(t, allowRef, hint)
+}
+```
+
 ## The directive grammar
 
 ```

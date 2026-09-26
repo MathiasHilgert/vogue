@@ -61,15 +61,15 @@ func TestSchema_Accepts(t *testing.T) {
 		{name: "not a member", schema: kind, text: "town", want: false},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
 			// Act
-			got := tc.schema.Accepts(tc.text)
+			got := testCase.schema.Accepts(testCase.text)
 
 			// Assert
-			assert.Equal(t, tc.want, got)
+			assert.Equal(t, testCase.want, got)
 		})
 	}
 }

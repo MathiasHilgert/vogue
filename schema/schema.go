@@ -88,37 +88,38 @@ type Provider interface {
 // Accepts reports whether text satisfies every constraint of the schema. It
 // is what the generated tests check the schema against: a value the
 // constructor accepted must be one the schema describes as valid.
-func (s Schema) Accepts(text string) bool {
-	if s.Enum != nil && !slices.Contains(s.Enum, text) {
+func (description Schema) Accepts(text string) bool {
+	if description.Enum != nil && !slices.Contains(description.Enum, text) {
 		return false
 	}
-	if !s.acceptsLength(utf8.RuneCountInString(text)) {
+	if !description.acceptsLength(utf8.RuneCountInString(text)) {
 		return false
 	}
-	if s.Pattern != "" {
-		re, err := regexp.Compile(s.Pattern)
-		if err != nil || !re.MatchString(text) {
+	if description.Pattern != "" {
+		compiled, err := regexp.Compile(description.Pattern)
+		if err != nil || !compiled.MatchString(text) {
 			return false
 		}
 	}
-	return s.acceptsNumber(text)
+	return description.acceptsNumber(text)
 }
 
 // acceptsLength checks the length limits.
-func (s Schema) acceptsLength(n int) bool {
-	return (!s.MinLength.Set || n >= s.MinLength.Value) && (!s.MaxLength.Set || n <= s.MaxLength.Value)
+func (description Schema) acceptsLength(length int) bool {
+	return (!description.MinLength.Set || length >= description.MinLength.Value) &&
+		(!description.MaxLength.Set || length <= description.MaxLength.Value)
 }
 
 // acceptsNumber checks the numeric limits, which only a number satisfies.
-func (s Schema) acceptsNumber(text string) bool {
-	if !s.Minimum.Set && !s.Maximum.Set && !s.ExclusiveMinimum.Set {
+func (description Schema) acceptsNumber(text string) bool {
+	if !description.Minimum.Set && !description.Maximum.Set && !description.ExclusiveMinimum.Set {
 		return true
 	}
-	v, err := strconv.ParseFloat(text, 64)
+	value, err := strconv.ParseFloat(text, 64)
 	if err != nil {
 		return false
 	}
-	return (!s.Minimum.Set || v >= s.Minimum.Value) &&
-		(!s.Maximum.Set || v <= s.Maximum.Value) &&
-		(!s.ExclusiveMinimum.Set || v > s.ExclusiveMinimum.Value)
+	return (!description.Minimum.Set || value >= description.Minimum.Value) &&
+		(!description.Maximum.Set || value <= description.Maximum.Value) &&
+		(!description.ExclusiveMinimum.Set || value > description.ExclusiveMinimum.Value)
 }

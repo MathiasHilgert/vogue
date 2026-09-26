@@ -25,8 +25,9 @@ var strictVariants = []struct {
 	opts gen.Options
 }{
 	// domain is what a hexagonal domain package holds: no database/sql/driver,
-	// which the consumer's depguard forbids there.
-	{dir: "domain", opts: gen.Options{OmitSQL: true}},
+	// which the consumer's depguard forbids there, and the JSONSchema method
+	// the HTTP adapter publishes.
+	{dir: "domain", opts: gen.Options{OmitSQL: true, Schema: true}},
 	// persistence is the same directives with the SQL codec.
 	{dir: "persistence", opts: gen.Options{}},
 }
