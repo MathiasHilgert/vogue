@@ -98,3 +98,34 @@ func TestNotification_HasErrors(t *testing.T) {
 	assert.False(t, before)
 	assert.True(t, notification.HasErrors())
 }
+
+func TestNotification_Reject(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	var n validation.Notification
+
+	// Act
+	n.Reject("title", "min", "1", "", "title must be at least 1")
+
+	// Assert
+	require.Equal(t, 1, n.Len())
+	assert.Equal(t, validation.FieldError{
+		Field: "title", Rule: "min", Param: "1", Value: "", Message: "title must be at least 1",
+	}, n.Errors()[0])
+}
+
+func TestNotification_Reject_zeroAllocationsOnceGrown(t *testing.T) {
+	// Arrange
+	var n validation.Notification
+	n.Reject("title", "required", "", "", "title is required")
+
+	// Act
+	allocs := testing.AllocsPerRun(100, func() {
+		n.Reset()
+		n.Reject("title", "required", "", "", "title is required")
+	})
+
+	// Assert
+	assert.Zero(t, allocs)
+}

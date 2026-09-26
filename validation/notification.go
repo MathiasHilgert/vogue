@@ -25,6 +25,21 @@ func (notification *Notification) Add(err FieldError) {
 	notification.failures = append(notification.failures, err)
 }
 
+// Reject records that rule rejected value for field. It is [Notification.Add]
+// with the five fields of a [FieldError] spelled as arguments, which is the
+// form generated constructors use: every argument is a literal rendered at
+// generate time, so the call reads as one line per failure and no struct
+// literal is left for a linter to find incomplete.
+func (notification *Notification) Reject(field, rule, param, value, message string) {
+	notification.failures = append(notification.failures, FieldError{
+		Field:   field,
+		Rule:    rule,
+		Param:   param,
+		Value:   value,
+		Message: message,
+	})
+}
+
 // Addf appends a failure whose message is built with fmt.Sprintf. It is the
 // form generated code uses when the message template has already been rendered
 // into a format string at generate time.
