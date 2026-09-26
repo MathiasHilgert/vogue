@@ -74,3 +74,15 @@ func (fieldError FieldError) Is(target error) bool {
 // matches reports whether an errors.Is target component constrains the
 // candidate; an empty component is a wildcard.
 func matches(target, candidate string) bool { return target == "" || target == candidate }
+
+// Failure returns the errors.Is target that matches every failure of rule on
+// field, whatever its parameter, value and message:
+//
+//	if errors.Is(err, validation.Failure("title", "required")) { ... }
+//
+// It is the FieldError{Field: field, Rule: rule} literal by another name, for
+// code linted with exhaustruct, which reports the literal as incomplete. An
+// empty field or rule matches any.
+func Failure(field, rule string) FieldError {
+	return FieldError{Field: field, Rule: rule, Param: "", Value: "", Message: ""}
+}

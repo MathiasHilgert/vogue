@@ -129,3 +129,68 @@ func TestNotification_Reject_zeroAllocationsOnceGrown(t *testing.T) {
 	// Assert
 	assert.Zero(t, allocs)
 }
+
+func TestNotification_Collect(t *testing.T) {
+	t.Parallel()
+
+	t.Run("merges every failure of a validation error", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var inner validation.Notification
+		inner.Reject("latitude", "max", "90", "91", "latitude must be at most 90")
+		inner.Reject("latitude", "scale", "6", "91", "latitude must have at most 6 decimal places")
+
+		var n validation.Notification
+
+		// Act
+		err := n.Collect(fmt.Errorf("building coordinates: %w", inner.ErrOrNil()))
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, 2, n.Len())
+	})
+
+	t.Run("adds a lone field error", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var n validation.Notification
+
+		// Act
+		err := n.Collect(validation.FieldError{Field: "longitude", Rule: "min", Message: "longitude must be at least -180"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, 1, n.Len())
+	})
+
+	t.Run("ignores nil", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var n validation.Notification
+
+		// Act
+		err := n.Collect(nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, n.HasErrors())
+	})
+
+	t.Run("hands back an error that is not a validation failure", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var n validation.Notification
+		boom := errors.New("minting failed")
+
+		// Act
+		err := n.Collect(boom)
+
+		// Assert
+		require.ErrorIs(t, err, boom)
+		assert.False(t, n.HasErrors())
+	})
+}
