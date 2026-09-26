@@ -46,9 +46,9 @@ func TestGenerate_Schema(t *testing.T) {
 		assert.Contains(t, code, "func (CountryCode) JSONSchema() schema.Schema {")
 		assert.Contains(t, code, `"github.com/MathiasHilgert/vogue/schema"`)
 		assert.Regexp(t, `Pattern:\s+"\^\[A-Z\]\{2\}\$",`, code)
-		assert.Regexp(t, `minLength\s+= 2\n`, code)
-		assert.Regexp(t, `MinLength:\s+schema.Length\{Set: true, Value: minLength\},`, code)
-		assert.Regexp(t, `MaxLength:\s+schema.Length\{Set: true, Value: maxLength\},`, code)
+		assert.Regexp(t, `minimumLength\s+= 2\n`, code)
+		assert.Regexp(t, `MinLength:\s+schema.Length\{Set: true, Value: minimumLength\},`, code)
+		assert.Regexp(t, `MaxLength:\s+schema.Length\{Set: true, Value: maximumLength\},`, code)
 	})
 
 	t.Run("describes the bounds of a number and the format of its text", func(t *testing.T) {

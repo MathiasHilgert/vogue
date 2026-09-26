@@ -38,7 +38,7 @@ func (v *schemaView) Consts() []string {
 		name string
 		l    limitView
 	}{
-		{"minLength", v.MinLength}, {"maxLength", v.MaxLength},
+		{"minimumLength", v.MinLength}, {"maximumLength", v.MaxLength},
 		{"minimum", v.Minimum}, {"maximum", v.Maximum}, {"exclusiveMinimum", v.ExclusiveMinimum},
 	} {
 		if limit.l.Set {

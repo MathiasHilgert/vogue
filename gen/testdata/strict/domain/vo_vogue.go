@@ -217,8 +217,8 @@ func (countryCode *CountryCode) UnmarshalText(data []byte) error {
 // describes the canonical text String returns.
 func (CountryCode) JSONSchema() schema.Schema {
 	const (
-		minLength = 2
-		maxLength = 2
+		minimumLength = 2
+		maximumLength = 2
 	)
 
 	return schema.Schema{
@@ -226,8 +226,8 @@ func (CountryCode) JSONSchema() schema.Schema {
 		Format:           "",
 		Pattern:          "^[A-Z]{2}$",
 		Enum:             nil,
-		MinLength:        schema.Length{Set: true, Value: minLength},
-		MaxLength:        schema.Length{Set: true, Value: maxLength},
+		MinLength:        schema.Length{Set: true, Value: minimumLength},
+		MaxLength:        schema.Length{Set: true, Value: maximumLength},
 		Minimum:          schema.Number{Set: false, Value: 0},
 		Maximum:          schema.Number{Set: false, Value: 0},
 		ExclusiveMinimum: schema.Number{Set: false, Value: 0},
@@ -335,8 +335,8 @@ func (placeName *PlaceName) UnmarshalText(data []byte) error {
 // describes the canonical text String returns.
 func (PlaceName) JSONSchema() schema.Schema {
 	const (
-		minLength = 1
-		maxLength = 200
+		minimumLength = 1
+		maximumLength = 200
 	)
 
 	return schema.Schema{
@@ -344,8 +344,8 @@ func (PlaceName) JSONSchema() schema.Schema {
 		Format:           "",
 		Pattern:          "",
 		Enum:             nil,
-		MinLength:        schema.Length{Set: true, Value: minLength},
-		MaxLength:        schema.Length{Set: true, Value: maxLength},
+		MinLength:        schema.Length{Set: true, Value: minimumLength},
+		MaxLength:        schema.Length{Set: true, Value: maximumLength},
 		Minimum:          schema.Number{Set: false, Value: 0},
 		Maximum:          schema.Number{Set: false, Value: 0},
 		ExclusiveMinimum: schema.Number{Set: false, Value: 0},
@@ -439,7 +439,7 @@ func (timeZoneId *TimeZoneID) UnmarshalText(data []byte) error {
 // describes the canonical text String returns.
 func (TimeZoneID) JSONSchema() schema.Schema {
 	const (
-		minLength = 1
+		minimumLength = 1
 	)
 
 	return schema.Schema{
@@ -447,7 +447,7 @@ func (TimeZoneID) JSONSchema() schema.Schema {
 		Format:           "",
 		Pattern:          "",
 		Enum:             nil,
-		MinLength:        schema.Length{Set: true, Value: minLength},
+		MinLength:        schema.Length{Set: true, Value: minimumLength},
 		MaxLength:        schema.Length{Set: false, Value: 0},
 		Minimum:          schema.Number{Set: false, Value: 0},
 		Maximum:          schema.Number{Set: false, Value: 0},
