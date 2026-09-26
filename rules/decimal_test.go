@@ -54,7 +54,7 @@ func TestDecimalRules(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, "v.Cmp(decimal.MustNew(boundParamCoef, boundParamScale)) >= 0", expr)
-		assert.Equal(t, "const (\n\tboundParamCoef  = 5\n\tboundParamScale = 1\n)", local)
+		assert.Equal(t, "const boundParamCoef = 5\nconst boundParamScale = 1", local)
 		assert.Nil(t, rules.Min.Declare, "no bound declares a package-level variable any more")
 	})
 

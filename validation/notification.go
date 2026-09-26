@@ -78,18 +78,18 @@ func (notification *Notification) Merge(other *Notification) {
 // wrapped, is merged and Collect returns nil. Any other error is not a
 // validation failure — a driver or a minting error — and is returned
 // unchanged for the caller to handle.
-func (n *Notification) Collect(err error) error {
+func (notification2 *Notification) Collect(err error) error {
 	if err == nil {
 		return nil
 	}
 	var notification *Notification
 	if errors.As(err, &notification) {
-		n.Merge(notification)
+		notification2.Merge(notification)
 		return nil
 	}
 	var field FieldError
 	if errors.As(err, &field) {
-		n.Add(field)
+		notification2.Add(field)
 		return nil
 	}
 	return err

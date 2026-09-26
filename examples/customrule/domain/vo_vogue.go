@@ -17,7 +17,10 @@ import (
 // the check run on the value that will actually be stored.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type TaxID struct{ value string }
+type TaxID struct {
+	value string
+	set   bool
+}
 
 // NewTaxID validates raw and returns the TaxID it describes.
 //
@@ -50,18 +53,21 @@ func NewTaxID(raw string) (TaxID, error) {
 		return zero, &failed
 	}
 
-	return TaxID{value: value}, nil
+	return TaxID{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (taxId TaxID) String() string { return taxId.value }
 
-// IsZero reports whether the receiver is the zero TaxID, which is the only
-// TaxID that never passed validation.
-func (taxId TaxID) IsZero() bool { return taxId.value == "" }
+// IsZero reports whether the receiver is the zero TaxID: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (taxId TaxID) IsZero() bool { return !taxId.set }
 
 // Equal reports whether both value objects hold the same value.
-func (taxId TaxID) Equal(other TaxID) bool { return taxId.value == other.value }
+func (taxId TaxID) Equal(other TaxID) bool {
+	return taxId.value == other.value && taxId.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so TaxID marshals and
@@ -82,8 +88,18 @@ func (taxId *TaxID) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (taxId TaxID) Value() (driver.Value, error) { return taxId.value, nil }
+// Value implements driver.Valuer. The zero TaxID is stored as NULL, which
+// Scan reads back as the zero TaxID.
+func (taxId TaxID) Value() (driver.Value, error) {
+	if !taxId.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return taxId.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -109,7 +125,10 @@ func (taxId *TaxID) Scan(src any) error {
 // built-ins, which is what the same generator does for the rest of a project.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type LegalName struct{ value string }
+type LegalName struct {
+	value string
+	set   bool
+}
 
 // NewLegalName validates raw and returns the LegalName it describes.
 //
@@ -118,9 +137,10 @@ type LegalName struct{ value string }
 // Every failure is collected, so the returned error describes the whole input
 // rather than the first thing that went wrong.
 func NewLegalName(raw string) (LegalName, error) {
-	const minimumParameter = 2
-
-	const maximumParameter = 200
+	const (
+		minimumParameter = 2
+		maximumParameter = 200
+	)
 
 	var notification validation.Notification
 
@@ -165,18 +185,21 @@ func NewLegalName(raw string) (LegalName, error) {
 		return zero, &failed
 	}
 
-	return LegalName{value: value}, nil
+	return LegalName{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (legalName LegalName) String() string { return legalName.value }
 
-// IsZero reports whether the receiver is the zero LegalName, which is the only
-// LegalName that never passed validation.
-func (legalName LegalName) IsZero() bool { return legalName.value == "" }
+// IsZero reports whether the receiver is the zero LegalName: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (legalName LegalName) IsZero() bool { return !legalName.set }
 
 // Equal reports whether both value objects hold the same value.
-func (legalName LegalName) Equal(other LegalName) bool { return legalName.value == other.value }
+func (legalName LegalName) Equal(other LegalName) bool {
+	return legalName.value == other.value && legalName.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so LegalName marshals and
@@ -197,8 +220,18 @@ func (legalName *LegalName) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (legalName LegalName) Value() (driver.Value, error) { return legalName.value, nil }
+// Value implements driver.Valuer. The zero LegalName is stored as NULL, which
+// Scan reads back as the zero LegalName.
+func (legalName LegalName) Value() (driver.Value, error) {
+	if !legalName.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return legalName.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error

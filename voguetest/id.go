@@ -47,9 +47,9 @@ func (suite UUID[Object, Reference]) Run(t *testing.T) {
 		assert.False(t, first.IsZero())
 		assert.False(t, first.Equal(second), "two mints must not collide")
 
-		versioned, ok := any(first).(interface{ Version() uuid.Version })
-		require.True(t, ok)
-		assert.Equal(t, suite.Version, versioned.Version())
+		wrapped, ok := any(first).(interface{ UUID() uuid.UUID })
+		require.True(t, ok, "a uuid identifier exposes its uuid.UUID")
+		assert.Equal(t, suite.Version, wrapped.UUID().Version())
 	})
 
 	t.Run("reads any RFC 4122 UUID", func(t *testing.T) {
@@ -84,12 +84,9 @@ func (suite UUID[Object, Reference]) Run(t *testing.T) {
 	t.Run("separates an unassigned identifier from a minted one", func(t *testing.T) {
 		t.Parallel()
 
-		var zero Object
-
 		minted, err := suite.New()
 		require.NoError(t, err)
-		assert.True(t, zero.IsZero())
-		assert.False(t, zero.Equal(minted))
+		separatesZero(t, minted)
 	})
 }
 
@@ -179,8 +176,7 @@ func (suite Int64ID[Object, Reference]) Run(t *testing.T) {
 
 		assigned, err := suite.FromInt64(1)
 		require.NoError(t, err)
-		assert.True(t, zero.IsZero())
 		assert.Equal(t, "0", zero.String())
-		assert.False(t, zero.Equal(assigned))
+		separatesZero(t, assigned)
 	})
 }

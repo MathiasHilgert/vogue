@@ -3,7 +3,10 @@
 {{end}}
 {{- if .SQL}}//
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-{{end}}type {{$n}} struct{ value string }
+{{end}}type {{$n}} struct {
+	value string
+	set   bool
+}
 
 // New{{$n}} validates raw and returns the {{$n}} it describes.
 //
@@ -13,18 +16,19 @@
 // rather than the first thing that went wrong.
 func New{{$n}}(raw string) ({{$n}}, error) {
 {{template "validate" .}}
-	return {{$n}}{value: value}, nil
+	return {{$n}}{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func ({{$r}} {{$n}}) String() string { return {{$r}}.value }
 
-// IsZero reports whether the receiver is the zero {{$n}}, which is the only
-// {{$n}} that never passed validation.
-func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.value == "" }
+// IsZero reports whether the receiver is the zero {{$n}}: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func ({{$r}} {{$n}}) IsZero() bool { return !{{$r}}.set }
 
 // Equal reports whether both value objects hold the same value.
-func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.value == other.value }
+func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.value == other.value && {{$r}}.set == other.set }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so {{$n}} marshals and
@@ -45,8 +49,18 @@ func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 	return nil
 }
 {{if .SQL}}
-// Value implements driver.Valuer.
-func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.value, nil }
+// Value implements driver.Valuer. The zero {{$n}} is stored as NULL, which
+// Scan reads back as the zero {{$n}}.
+func ({{$r}} {{$n}}) Value() (driver.Value, error) {
+	if !{{$r}}.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return {{$r}}.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error

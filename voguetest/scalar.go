@@ -83,6 +83,7 @@ func (suite Scalar[Object, Reference, Raw]) Run(t *testing.T) {
 		for _, input := range suite.Examples {
 			got, err := suite.New(input)
 			require.NoError(t, err, "the directive declares %v valid", input)
+			assert.False(t, got.IsZero(), "a constructed value object is never the zero value, even for %v", input)
 
 			if suite.Get != nil {
 				assert.Equal(t, input, suite.Get(got))
@@ -143,21 +144,15 @@ func (suite Scalar[Object, Reference, Raw]) Run(t *testing.T) {
 
 	t.Run("separates the zero value", func(t *testing.T) {
 		t.Parallel()
-
-		var zero Object
-
-		assert.True(t, zero.IsZero())
-		assert.False(t, sample.IsZero())
-		assert.False(t, zero.Equal(sample))
+		separatesZero(t, sample)
 	})
 }
 
-// sample returns the first declared value the constructor accepts that is not
-// the zero value.
+// sample returns the first declared value the constructor accepts.
 func (suite Scalar[Object, Reference, Raw]) sample() (Object, bool) {
 	for _, input := range append(append([]Raw(nil), suite.Examples...), suite.Candidates...) {
 		got, err := suite.New(input)
-		if err == nil && !got.IsZero() {
+		if err == nil {
 			return got, true
 		}
 	}
@@ -223,6 +218,33 @@ func (suite Scalar[Object, Reference, Raw]) scans(t *testing.T) {
 		err = scan.Scan(1.5)
 		require.ErrorIs(t, err, validation.ErrLossySource)
 	}
+}
+
+// separatesZero proves the zero value is told apart from a constructed one,
+// and that it is what a NULL column stores: Value reports nil for it, and a
+// value for anything constructed.
+func separatesZero[Object ValueObject[Object]](t *testing.T, constructed Object) {
+	t.Helper()
+
+	var zero Object
+
+	assert.True(t, zero.IsZero())
+	assert.False(t, constructed.IsZero())
+	assert.False(t, zero.Equal(constructed))
+
+	value, ok := valuer(zero)
+	if !ok {
+		return
+	}
+
+	stored, err := value.Value()
+	require.NoError(t, err)
+	assert.Nil(t, stored, "the zero value must be stored as NULL")
+
+	constructedValue, _ := valuer(constructed)
+	stored, err = constructedValue.Value()
+	require.NoError(t, err)
+	assert.NotNil(t, stored)
 }
 
 // roundTrips proves a value object survives the text codec and, when it has

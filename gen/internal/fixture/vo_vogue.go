@@ -18,7 +18,10 @@ import (
 // to lower case before its bounds are checked.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type Title struct{ value string }
+type Title struct {
+	value string
+	set   bool
+}
 
 // NewTitle validates raw and returns the Title it describes.
 //
@@ -27,9 +30,10 @@ type Title struct{ value string }
 // Every failure is collected, so the returned error describes the whole input
 // rather than the first thing that went wrong.
 func NewTitle(raw string) (Title, error) {
-	const minimumParameter = 1
-
-	const maximumParameter = 120
+	const (
+		minimumParameter = 1
+		maximumParameter = 120
+	)
 
 	var notification validation.Notification
 
@@ -83,18 +87,21 @@ func NewTitle(raw string) (Title, error) {
 		return zero, &failed
 	}
 
-	return Title{value: value}, nil
+	return Title{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (title Title) String() string { return title.value }
 
-// IsZero reports whether the receiver is the zero Title, which is the only
-// Title that never passed validation.
-func (title Title) IsZero() bool { return title.value == "" }
+// IsZero reports whether the receiver is the zero Title: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (title Title) IsZero() bool { return !title.set }
 
 // Equal reports whether both value objects hold the same value.
-func (title Title) Equal(other Title) bool { return title.value == other.value }
+func (title Title) Equal(other Title) bool {
+	return title.value == other.value && title.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so Title marshals and
@@ -115,8 +122,18 @@ func (title *Title) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (title Title) Value() (driver.Value, error) { return title.value, nil }
+// Value implements driver.Valuer. The zero Title is stored as NULL, which
+// Scan reads back as the zero Title.
+func (title Title) Value() (driver.Value, error) {
+	if !title.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return title.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -144,16 +161,20 @@ func (title *Title) Scan(src any) error {
 // number without a widening conversion at the boundary.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type Covers struct{ value int64 }
+type Covers struct {
+	value int64
+	set   bool
+}
 
 // NewCovers validates raw and returns the Covers it describes.
 //
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewCovers(raw int64) (Covers, error) {
-	const minimumParameter = 1
-
-	const maximumParameter = 200
+	const (
+		minimumParameter = 1
+		maximumParameter = 200
+	)
 
 	var notification validation.Notification
 
@@ -187,7 +208,7 @@ func NewCovers(raw int64) (Covers, error) {
 		return zero, &failed
 	}
 
-	return Covers{value: value}, nil
+	return Covers{value: value, set: true}, nil
 }
 
 // NewCoversFromString reads a base-10 representation and validates it. A
@@ -221,12 +242,15 @@ func (covers Covers) Int64() int64 { return covers.value }
 // String returns the base-10 representation of the value.
 func (covers Covers) String() string { return strconv.FormatInt(covers.value, 10) }
 
-// IsZero reports whether the receiver is the zero Covers, which is the only
-// Covers that never passed validation.
-func (covers Covers) IsZero() bool { return covers.value == 0 }
+// IsZero reports whether the receiver is the zero Covers: one that was never
+// constructed, as opposed to one constructed from 0. It is what
+// `json:",omitzero"` asks, and what Value stores as NULL.
+func (covers Covers) IsZero() bool { return !covers.set }
 
 // Equal reports whether both value objects hold the same value.
-func (covers Covers) Equal(other Covers) bool { return covers.value == other.value }
+func (covers Covers) Equal(other Covers) bool {
+	return covers.value == other.value && covers.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Covers round-trips through JSON without
@@ -246,8 +270,18 @@ func (covers *Covers) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (covers Covers) Value() (driver.Value, error) { return covers.value, nil }
+// Value implements driver.Valuer. The zero Covers is stored as NULL, which
+// Scan reads back as the zero Covers.
+func (covers Covers) Value() (driver.Value, error) {
+	if !covers.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return covers.value, nil
+}
 
 // Scan implements sql.Scanner for integer and text columns, re-running
 // validation so a row that no longer satisfies the rules surfaces as a
@@ -365,8 +399,18 @@ func (tabStatus *TabStatus) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (tabStatus TabStatus) Value() (driver.Value, error) { return tabStatus.value, nil }
+// Value implements driver.Valuer. The zero TabStatus, which is no member, is
+// stored as NULL.
+func (tabStatus TabStatus) Value() (driver.Value, error) {
+	if tabStatus.value == "" {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return tabStatus.value, nil
+}
 
 // Scan implements sql.Scanner for text columns, rejecting a stored value that
 // is no longer a member.
@@ -389,11 +433,13 @@ func (tabStatus *TabStatus) Scan(src any) error {
 
 // TabID identifies a tab across services.
 //
-// It embeds uuid.UUID, which is what gives it String, MarshalText,
-// UnmarshalText, Value and Scan: the identifier behaves like a UUID everywhere
-// a UUID is expected, while staying a distinct type no other identifier can be
-// assigned to.
-type TabID struct{ uuid.UUID }
+// It holds a uuid.UUID it does not expose for writing, so an identifier is
+// either minted, read from text or a row, or the zero value, and stays a
+// distinct type no other identifier can be assigned to. UUID returns the
+// underlying value for the code that needs one.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type TabID struct{ value uuid.UUID }
 
 // NewTabID mints a time-ordered UUIDv7, which keeps inserts index-friendly.
 func NewTabID() (TabID, error) {
@@ -404,7 +450,7 @@ func NewTabID() (TabID, error) {
 		return zero, fmt.Errorf("vogue: minting TabID: %w", err)
 	}
 
-	return TabID{UUID: id}, nil
+	return TabID{value: id}, nil
 }
 
 // NewTabIDFromString reads any RFC 4122 UUID, not only the version this type
@@ -428,15 +474,88 @@ func NewTabIDFromString(raw string) (TabID, error) {
 		return zero, &notification
 	}
 
-	return TabID{UUID: id}, nil
+	return TabID{value: id}, nil
 }
+
+// UUID returns the identifier as a uuid.UUID.
+func (tabId TabID) UUID() uuid.UUID { return tabId.value }
+
+// String returns the canonical text of the identifier.
+func (tabId TabID) String() string { return tabId.value.String() }
 
 // IsZero reports whether the receiver is the nil UUID, which is what an
 // unassigned identifier looks like.
-func (tabId TabID) IsZero() bool { return tabId.UUID == uuid.Nil }
+func (tabId TabID) IsZero() bool { return tabId.value == uuid.Nil }
 
 // Equal reports whether both identifiers refer to the same entity.
-func (tabId TabID) Equal(other TabID) bool { return tabId.UUID == other.UUID }
+func (tabId TabID) Equal(other TabID) bool { return tabId.value == other.value }
+
+// MarshalText implements encoding.TextMarshaler, which encoding/json also
+// uses, so the identifier crosses a JSON boundary as its canonical string.
+func (tabId TabID) MarshalText() ([]byte, error) { return []byte(tabId.value.String()), nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler through
+// NewTabIDFromString.
+func (tabId *TabID) UnmarshalText(data []byte) error {
+	parsed, err := NewTabIDFromString(string(data))
+	if err != nil {
+		return err
+	}
+
+	*tabId = parsed
+
+	return nil
+}
+
+// Value implements driver.Valuer, storing the canonical text. An unassigned
+// identifier is stored as NULL.
+func (tabId TabID) Value() (driver.Value, error) {
+	if tabId.value == uuid.Nil {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return tabId.value.String(), nil
+}
+
+// Scan implements sql.Scanner for uuid and text columns.
+func (tabId *TabID) Scan(src any) error {
+	switch source := src.(type) {
+	case nil:
+		var zero TabID
+
+		*tabId = zero
+
+		return nil
+	case string:
+		return tabId.UnmarshalText([]byte(source))
+	case []byte:
+		return tabId.scanBytes(source)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into TabID: %w", src, validation.ErrUnsupportedSource)
+	}
+}
+
+// scanBytes reads a uuid column, which a driver hands back either as its text
+// or as its 16 raw bytes.
+func (tabId *TabID) scanBytes(raw []byte) error {
+	const rawLength = 16
+
+	if len(raw) != rawLength {
+		return tabId.UnmarshalText(raw)
+	}
+
+	id, err := uuid.FromBytes(raw)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot scan %d bytes into TabID: %w", len(raw), err)
+	}
+
+	*tabId = TabID{value: id}
+
+	return nil
+}
 
 // InvoiceNumber is the sequence the accounting system assigns to an invoice.
 //
@@ -528,8 +647,18 @@ func (invoiceNumber *InvoiceNumber) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (invoiceNumber InvoiceNumber) Value() (driver.Value, error) { return invoiceNumber.value, nil }
+// Value implements driver.Valuer. An unassigned identifier is stored as
+// NULL.
+func (invoiceNumber InvoiceNumber) Value() (driver.Value, error) {
+	if invoiceNumber.value == 0 {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return invoiceNumber.value, nil
+}
 
 // Scan implements sql.Scanner for integer and text columns.
 func (invoiceNumber *InvoiceNumber) Scan(src any) error {
@@ -563,7 +692,10 @@ func (invoiceNumber *InvoiceNumber) Scan(src any) error {
 // accepted sample: the rewrite is still proven, the table is not invented.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type Slug struct{ value string }
+type Slug struct {
+	value string
+	set   bool
+}
 
 // NewSlug validates raw and returns the Slug it describes.
 //
@@ -587,18 +719,19 @@ func NewSlug(raw string) (Slug, error) {
 		return zero, &failed
 	}
 
-	return Slug{value: value}, nil
+	return Slug{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (slug Slug) String() string { return slug.value }
 
-// IsZero reports whether the receiver is the zero Slug, which is the only
-// Slug that never passed validation.
-func (slug Slug) IsZero() bool { return slug.value == "" }
+// IsZero reports whether the receiver is the zero Slug: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (slug Slug) IsZero() bool { return !slug.set }
 
 // Equal reports whether both value objects hold the same value.
-func (slug Slug) Equal(other Slug) bool { return slug.value == other.value }
+func (slug Slug) Equal(other Slug) bool { return slug.value == other.value && slug.set == other.set }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so Slug marshals and
@@ -619,8 +752,18 @@ func (slug *Slug) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (slug Slug) Value() (driver.Value, error) { return slug.value, nil }
+// Value implements driver.Valuer. The zero Slug is stored as NULL, which
+// Scan reads back as the zero Slug.
+func (slug Slug) Value() (driver.Value, error) {
+	if !slug.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return slug.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -651,16 +794,20 @@ func (slug *Slug) Scan(src any) error {
 // reads back as the value someone typed.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type Weight struct{ value decimal.Decimal }
+type Weight struct {
+	value decimal.Decimal
+	set   bool
+}
 
 // NewWeight validates raw and returns the Weight it describes.
 //
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewWeight(raw decimal.Decimal) (Weight, error) {
-	const minimumParameter = "0"
-
-	const scaleParameter = 3
+	const (
+		minimumParameter = "0"
+		scaleParameter   = 3
+	)
 
 	var notification validation.Notification
 
@@ -694,7 +841,7 @@ func NewWeight(raw decimal.Decimal) (Weight, error) {
 		return zero, &failed
 	}
 
-	return Weight{value: value}, nil
+	return Weight{value: value, set: true}, nil
 }
 
 // NewWeightFromString reads a decimal representation and validates it. A
@@ -729,9 +876,10 @@ func (weight Weight) Decimal() decimal.Decimal { return weight.value }
 // scale it was created with: 1.50 reads back as "1.50", not as "1.5".
 func (weight Weight) String() string { return weight.value.String() }
 
-// IsZero reports whether the receiver holds zero, which is also the zero
-// Weight: the only Weight that never passed validation.
-func (weight Weight) IsZero() bool { return weight.value.IsZero() }
+// IsZero reports whether the receiver is the zero Weight: one that was never
+// constructed, as opposed to one constructed from 0. It is what
+// `json:",omitzero"` asks, and what Value stores as NULL.
+func (weight Weight) IsZero() bool { return !weight.set }
 
 // Equal reports whether both value objects hold the same number.
 //
@@ -739,7 +887,9 @@ func (weight Weight) IsZero() bool { return weight.value.IsZero() }
 // scale: 1.5 and 1.50 are the same number written at two scales, and == would
 // call them different. Two Weight values that compare equal here may therefore
 // still marshal to different text, which is what keeps a stored scale intact.
-func (weight Weight) Equal(other Weight) bool { return weight.value.Cmp(other.value) == 0 }
+func (weight Weight) Equal(other Weight) bool {
+	return weight.set == other.set && weight.value.Cmp(other.value) == 0
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Weight crosses a JSON boundary as a
@@ -761,8 +911,17 @@ func (weight *Weight) UnmarshalText(data []byte) error {
 
 // Value implements driver.Valuer, storing the canonical representation as
 // text. A PostgreSQL `numeric` column accepts it and keeps every digit, which
-// a float parameter would not.
-func (weight Weight) Value() (driver.Value, error) { return weight.value.String(), nil }
+// a float parameter would not. The zero Weight is stored as NULL.
+func (weight Weight) Value() (driver.Value, error) {
+	if !weight.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return weight.value.String(), nil
+}
 
 // Scan implements sql.Scanner for text and integer columns, re-running
 // validation so a row that no longer satisfies the rules surfaces as a

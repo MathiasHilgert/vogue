@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/token"
 	"go/types"
+	"regexp"
 	"slices"
 	"strings"
 
@@ -165,11 +166,7 @@ func (g *Generator) idView(v *voView, d parse.Directive, paths []string) (string
 	} else {
 		v.Mint, v.MintDoc = "uuid.NewV7", "a time-ordered UUIDv7, which keeps inserts index-friendly"
 	}
-	// A uuid identifier embeds uuid.UUID, whose own Value and Scan it
-	// promotes, so it declares neither and needs fmt only to wrap a failed
-	// mint.
-	v.SQL = false
-	paths = slices.DeleteFunc(paths, func(path string) bool { return path == importDriver })
+	// A uuid identifier wraps a failed mint with fmt, whatever the codecs.
 	if !slices.Contains(paths, importFmt) {
 		paths = append(paths, importFmt)
 	}
@@ -265,7 +262,33 @@ func (g *Generator) steps(d parse.Directive, imports *importSet, decls *declSet)
 			Message: message,
 		})
 	}
-	return steps, locals.all(), nil
+	return steps, mergeConsts(locals.all()), nil
+}
+
+// singleConst matches a one-line constant declaration.
+var singleConst = regexp.MustCompile(`^const ([A-Za-z_][A-Za-z0-9_]*) = (.+)$`)
+
+// mergeConsts folds the one-line constant declarations the rules of a
+// constructor asked for into a single const block, which is how someone would
+// write them and keeps the constructor short. Declarations of any other shape
+// are left as they were.
+func mergeConsts(locals []string) []string {
+	var lines []string
+	for _, local := range locals {
+		lines = append(lines, strings.Split(local, "\n")...)
+	}
+	if len(lines) < 2 {
+		return locals
+	}
+	specs := make([]string, len(lines))
+	for i, line := range lines {
+		m := singleConst.FindStringSubmatch(line)
+		if m == nil {
+			return locals
+		}
+		specs[i] = "\t" + m[1] + " = " + m[2]
+	}
+	return []string{"const (\n" + strings.Join(specs, "\n") + "\n)"}
 }
 
 // code returns the Go source of one rule: the expression or statement the rule
