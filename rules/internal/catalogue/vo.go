@@ -65,6 +65,9 @@ package catalogue
 // ExternalRef is an identifier another system assigned, written as a UUID.
 //vogue:string ExternalRef uuid
 
+// ZoneName is the IANA time zone a venue keeps its hours in.
+//vogue:string ZoneName timezone
+
 // StockCode is a stock code in the documented SKU shape.
 //vogue:string StockCode regex=^[A-Z]{3}-[0-9]{4}$
 

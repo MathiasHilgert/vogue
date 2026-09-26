@@ -1704,6 +1704,112 @@ func (externalRef *ExternalRef) Scan(src any) error {
 	}
 }
 
+// ZoneName is the IANA time zone a venue keeps its hours in.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type ZoneName struct {
+	value string
+	set   bool
+}
+
+// NewZoneName validates raw and returns the ZoneName it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
+func NewZoneName(raw string) (ZoneName, error) {
+	var notification validation.Notification
+
+	value := raw
+	if !rulecheck.TimeZone(value) {
+		notification.Reject(
+			"zoneName",
+			"timezone",
+			"",
+			value,
+			"zoneName must be an IANA time zone",
+		)
+	}
+
+	if notification.HasErrors() {
+		var zero ZoneName
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := notification
+
+		return zero, &failed
+	}
+
+	return ZoneName{value: value, set: true}, nil
+}
+
+// String returns the validated value.
+func (zoneName ZoneName) String() string { return zoneName.value }
+
+// IsZero reports whether the receiver is the zero ZoneName: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (zoneName ZoneName) IsZero() bool { return !zoneName.set }
+
+// Equal reports whether both value objects hold the same value.
+func (zoneName ZoneName) Equal(other ZoneName) bool {
+	return zoneName.value == other.value && zoneName.set == other.set
+}
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so ZoneName marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func (zoneName ZoneName) MarshalText() ([]byte, error) { return []byte(zoneName.value), nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a ZoneName the constructor would have rejected.
+func (zoneName *ZoneName) UnmarshalText(data []byte) error {
+	parsed, err := NewZoneName(string(data))
+	if err != nil {
+		return err
+	}
+
+	*zoneName = parsed
+
+	return nil
+}
+
+// Value implements driver.Valuer. The zero ZoneName is stored as NULL, which
+// Scan reads back as the zero ZoneName.
+func (zoneName ZoneName) Value() (driver.Value, error) {
+	if !zoneName.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return zoneName.value, nil
+}
+
+// Scan implements sql.Scanner for text columns. It re-runs validation, so a
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
+func (zoneName *ZoneName) Scan(src any) error {
+	switch source := src.(type) {
+	case nil:
+		var zero ZoneName
+
+		*zoneName = zero
+
+		return nil
+	case string:
+		return zoneName.UnmarshalText([]byte(source))
+	case []byte:
+		return zoneName.UnmarshalText(source)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into ZoneName: %w", src, validation.ErrUnsupportedSource)
+	}
+}
+
 // StockCode is a stock code in the documented SKU shape.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.

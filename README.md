@@ -154,6 +154,7 @@ name.
 | `email` | string | none | Requires a single email address in the RFC 5322 grammar, parsed by net/mail rather than matched against a regular expression. |
 | `url` | string | none | Requires an absolute http or https URL, parsed by net/url as a request URI. |
 | `uuid` | string | none | Requires a UUID written in the canonical RFC 4122 form, 8-4-4-4-12 hexadecimal digits separated by hyphens, in either case. |
+| `timezone` | string | none | Requires the name of a zone in the IANA time zone database, such as "America/Argentina/Buenos_Aires" or "UTC", resolved with time.LoadLocation. |
 | `regex` | string | required regex | Requires the value to match the given RE2 pattern. |
 | `oneof` | string, int | required list | Restricts the value to one of the comma-separated items of the parameter, compared for exact equality: on a string it is case-sensitive, so pair it with `lower` or `upper` when the input is typed by a human, and on an integer every item must itself be an integer. |
 | `alpha` | string | none | Requires every rune of the value to be a letter, in the Unicode sense: "Muñoz" passes and so does a name in Greek or Cyrillic, while a digit, a space, a hyphen or an apostrophe does not. |
@@ -227,8 +228,9 @@ translation keys. `Notification` implements `Unwrap() []error`, so the
 standard library is the whole API:
 
 ```go
-if errors.Is(err, validation.ErrInvalid) { ... }          // any rule failed
-if errors.Is(err, validation.FieldError{Rule: "email"}) { ... } // this one did
+if errors.Is(err, validation.ErrInvalid) { ... }                   // any rule failed
+if errors.Is(err, validation.FieldError{Rule: "email"}) { ... }  // this one did
+if errors.Is(err, validation.Failure("email", "email")) { ... } // the same, exhaustruct-clean
 
 var fe validation.FieldError
 if errors.As(err, &fe) { log.Println(fe.Code()) }
@@ -275,6 +277,22 @@ domain layer.
 constructor can produce a valid one and the zero value is inert and `IsZero`.
 Nominal types — one per directive, rather than a generic wrapper — are what make
 that possible and what give each value object its own methods.
+
+**The zero value is NULL.** `IsZero` means "never constructed", not "holds the
+zero of its type": a string, int or decimal value object records that its
+constructor ran, so `NewPopulation(0)` and `NewNickname("")` (when the rules
+accept them) are not `IsZero`, while `var p Population` is. That one notion
+drives every boundary:
+
+- `Value()` of the zero value returns `nil`, which `database/sql` writes as
+  SQL `NULL`; any constructed value, `0` and `""` included, is written as
+  itself. An unassigned identifier and the zero enum are `NULL` too.
+- `Scan(nil)` — a `NULL` column — produces the zero value.
+- `json:",omitzero"` asks `IsZero`, so an optional field of a value-object type
+  is left out of a payload exactly when it was never set.
+
+A nullable column is therefore a plain value-object field, not a pointer to
+one.
 
 **Enums are structs.** An enum is a struct with an unexported field whose
 members are returned by the methods of its catalogue, not a defined string type
@@ -332,11 +350,47 @@ error on an `int`. `scale=N` rejects a value carrying more decimal places than
 `N`; it never rounds one, because how to round is a decision the domain makes
 and not the constructor.
 
+**Composite value objects.** vogue generates single-field value objects. A
+value made of several — a point, an amount with its currency, a range — is
+composed from generated ones by hand, and stays a value object by keeping the
+same rules: unexported fields, one constructor that validates every part, and
+every failure reported at once. `Notification.Collect` folds each part's error
+into one notification, so the pattern is short:
+
+```go
+func NewCoordinates(latitude, longitude string) (Coordinates, error) {
+	var n validation.Notification
+
+	lat, latErr := NewLatitudeFromString(latitude)
+	lon, lonErr := NewLongitudeFromString(longitude)
+	for _, err := range []error{latErr, lonErr} {
+		if unexpected := n.Collect(err); unexpected != nil {
+			return Coordinates{}, unexpected
+		}
+	}
+	if n.HasErrors() {
+		return Coordinates{}, n.ErrOrNil()
+	}
+	return Coordinates{latitude: lat, longitude: lon}, nil
+}
+```
+
+[`examples/composite`](examples/composite) is the complete example, with its
+text codec and test, written to the same strict lint profile as the generated
+code.
+
+**Time zones.** The `timezone` rule resolves a name with `time.LoadLocation`,
+so it is as current as the zone database the process can read. A binary that
+runs in a minimal container image has none of its own and should import
+`time/tzdata` to embed one.
+
 **Identifiers.** `uuid7` is the default because time-ordered identifiers keep
 an index from fragmenting; `uuid4` is there for values that must not leak a
 creation time; `int64` wraps a database-assigned sequence and therefore has no
 generator, only `New<Name>FromInt64` and `New<Name>FromString`.
-`New<Name>FromString` accepts any RFC 4122 UUID, so existing data can be read. v1, v3 and v5 are deliberately
+`New<Name>FromString` accepts any RFC 4122 UUID, so existing data can be read.
+A uuid identifier holds its `uuid.UUID` privately and exposes it through
+`UUID()`, so it cannot be overwritten after construction. v1, v3 and v5 are deliberately
 unsupported.
 
 **Generated tests are derived, never invented.** A row exists because a rule
@@ -360,7 +414,8 @@ are the most likely places.
 
 Not there yet:
 
-- Multi-field value objects (`Money`, `Quantity`) stay hand-written; vogue only
+- Multi-field value objects (`Money`, `Quantity`, `Coordinates`) stay
+  hand-written, composed from generated ones as described above; vogue only
   generates single-field kinds.
 - Message translation: `FieldError.Message` is English only, and there is no
   hook to localize it.

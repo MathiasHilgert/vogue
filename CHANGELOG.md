@@ -41,6 +41,14 @@ is zero, a minor release may break the API; every break is listed under
   constant inside the constructor, named after the identifier reserved for it,
   instead of writing a magic number or a package-level variable.
 - `rulecheck.Regexp`, which compiles a pattern once and caches it.
+- The `timezone` rule: an IANA time zone name, resolved with
+  `time.LoadLocation` (`rulecheck.TimeZone`). "Local" and the empty string are
+  rejected.
+- `Notification.Collect(err)`, which folds the failures of a part's error into
+  a notification, for composite value objects; `validation.Failure(field,
+  rule)`, an exhaustruct-clean `errors.Is` target.
+- `examples/composite`: a hand-written `Coordinates` composed from generated
+  `Latitude` and `Longitude`, with every failure reported at once.
 
 ### Changed
 
@@ -67,6 +75,16 @@ is zero, a minor release may break the API; every break is listed under
   failed when a sample valid for one rule broke another (`len=2` with
   `regex=...`). A rewrite a normalizer declares is skipped, not failed, when
   the rest of the directive rejects its output.
+- **Breaking: the zero value is NULL.** String, int and decimal value objects
+  record that their constructor ran, so `IsZero` means "never constructed":
+  `NewPopulation(0)` is no longer `IsZero`. `Value()` of the zero value of
+  every kind returns `nil` (SQL `NULL`) instead of `""`, `0` or the nil UUID,
+  and `Scan(nil)` still produces the zero value. `json:",omitzero"` follows
+  `IsZero`.
+- **Breaking: uuid identifiers no longer embed `uuid.UUID`.** The value is
+  private and read with `UUID()`; `String`, `MarshalText`, `UnmarshalText`,
+  `Value` and `Scan` are generated (the SQL pair only without `-sql=false`),
+  and `Scan` reads both the text and the 16-byte form of a uuid column.
 - The built-in bounds (`min`, `max`, `len`, `multipleof`, `scale`) declare
   their parameter as a constant inside the constructor; decimal bounds are
   built with `decimal.MustNew` from a coefficient and a scale instead of a

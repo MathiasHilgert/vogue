@@ -178,6 +178,31 @@ var URL = vogue.Rule{
 	},
 }
 
+// TimeZone requires the name of an IANA time zone.
+var TimeZone = vogue.Rule{
+	Name:  "timezone",
+	Kinds: str,
+	Doc: "Requires the name of a zone in the IANA time zone database, such as " +
+		"\"America/Argentina/Buenos_Aires\" or \"UTC\", resolved with time.LoadLocation. The " +
+		"database is the one the process can read at run time — the system's, or the copy a binary " +
+		"embeds by importing time/tzdata, which a minimal container image needs. \"Local\" and the " +
+		"empty string are rejected: LoadLocation maps them to the process's own zone and to UTC, and " +
+		"neither names a place a stored value could mean.",
+	Message: "{{.Field}} must be an IANA time zone",
+	Call:    &vogue.FuncRef{Path: importFn, Name: "TimeZone"},
+	Examples: vogue.Examples{
+		Valid: []vogue.Example{
+			{In: "America/Argentina/Buenos_Aires", Note: "a zone named after its city"},
+			{In: "UTC", Note: "coordinated universal time"},
+		},
+		Invalid: []vogue.Example{
+			{In: "Mars/Olympus_Mons", Note: "a zone the database does not hold"},
+			{In: "Local", Note: "the process-local zone, which names no place"},
+			{In: "", Note: "the empty string"},
+		},
+	},
+}
+
 // UUID requires a UUID in canonical text form.
 var UUID = vogue.Rule{
 	Name:  "uuid",

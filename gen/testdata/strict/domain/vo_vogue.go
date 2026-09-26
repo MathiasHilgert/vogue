@@ -287,6 +287,87 @@ func (placeName *PlaceName) UnmarshalText(data []byte) error {
 	return nil
 }
 
+// TimeZoneID is the IANA time zone of a place.
+type TimeZoneID struct {
+	value string
+	set   bool
+}
+
+// NewTimeZoneID validates raw and returns the TimeZoneID it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
+func NewTimeZoneID(raw string) (TimeZoneID, error) {
+	var notification validation.Notification
+
+	value := raw
+	value = strings.TrimSpace(value)
+	if value == "" {
+		notification.Reject(
+			"timeZoneId",
+			"required",
+			"",
+			value,
+			"timeZoneId is required",
+		)
+	}
+	if !rulecheck.TimeZone(value) {
+		notification.Reject(
+			"timeZoneId",
+			"timezone",
+			"",
+			value,
+			"timeZoneId must be an IANA time zone",
+		)
+	}
+
+	if notification.HasErrors() {
+		var zero TimeZoneID
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := notification
+
+		return zero, &failed
+	}
+
+	return TimeZoneID{value: value, set: true}, nil
+}
+
+// String returns the validated value.
+func (timeZoneId TimeZoneID) String() string { return timeZoneId.value }
+
+// IsZero reports whether the receiver is the zero TimeZoneID: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (timeZoneId TimeZoneID) IsZero() bool { return !timeZoneId.set }
+
+// Equal reports whether both value objects hold the same value.
+func (timeZoneId TimeZoneID) Equal(other TimeZoneID) bool {
+	return timeZoneId.value == other.value && timeZoneId.set == other.set
+}
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so TimeZoneID marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func (timeZoneId TimeZoneID) MarshalText() ([]byte, error) { return []byte(timeZoneId.value), nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a TimeZoneID the constructor would have rejected.
+func (timeZoneId *TimeZoneID) UnmarshalText(data []byte) error {
+	parsed, err := NewTimeZoneID(string(data))
+	if err != nil {
+		return err
+	}
+
+	*timeZoneId = parsed
+
+	return nil
+}
+
 // GeoNamesID identifies a GeoNames record.
 //
 // The value is held as an int64 so it survives every database driver and JSON

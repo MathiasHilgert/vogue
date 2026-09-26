@@ -132,3 +132,33 @@ func TestRegexp_compilesOnce(t *testing.T) {
 	// Assert
 	assert.Zero(t, allocs, "a cached pattern must be matched without compiling it again")
 }
+
+func TestTimeZone(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{name: "a zone with a city", in: "America/Argentina/Buenos_Aires", want: true},
+		{name: "another continent", in: "Europe/Madrid", want: true},
+		{name: "UTC", in: "UTC", want: true},
+		{name: "a zone that does not exist", in: "Mars/Olympus_Mons", want: false},
+		{name: "the process-local zone, which names no place", in: "Local", want: false},
+		{name: "the empty string, which LoadLocation reads as UTC", in: "", want: false},
+		{name: "a path escaping the zone database", in: "../etc/passwd", want: false},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			got := rulecheck.TimeZone(testCase.in)
+
+			// Assert
+			assert.Equal(t, testCase.want, got)
+		})
+	}
+}
