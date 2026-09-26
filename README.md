@@ -359,19 +359,19 @@ into one notification, so the pattern is short:
 
 ```go
 func NewCoordinates(latitude, longitude string) (Coordinates, error) {
-	var n validation.Notification
+	var notification validation.Notification
 
-	lat, latErr := NewLatitudeFromString(latitude)
-	lon, lonErr := NewLongitudeFromString(longitude)
-	for _, err := range []error{latErr, lonErr} {
-		if unexpected := n.Collect(err); unexpected != nil {
+	parsedLatitude, latitudeErr := NewLatitudeFromString(latitude)
+	parsedLongitude, longitudeErr := NewLongitudeFromString(longitude)
+	for _, err := range []error{latitudeErr, longitudeErr} {
+		if unexpected := notification.Collect(err); unexpected != nil {
 			return Coordinates{}, unexpected
 		}
 	}
-	if n.HasErrors() {
-		return Coordinates{}, n.ErrOrNil()
+	if notification.HasErrors() {
+		return Coordinates{}, notification.ErrOrNil()
 	}
-	return Coordinates{latitude: lat, longitude: lon}, nil
+	return Coordinates{latitude: parsedLatitude, longitude: parsedLongitude}, nil
 }
 ```
 

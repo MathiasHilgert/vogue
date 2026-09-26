@@ -13,8 +13,8 @@ import (
 // binary float underneath, so a rate, a percentage or a fractional quantity
 // reads back as the value someone typed.
 type Latitude struct {
-	v   decimal.Decimal
-	set bool
+	value decimal.Decimal
+	set   bool
 }
 
 // NewLatitude validates raw and returns the Latitude it describes.
@@ -23,67 +23,91 @@ type Latitude struct {
 // collected into one error rather than the first one aborting the rest.
 func NewLatitude(raw decimal.Decimal) (Latitude, error) {
 	const (
-		minParam   = -90
-		maxParam   = 90
-		scaleParam = 6
+		minimumParameter = -90
+		maximumParameter = 90
+		scaleParameter   = 6
 	)
 
-	var n validation.Notification
+	var notification validation.Notification
 
-	v := raw
-	if v.Cmp(decimal.MustNew(minParam, 0)) < 0 {
-		n.Reject("latitude", "min", "-90", v.String(), "latitude must be at least -90")
+	value := raw
+	if value.Cmp(decimal.MustNew(minimumParameter, 0)) < 0 {
+		notification.Reject(
+			"latitude",
+			"min",
+			"-90",
+			value.String(),
+			"latitude must be at least -90",
+		)
 	}
-	if v.Cmp(decimal.MustNew(maxParam, 0)) > 0 {
-		n.Reject("latitude", "max", "90", v.String(), "latitude must be at most 90")
+	if value.Cmp(decimal.MustNew(maximumParameter, 0)) > 0 {
+		notification.Reject(
+			"latitude",
+			"max",
+			"90",
+			value.String(),
+			"latitude must be at most 90",
+		)
 	}
-	if v.Scale() > scaleParam {
-		n.Reject("latitude", "scale", "6", v.String(), "latitude must have at most 6 decimal places")
+	if value.Scale() > scaleParameter {
+		notification.Reject(
+			"latitude",
+			"scale",
+			"6",
+			value.String(),
+			"latitude must have at most 6 decimal places",
+		)
 	}
 
-	if n.HasErrors() {
+	if notification.HasErrors() {
 		var zero Latitude
 
 		// Only a rejected input escapes to the heap: the notification is
 		// copied here, so the happy path above allocates nothing.
-		failed := n
+		failed := notification
 
 		return zero, &failed
 	}
 
-	return Latitude{v: v, set: true}, nil
+	return Latitude{value: value, set: true}, nil
 }
 
 // NewLatitudeFromString reads a decimal representation and validates it. A
 // representation decimal.Parse cannot read is reported as a failure of the
 // "decimal" rule, so a caller handles it the same way as every other rule.
 func NewLatitudeFromString(raw string) (Latitude, error) {
-	v, err := decimal.Parse(raw)
+	value, err := decimal.Parse(raw)
 	if err != nil {
 		var (
-			zero Latitude
-			n    validation.Notification
+			zero         Latitude
+			notification validation.Notification
 		)
 
-		n.Reject("latitude", "decimal", "", raw, "latitude must be an exact decimal number")
+		notification.Reject(
+			"latitude",
+			"decimal",
+			"",
+			raw,
+			"latitude must be an exact decimal number",
+		)
 
-		return zero, &n
+		return zero, &notification
 	}
 
-	return NewLatitude(v)
+	return NewLatitude(value)
 }
 
 // Decimal returns the validated value.
-func (l Latitude) Decimal() decimal.Decimal { return l.v }
+func (latitude Latitude) Decimal() decimal.Decimal { return latitude.value }
 
 // String returns the canonical representation of the value, which keeps the
 // scale it was created with: 1.50 reads back as "1.50", not as "1.5".
-func (l Latitude) String() string { return l.v.String() }
+func (latitude Latitude) String() string { return latitude.value.String() }
 
 // IsZero reports whether the receiver is the zero Latitude: one that was never
 // constructed, as opposed to one constructed from 0. It is what
 // `json:",omitzero"` asks, and what Value stores as NULL.
-func (l Latitude) IsZero() bool { return !l.set }
+func (latitude Latitude) IsZero() bool { return !latitude.set }
 
 // Equal reports whether both value objects hold the same number.
 //
@@ -91,24 +115,24 @@ func (l Latitude) IsZero() bool { return !l.set }
 // scale: 1.5 and 1.50 are the same number written at two scales, and == would
 // call them different. Two Latitude values that compare equal here may therefore
 // still marshal to different text, which is what keeps a stored scale intact.
-func (l Latitude) Equal(other Latitude) bool {
-	return l.set == other.set && l.v.Cmp(other.v) == 0
+func (latitude Latitude) Equal(other Latitude) bool {
+	return latitude.set == other.set && latitude.value.Cmp(other.value) == 0
 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Latitude crosses a JSON boundary as a
 // string and never as a float the receiver would have to round.
-func (l Latitude) MarshalText() ([]byte, error) { return []byte(l.v.String()), nil }
+func (latitude Latitude) MarshalText() ([]byte, error) { return []byte(latitude.value.String()), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a Latitude the constructor would have rejected.
-func (l *Latitude) UnmarshalText(data []byte) error {
+func (latitude *Latitude) UnmarshalText(data []byte) error {
 	parsed, err := NewLatitudeFromString(string(data))
 	if err != nil {
 		return err
 	}
 
-	*l = parsed
+	*latitude = parsed
 
 	return nil
 }
@@ -119,8 +143,8 @@ func (l *Latitude) UnmarshalText(data []byte) error {
 // binary float underneath, so a rate, a percentage or a fractional quantity
 // reads back as the value someone typed.
 type Longitude struct {
-	v   decimal.Decimal
-	set bool
+	value decimal.Decimal
+	set   bool
 }
 
 // NewLongitude validates raw and returns the Longitude it describes.
@@ -129,67 +153,91 @@ type Longitude struct {
 // collected into one error rather than the first one aborting the rest.
 func NewLongitude(raw decimal.Decimal) (Longitude, error) {
 	const (
-		minParam   = -180
-		maxParam   = 180
-		scaleParam = 6
+		minimumParameter = -180
+		maximumParameter = 180
+		scaleParameter   = 6
 	)
 
-	var n validation.Notification
+	var notification validation.Notification
 
-	v := raw
-	if v.Cmp(decimal.MustNew(minParam, 0)) < 0 {
-		n.Reject("longitude", "min", "-180", v.String(), "longitude must be at least -180")
+	value := raw
+	if value.Cmp(decimal.MustNew(minimumParameter, 0)) < 0 {
+		notification.Reject(
+			"longitude",
+			"min",
+			"-180",
+			value.String(),
+			"longitude must be at least -180",
+		)
 	}
-	if v.Cmp(decimal.MustNew(maxParam, 0)) > 0 {
-		n.Reject("longitude", "max", "180", v.String(), "longitude must be at most 180")
+	if value.Cmp(decimal.MustNew(maximumParameter, 0)) > 0 {
+		notification.Reject(
+			"longitude",
+			"max",
+			"180",
+			value.String(),
+			"longitude must be at most 180",
+		)
 	}
-	if v.Scale() > scaleParam {
-		n.Reject("longitude", "scale", "6", v.String(), "longitude must have at most 6 decimal places")
+	if value.Scale() > scaleParameter {
+		notification.Reject(
+			"longitude",
+			"scale",
+			"6",
+			value.String(),
+			"longitude must have at most 6 decimal places",
+		)
 	}
 
-	if n.HasErrors() {
+	if notification.HasErrors() {
 		var zero Longitude
 
 		// Only a rejected input escapes to the heap: the notification is
 		// copied here, so the happy path above allocates nothing.
-		failed := n
+		failed := notification
 
 		return zero, &failed
 	}
 
-	return Longitude{v: v, set: true}, nil
+	return Longitude{value: value, set: true}, nil
 }
 
 // NewLongitudeFromString reads a decimal representation and validates it. A
 // representation decimal.Parse cannot read is reported as a failure of the
 // "decimal" rule, so a caller handles it the same way as every other rule.
 func NewLongitudeFromString(raw string) (Longitude, error) {
-	v, err := decimal.Parse(raw)
+	value, err := decimal.Parse(raw)
 	if err != nil {
 		var (
-			zero Longitude
-			n    validation.Notification
+			zero         Longitude
+			notification validation.Notification
 		)
 
-		n.Reject("longitude", "decimal", "", raw, "longitude must be an exact decimal number")
+		notification.Reject(
+			"longitude",
+			"decimal",
+			"",
+			raw,
+			"longitude must be an exact decimal number",
+		)
 
-		return zero, &n
+		return zero, &notification
 	}
 
-	return NewLongitude(v)
+	return NewLongitude(value)
 }
 
 // Decimal returns the validated value.
-func (l Longitude) Decimal() decimal.Decimal { return l.v }
+func (longitude Longitude) Decimal() decimal.Decimal { return longitude.value }
 
 // String returns the canonical representation of the value, which keeps the
 // scale it was created with: 1.50 reads back as "1.50", not as "1.5".
-func (l Longitude) String() string { return l.v.String() }
+func (longitude Longitude) String() string { return longitude.value.String() }
 
 // IsZero reports whether the receiver is the zero Longitude: one that was never
 // constructed, as opposed to one constructed from 0. It is what
 // `json:",omitzero"` asks, and what Value stores as NULL.
-func (l Longitude) IsZero() bool { return !l.set }
+func (longitude Longitude) IsZero() bool { return !longitude.set }
 
 // Equal reports whether both value objects hold the same number.
 //
@@ -197,24 +245,26 @@ func (l Longitude) IsZero() bool { return !l.set }
 // scale: 1.5 and 1.50 are the same number written at two scales, and == would
 // call them different. Two Longitude values that compare equal here may therefore
 // still marshal to different text, which is what keeps a stored scale intact.
-func (l Longitude) Equal(other Longitude) bool {
-	return l.set == other.set && l.v.Cmp(other.v) == 0
+func (longitude Longitude) Equal(other Longitude) bool {
+	return longitude.set == other.set && longitude.value.Cmp(other.value) == 0
 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Longitude crosses a JSON boundary as a
 // string and never as a float the receiver would have to round.
-func (l Longitude) MarshalText() ([]byte, error) { return []byte(l.v.String()), nil }
+func (longitude Longitude) MarshalText() ([]byte, error) {
+	return []byte(longitude.value.String()), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a Longitude the constructor would have rejected.
-func (l *Longitude) UnmarshalText(data []byte) error {
+func (longitude *Longitude) UnmarshalText(data []byte) error {
 	parsed, err := NewLongitudeFromString(string(data))
 	if err != nil {
 		return err
 	}
 
-	*l = parsed
+	*longitude = parsed
 
 	return nil
 }

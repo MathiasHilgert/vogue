@@ -35,61 +35,67 @@ type Coordinates struct {
 // error, when there is one, names every part that failed.
 func NewCoordinates(latitude, longitude string) (Coordinates, error) {
 	var (
-		zero Coordinates
-		n    validation.Notification
+		zero         Coordinates
+		notification validation.Notification
 	)
 
-	lat, latErr := NewLatitudeFromString(latitude)
-	lon, lonErr := NewLongitudeFromString(longitude)
+	parsedLatitude, latitudeErr := NewLatitudeFromString(latitude)
+	parsedLongitude, longitudeErr := NewLongitudeFromString(longitude)
 
 	// Collect hands back only an error that is not a validation failure,
 	// which a generated constructor never returns; it is wrapped all the same
 	// rather than assumed away.
-	for _, err := range []error{latErr, lonErr} {
-		unexpected := n.Collect(err)
+	for _, err := range []error{latitudeErr, longitudeErr} {
+		unexpected := notification.Collect(err)
 		if unexpected != nil {
 			return zero, fmt.Errorf("vogue: building coordinates: %w", unexpected)
 		}
 	}
 
-	if n.HasErrors() {
-		failed := n
+	if notification.HasErrors() {
+		failed := notification
 
 		return zero, &failed
 	}
 
-	return Coordinates{latitude: lat, longitude: lon}, nil
+	return Coordinates{latitude: parsedLatitude, longitude: parsedLongitude}, nil
 }
 
 // Latitude returns the latitude of the point.
-func (c Coordinates) Latitude() Latitude { return c.latitude }
+func (coordinates Coordinates) Latitude() Latitude { return coordinates.latitude }
 
 // Longitude returns the longitude of the point.
-func (c Coordinates) Longitude() Longitude { return c.longitude }
+func (coordinates Coordinates) Longitude() Longitude { return coordinates.longitude }
 
 // IsZero reports whether the receiver was never constructed.
-func (c Coordinates) IsZero() bool { return c.latitude.IsZero() && c.longitude.IsZero() }
+func (coordinates Coordinates) IsZero() bool {
+	return coordinates.latitude.IsZero() && coordinates.longitude.IsZero()
+}
 
 // Equal reports whether both points are the same place.
-func (c Coordinates) Equal(other Coordinates) bool {
-	return c.latitude.Equal(other.latitude) && c.longitude.Equal(other.longitude)
+func (coordinates Coordinates) Equal(other Coordinates) bool {
+	return coordinates.latitude.Equal(other.latitude) && coordinates.longitude.Equal(other.longitude)
 }
 
 // String returns the point as "latitude,longitude".
-func (c Coordinates) String() string { return c.latitude.String() + "," + c.longitude.String() }
+func (coordinates Coordinates) String() string {
+	return coordinates.latitude.String() + "," + coordinates.longitude.String()
+}
 
 // MarshalText implements encoding.TextMarshaler as "latitude,longitude".
-func (c Coordinates) MarshalText() ([]byte, error) { return []byte(c.String()), nil }
+func (coordinates Coordinates) MarshalText() ([]byte, error) {
+	return []byte(coordinates.String()), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation.
-func (c *Coordinates) UnmarshalText(data []byte) error {
+func (coordinates *Coordinates) UnmarshalText(data []byte) error {
 	latitude, longitude, ok := strings.Cut(string(data), ",")
 	if !ok {
-		var n validation.Notification
+		var notification validation.Notification
 
-		n.Reject("coordinates", "pair", "", string(data), "coordinates must be written as latitude,longitude")
+		notification.Reject("coordinates", "pair", "", string(data), "coordinates must be written as latitude,longitude")
 
-		return &n
+		return &notification
 	}
 
 	parsed, err := NewCoordinates(latitude, longitude)
@@ -97,7 +103,7 @@ func (c *Coordinates) UnmarshalText(data []byte) error {
 		return err
 	}
 
-	*c = parsed
+	*coordinates = parsed
 
 	return nil
 }
