@@ -69,7 +69,7 @@ func compare(c vogue.EmitContext, op string) string {
 // person writes.
 func boundConst(c vogue.EmitContext) string {
 	if c.Kind != vogue.Decimal {
-		return "const " + c.Ident + " = " + c.Param
+		return "const " + c.Ident + " = " + integer(c.Param)
 	}
 	coef, scale, ok := decimalParts(c.Param)
 	switch {
@@ -117,6 +117,9 @@ func signCompare(c vogue.EmitContext, op string) string {
 func anyOf(c vogue.EmitContext) string {
 	items := strings.Split(c.Param, ",")
 	if c.Kind == vogue.Int {
+		for i, item := range items {
+			items[i] = integer(item)
+		}
 		return "slices.Contains([]int64{" + strings.Join(items, ", ") + "}, " + c.Var + ")"
 	}
 	terms := make([]string, len(items))
@@ -124,4 +127,17 @@ func anyOf(c vogue.EmitContext) string {
 		terms[i] = c.Var + " == " + strconv.Quote(item)
 	}
 	return strings.Join(terms, " || ")
+}
+
+// integer returns an integer parameter the way Go source must spell it: the
+// base-10 number it parses to. The directive is read in base 10, but Go reads
+// a literal with a leading zero in octal, so `min=010` written through would
+// compare against 8. A parameter that does not parse is returned unchanged;
+// the parser has already rejected it.
+func integer(param string) string {
+	parsed, err := strconv.ParseInt(param, 10, 64)
+	if err != nil {
+		return param
+	}
+	return strconv.FormatInt(parsed, 10)
 }

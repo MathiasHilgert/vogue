@@ -77,13 +77,13 @@ var MultipleOf = vogue.Rule{
 	Emit: func(c vogue.EmitContext) string {
 		// A modulo by a constant zero does not compile, so the degenerate
 		// parameter is answered directly: zero is the only multiple of zero.
-		if c.Param == "0" {
+		if integer(c.Param) == "0" {
 			return c.Var + " == 0"
 		}
 		return c.Var + "%" + c.Ident + " == 0"
 	},
 	Local: func(c vogue.EmitContext) string {
-		if c.Param == "0" {
+		if integer(c.Param) == "0" {
 			return ""
 		}
 		return boundConst(c)
@@ -116,7 +116,7 @@ var Scale = vogue.Rule{
 	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamInt},
 	Message: "{{.Field}} must have at most {{.Param}} decimal places",
 	Emit:    func(c vogue.EmitContext) string { return c.Var + ".Scale() <= " + c.Ident },
-	Local:   func(c vogue.EmitContext) string { return "const " + c.Ident + " = " + c.Param },
+	Local:   func(c vogue.EmitContext) string { return "const " + c.Ident + " = " + integer(c.Param) },
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{Param: "4", In: "0.1234", Note: "exactly the places the bound allows"},

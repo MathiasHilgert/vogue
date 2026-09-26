@@ -335,6 +335,40 @@ func TestLocal(t *testing.T) {
 	})
 }
 
+func TestIntegerParameters(t *testing.T) {
+	t.Run("a bound is emitted as the number it parses to, never as an octal literal", func(t *testing.T) {
+		// Act
+		got := rules.Min.Local(vogue.EmitContext{Param: "010", Kind: vogue.Int, Ident: "minimumParameter"})
+
+		// Assert
+		assert.Equal(t, "const minimumParameter = 10", got)
+	})
+
+	t.Run("a rune bound is normalized too", func(t *testing.T) {
+		// Act
+		got := rules.Len.Local(vogue.EmitContext{Param: "+02", Kind: vogue.String, Ident: "lengthParameter"})
+
+		// Assert
+		assert.Equal(t, "const lengthParameter = 2", got)
+	})
+
+	t.Run("the items of an integer list are normalized", func(t *testing.T) {
+		// Act
+		got := rules.OneOf.Emit(vogue.EmitContext{Var: "value", Param: "010,+2", Kind: vogue.Int})
+
+		// Assert
+		assert.Equal(t, "slices.Contains([]int64{10, 2}, value)", got)
+	})
+
+	t.Run("a multiple is normalized", func(t *testing.T) {
+		// Act
+		got := rules.MultipleOf.Local(vogue.EmitContext{Param: "015", Kind: vogue.Int, Ident: "multipleofParameter"})
+
+		// Assert
+		assert.Equal(t, "const multipleofParameter = 15", got)
+	})
+}
+
 func TestRegex(t *testing.T) {
 	t.Run("calls the caching matcher instead of declaring a package-level pattern", func(t *testing.T) {
 		// Assert
