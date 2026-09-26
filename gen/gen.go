@@ -132,7 +132,30 @@ func (g *Generator) Files() ([]OutFile, error) {
 		}
 		out = append(out, OutFile{Kind: TestFile, Path: outPath(file.Path, testSuffix), Content: test})
 	}
-	return out, nil
+	return hoistTests(out)
+}
+
+// hoistTests names the strings the generated tests of the package repeat,
+// counting across all of them, as goconst does.
+func hoistTests(files []OutFile) ([]OutFile, error) {
+	var (
+		sources [][]byte
+		at      []int
+	)
+	for i, file := range files {
+		if file.Kind == TestFile {
+			sources = append(sources, file.Content)
+			at = append(at, i)
+		}
+	}
+	hoisted, err := hoistRepeatedStrings(sources)
+	if err != nil {
+		return nil, err
+	}
+	for j, i := range at {
+		files[i].Content = hoisted[j]
+	}
+	return files, nil
 }
 
 // file renders and formats one generated file.

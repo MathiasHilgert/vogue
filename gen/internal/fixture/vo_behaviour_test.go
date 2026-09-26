@@ -355,3 +355,16 @@ func TestInvoiceNumber(t *testing.T) {
 		assert.Equal(t, int64(7), value)
 	})
 }
+
+// TestTabStatuses_ParseAllocatesNothing proves the catalogue parses a member
+// by comparing against the members themselves, without building a slice. It
+// is not parallel: AllocsPerRun refuses to run beside other tests.
+func TestTabStatuses_ParseAllocatesNothing(t *testing.T) {
+	for _, raw := range []string{"open", "in_progress", "closed"} {
+		// Act
+		allocations := testing.AllocsPerRun(10, func() { _, _ = fixture.TabStatuses{}.Parse(raw) })
+
+		// Assert
+		assert.Zero(t, allocations, "parsing %q allocated", raw)
+	}
+}

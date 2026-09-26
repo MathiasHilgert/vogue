@@ -36,9 +36,8 @@ func (PlaceKinds) Subdivision() PlaceKind { return PlaceKind{value: "subdivision
 // City returns the "city" member of PlaceKind.
 func (PlaceKinds) City() PlaceKind { return PlaceKind{value: "city"} }
 
-// All returns every member in declaration order. Ranging over it is what makes
-// a test exhaustive: a member added to the directive shows up here without the
-// test being touched.
+// All returns every member in declaration order, so code that must handle every
+// member — a test, a lookup table — can range over it instead of listing them.
 func (placeKinds PlaceKinds) All() []PlaceKind {
 	return []PlaceKind{
 		placeKinds.Country(),
@@ -48,12 +47,16 @@ func (placeKinds PlaceKinds) All() []PlaceKind {
 }
 
 // Parse resolves the wire representation of a member, rejecting anything else
-// as a failure of the "oneof" rule.
+// as a failure of the "oneof" rule. It compares against the members' own
+// values, so no wire string is written twice and nothing is allocated.
 func (placeKinds PlaceKinds) Parse(raw string) (PlaceKind, error) {
-	for _, member := range placeKinds.All() {
-		if member.value == raw {
-			return member, nil
-		}
+	switch raw {
+	case placeKinds.Country().value:
+		return placeKinds.Country(), nil
+	case placeKinds.Subdivision().value:
+		return placeKinds.Subdivision(), nil
+	case placeKinds.City().value:
+		return placeKinds.City(), nil
 	}
 
 	var (

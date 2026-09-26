@@ -46,7 +46,7 @@ func TestGenerate_Strict(t *testing.T) {
 
 			// Assert
 			require.NoError(t, err)
-			require.Len(t, files, 2)
+			require.Len(t, files, 4, "two source files, each with its code and its test")
 			for _, file := range files {
 				golden := filepath.Join("testdata", "strict", variant.dir, filepath.Base(file.Path))
 				if *update {

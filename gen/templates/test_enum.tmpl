@@ -1,5 +1,10 @@
 {{$n := .Name}}
-// Test{{$n}} pins the members of {{$n}} and runs the enum suite over them.
+// Test{{$n}} runs the enum suite: the catalogue lists the members the
+// directive declares, in order, parses each of them and nothing else, and
+// round-trips them. The expected list is generated from the same directive, so
+// it proves the catalogue is consistent with the directive, not that the
+// directive is right; pin the members in a hand-written test when a change to
+// them must be deliberate.
 func Test{{$n}}(t *testing.T) {
 	t.Parallel()
 

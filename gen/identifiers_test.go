@@ -13,15 +13,19 @@ import (
 )
 
 // shortAllowed are the identifiers under three characters generated code may
-// declare: the conventional names no reader mistakes for an abbreviation.
-var shortAllowed = map[string]bool{"ok": true, "id": true, "ctx": true, "err": true, "_": true}
+// declare: the conventional names no reader mistakes for an abbreviation, and
+// Is, which errors.Is requires of a FieldError by that name.
+var shortAllowed = map[string]bool{"ok": true, "id": true, "err": true, "_": true, "Is": true}
 
 // TestGenerate_NoAbbreviatedIdentifiers holds generated code to the
 // no-abbreviation rule of the projects that consume it: every identifier it
 // declares — types, functions, receivers, parameters, results, variables,
 // constants, fields and import names — is at least three characters long,
-// except ok, id, ctx and err. A generated test may also name its *testing.T
-// t, which is how every Go test is written.
+// except ok, id and err. A generated test may also name its *testing.T t,
+// which is how every Go test is written, and so may the voguetest helpers
+// that take one. The runtime packages generated code
+// and its tests import — validation, schema, rulecheck and voguetest — are held to
+// the same rule.
 func TestGenerate_NoAbbreviatedIdentifiers(t *testing.T) {
 	goldens, err := filepath.Glob(filepath.Join("testdata", "strict", "*", "*_vogue*.go"))
 	require.NoError(t, err)
@@ -36,6 +40,16 @@ func TestGenerate_NoAbbreviatedIdentifiers(t *testing.T) {
 		filepath.Join("..", "examples", "composite", "geo", "coordinates.go"),
 	)
 
+	for _, runtime := range []string{"validation", "voguetest", "schema", filepath.Join("rules", "rulecheck")} {
+		sources, err := filepath.Glob(filepath.Join("..", runtime, "*.go"))
+		require.NoError(t, err)
+		for _, source := range sources {
+			if !strings.HasSuffix(source, "_test.go") {
+				goldens = append(goldens, source)
+			}
+		}
+	}
+
 	for _, golden := range goldens {
 		t.Run(golden, func(t *testing.T) {
 			// Arrange
@@ -43,7 +57,8 @@ func TestGenerate_NoAbbreviatedIdentifiers(t *testing.T) {
 			file, err := parser.ParseFile(fset, golden, nil, 0)
 			require.NoError(t, err)
 			allowed := func(name string) bool {
-				return shortAllowed[name] || (name == "t" && strings.HasSuffix(golden, "_test.go"))
+				testSupport := strings.HasSuffix(golden, "_test.go") || strings.Contains(golden, "voguetest")
+				return shortAllowed[name] || (name == "t" && testSupport)
 			}
 
 			// Act
@@ -77,12 +92,18 @@ func declaredIdentifiers(file *ast.File) []*ast.Ident {
 			fields(node.Recv)
 			out = append(out, node.Name)
 		case *ast.FuncType:
+			fields(node.TypeParams)
 			fields(node.Params)
 			fields(node.Results)
+		case *ast.InterfaceType:
+			fields(node.Methods)
+		case *ast.LabeledStmt:
+			out = append(out, node.Label)
 		case *ast.StructType:
 			fields(node.Fields)
 		case *ast.TypeSpec:
 			out = append(out, node.Name)
+			fields(node.TypeParams)
 		case *ast.ValueSpec:
 			out = append(out, node.Names...)
 		case *ast.ImportSpec:

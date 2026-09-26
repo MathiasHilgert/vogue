@@ -57,6 +57,17 @@ is zero, a minor release may break the API; every break is listed under
 
 ### Changed
 
+- Integer rule parameters are emitted as the base-10 number they parse to, so
+  `min=010` compares against 10, not the octal 8; every item of an integer
+  `oneof` is validated at generate time.
+- Generated tests derive no rejected row for a check that a normalizer runs
+  before (`lower oneof=...`, `trim nospace`, ...), since the normalizer may turn
+  the example into an accepted value. Strings repeated across the generated
+  tests of a package are declared as constants inside each test function, so
+  two generated files in one package never collide.
+- An enum catalogue's `Parse` switches over its members instead of ranging
+  over `All()`, and never allocates.
+
 - **Breaking: the generated API is methods only.** The only package-level
   functions are `New` constructors and there are no package-level variables.
   Regenerate, then migrate callers:

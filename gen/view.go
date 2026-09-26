@@ -398,6 +398,6 @@ var reservedReceivers = map[string]struct{}{
 	"slices": {}, "strconv": {}, "strings": {}, "unicode": {}, "utf8": {}, "uuid": {},
 	"validation": {},
 	"data":       {}, "err": {}, "failed": {}, "id": {}, "member": {}, "notification": {}, "null": {},
-	"number": {}, "other": {}, "parsed": {}, "raw": {}, "source": {}, "src": {}, "value": {},
-	"zero": {},
+	"number": {}, "other": {}, "parsed": {}, "raw": {}, "rawLength": {}, "source": {}, "src": {},
+	"text": {}, "value": {}, "whole": {}, "zero": {},
 }

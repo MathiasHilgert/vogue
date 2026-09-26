@@ -8,18 +8,12 @@ import (
 	"github.com/MathiasHilgert/vogue/voguetest"
 )
 
-// The strings below are shared by several rows of the tables in this file.
-const (
-	exampleTortilla              = "Tortilla"
-	exampleRejectsTheEmptyString = "rejects the empty string"
-	exampleRequired              = "required"
-	exampleEUR                   = "EUR"
-	exampleTortillaDePatatas     = "Tortilla de patatas"
-	exampleTimezone              = "timezone"
-	exampleInt                   = "int"
-)
-
-// TestPlaceKind pins the members of PlaceKind and runs the enum suite over them.
+// TestPlaceKind runs the enum suite: the catalogue lists the members the
+// directive declares, in order, parses each of them and nothing else, and
+// round-trips them. The expected list is generated from the same directive, so
+// it proves the catalogue is consistent with the directive, not that the
+// directive is right; pin the members in a hand-written test when a change to
+// them must be deliberate.
 func TestPlaceKind(t *testing.T) {
 	t.Parallel()
 
@@ -38,6 +32,16 @@ func TestPlaceKind(t *testing.T) {
 // TestCountryCode runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestCountryCode(t *testing.T) {
+	const (
+		exampleTortilla                              = "Tortilla"
+		exampleTheBlanksAroundAPastedValueAreDropped = "the blanks around a pasted value are dropped"
+		exampleTortilla2                             = "  Tortilla  "
+		exampleTabsAndNewlinesCountAsWhitespaceToo   = "tabs and newlines count as whitespace too"
+		exampleTortilla3                             = "\tTortilla\n"
+		exampleAnAlreadyCleanValueIsLeftAlone        = "an already clean value is left alone"
+		exampleEUR                                   = "EUR"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[CountryCode, *CountryCode, string]{
@@ -48,26 +52,20 @@ func TestCountryCode(t *testing.T) {
 		ParseRule:  "",
 		Examples:   []string{"AR"},
 		Candidates: []string{exampleTortilla, " "},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:  exampleRejectsTheEmptyString,
-				Input: "",
-				Rules: []string{exampleRequired},
-			},
-		},
+		Rejected:   nil,
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name:  "the blanks around a pasted value are dropped",
-				Input: "  Tortilla  ",
+				Name:  exampleTheBlanksAroundAPastedValueAreDropped,
+				Input: exampleTortilla2,
 				Out:   exampleTortilla,
 			},
 			{
-				Name:  "tabs and newlines count as whitespace too",
-				Input: "\tTortilla\n",
+				Name:  exampleTabsAndNewlinesCountAsWhitespaceToo,
+				Input: exampleTortilla3,
 				Out:   exampleTortilla,
 			},
 			{
-				Name:  "an already clean value is left alone",
+				Name:  exampleAnAlreadyCleanValueIsLeftAlone,
 				Input: exampleTortilla,
 				Out:   exampleTortilla,
 			},
@@ -94,6 +92,11 @@ func TestCountryCode(t *testing.T) {
 // TestPlaceName runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestPlaceName(t *testing.T) {
+	const (
+		exampleTortilla          = "Tortilla"
+		exampleTortillaDePatatas = "Tortilla de patatas"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[PlaceName, *PlaceName, string]{
@@ -104,13 +107,7 @@ func TestPlaceName(t *testing.T) {
 		ParseRule:  "",
 		Examples:   nil,
 		Candidates: []string{exampleTortilla, " ", "a"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:  exampleRejectsTheEmptyString,
-				Input: "",
-				Rules: []string{exampleRequired, "min"},
-			},
-		},
+		Rejected:   nil,
 		Normalized: []voguetest.Normalization[string]{
 			{
 				Name:  "a run of spaces becomes one",
@@ -135,6 +132,15 @@ func TestPlaceName(t *testing.T) {
 // TestTimeZoneID runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestTimeZoneID(t *testing.T) {
+	const (
+		exampleTortilla                              = "Tortilla"
+		exampleTheBlanksAroundAPastedValueAreDropped = "the blanks around a pasted value are dropped"
+		exampleTortilla2                             = "  Tortilla  "
+		exampleTabsAndNewlinesCountAsWhitespaceToo   = "tabs and newlines count as whitespace too"
+		exampleTortilla3                             = "\tTortilla\n"
+		exampleAnAlreadyCleanValueIsLeftAlone        = "an already clean value is left alone"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[TimeZoneID, *TimeZoneID, string]{
@@ -145,36 +151,20 @@ func TestTimeZoneID(t *testing.T) {
 		ParseRule:  "",
 		Examples:   nil,
 		Candidates: []string{exampleTortilla, " ", "America/Argentina/Buenos_Aires", "UTC"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:  exampleRejectsTheEmptyString,
-				Input: "",
-				Rules: []string{exampleRequired, exampleTimezone},
-			},
-			{
-				Name:  "rejects a zone the database does not hold",
-				Input: "Mars/Olympus_Mons",
-				Rules: []string{exampleTimezone},
-			},
-			{
-				Name:  "rejects the process-local zone, which names no place",
-				Input: "Local",
-				Rules: []string{exampleTimezone},
-			},
-		},
+		Rejected:   nil,
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name:  "the blanks around a pasted value are dropped",
-				Input: "  Tortilla  ",
+				Name:  exampleTheBlanksAroundAPastedValueAreDropped,
+				Input: exampleTortilla2,
 				Out:   exampleTortilla,
 			},
 			{
-				Name:  "tabs and newlines count as whitespace too",
-				Input: "\tTortilla\n",
+				Name:  exampleTabsAndNewlinesCountAsWhitespaceToo,
+				Input: exampleTortilla3,
 				Out:   exampleTortilla,
 			},
 			{
-				Name:  "an already clean value is left alone",
+				Name:  exampleAnAlreadyCleanValueIsLeftAlone,
 				Input: exampleTortilla,
 				Out:   exampleTortilla,
 			},
@@ -186,6 +176,8 @@ func TestTimeZoneID(t *testing.T) {
 // TestGeoNamesID runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestGeoNamesID(t *testing.T) {
+	const exampleInt = "int"
+
 	t.Parallel()
 
 	voguetest.Scalar[GeoNamesID, *GeoNamesID, int64]{
@@ -216,6 +208,8 @@ func TestGeoNamesID(t *testing.T) {
 // TestPopulation runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestPopulation(t *testing.T) {
+	const exampleInt = "int"
+
 	t.Parallel()
 
 	voguetest.Scalar[Population, *Population, int64]{
@@ -246,6 +240,8 @@ func TestPopulation(t *testing.T) {
 // TestElevation runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestElevation(t *testing.T) {
+	const exampleInt = "int"
+
 	t.Parallel()
 
 	voguetest.Scalar[Elevation, *Elevation, int64]{

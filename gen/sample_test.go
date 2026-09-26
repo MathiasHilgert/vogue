@@ -201,3 +201,34 @@ func TestTestGenerator_Normalizations(t *testing.T) {
 		assert.Contains(t, test, `Name:  "the blanks are dropped",`)
 	})
 }
+
+func TestTestGenerator_RejectionsAfterANormalizer(t *testing.T) {
+	t.Run("derives no rejected row for a check a normalizer runs before", func(t *testing.T) {
+		// Arrange
+		set := &vogue.RuleSet{}
+		require.NoError(t, set.Add(normalizerOnlyRule(), broadRule()))
+		pkg := parseSource(t, "//vogue:string Code lower required\n", set)
+
+		// Act
+		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Regexp(t, `Rejected:\s+nil,`, string(files[1].Content),
+			"lower rewrites the input before required sees it, so required's examples prove nothing")
+	})
+
+	t.Run("keeps the rows of a check written before the normalizer", func(t *testing.T) {
+		// Arrange
+		set := &vogue.RuleSet{}
+		require.NoError(t, set.Add(normalizerOnlyRule(), broadRule()))
+		pkg := parseSource(t, "//vogue:string Code required lower\n", set)
+
+		// Act
+		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, string(files[1].Content), `Name:  "rejects the empty string",`)
+	})
+}

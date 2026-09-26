@@ -335,9 +335,8 @@ func (TabStatuses) InProgress() TabStatus { return TabStatus{value: "in_progress
 // Closed returns the "closed" member of TabStatus.
 func (TabStatuses) Closed() TabStatus { return TabStatus{value: "closed"} }
 
-// All returns every member in declaration order. Ranging over it is what makes
-// a test exhaustive: a member added to the directive shows up here without the
-// test being touched.
+// All returns every member in declaration order, so code that must handle every
+// member — a test, a lookup table — can range over it instead of listing them.
 func (tabStatuses TabStatuses) All() []TabStatus {
 	return []TabStatus{
 		tabStatuses.Open(),
@@ -347,12 +346,16 @@ func (tabStatuses TabStatuses) All() []TabStatus {
 }
 
 // Parse resolves the wire representation of a member, rejecting anything else
-// as a failure of the "oneof" rule.
+// as a failure of the "oneof" rule. It compares against the members' own
+// values, so no wire string is written twice and nothing is allocated.
 func (tabStatuses TabStatuses) Parse(raw string) (TabStatus, error) {
-	for _, member := range tabStatuses.All() {
-		if member.value == raw {
-			return member, nil
-		}
+	switch raw {
+	case tabStatuses.Open().value:
+		return tabStatuses.Open(), nil
+	case tabStatuses.InProgress().value:
+		return tabStatuses.InProgress(), nil
+	case tabStatuses.Closed().value:
+		return tabStatuses.Closed(), nil
 	}
 
 	var (

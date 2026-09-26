@@ -5160,3 +5160,544 @@ func (adjustment *Adjustment) scanInt64(number int64) error {
 
 	return nil
 }
+
+// LoweredCurrency is a currency code typed in any case.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type LoweredCurrency struct {
+	value string
+	set   bool
+}
+
+// NewLoweredCurrency validates raw and returns the LoweredCurrency it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
+func NewLoweredCurrency(raw string) (LoweredCurrency, error) {
+	var notification validation.Notification
+
+	value := raw
+	value = strings.ToLower(value)
+	if value != "eur" && value != "usd" && value != "gbp" {
+		notification.Reject(
+			"loweredCurrency",
+			"oneof",
+			"eur,usd,gbp",
+			value,
+			"loweredCurrency must be one of: eur,usd,gbp",
+		)
+	}
+
+	if notification.HasErrors() {
+		var zero LoweredCurrency
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := notification
+
+		return zero, &failed
+	}
+
+	return LoweredCurrency{value: value, set: true}, nil
+}
+
+// String returns the validated value.
+func (loweredCurrency LoweredCurrency) String() string { return loweredCurrency.value }
+
+// IsZero reports whether the receiver is the zero LoweredCurrency: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (loweredCurrency LoweredCurrency) IsZero() bool { return !loweredCurrency.set }
+
+// Equal reports whether both value objects hold the same value.
+func (loweredCurrency LoweredCurrency) Equal(other LoweredCurrency) bool {
+	return loweredCurrency.value == other.value && loweredCurrency.set == other.set
+}
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so LoweredCurrency marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func (loweredCurrency LoweredCurrency) MarshalText() ([]byte, error) {
+	return []byte(loweredCurrency.value), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a LoweredCurrency the constructor would have rejected.
+func (loweredCurrency *LoweredCurrency) UnmarshalText(data []byte) error {
+	parsed, err := NewLoweredCurrency(string(data))
+	if err != nil {
+		return err
+	}
+
+	*loweredCurrency = parsed
+
+	return nil
+}
+
+// Value implements driver.Valuer. The zero LoweredCurrency is stored as NULL, which
+// Scan reads back as the zero LoweredCurrency.
+func (loweredCurrency LoweredCurrency) Value() (driver.Value, error) {
+	if !loweredCurrency.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return loweredCurrency.value, nil
+}
+
+// Scan implements sql.Scanner for text columns. It re-runs validation, so a
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
+func (loweredCurrency *LoweredCurrency) Scan(src any) error {
+	switch source := src.(type) {
+	case nil:
+		var zero LoweredCurrency
+
+		*loweredCurrency = zero
+
+		return nil
+	case string:
+		return loweredCurrency.UnmarshalText([]byte(source))
+	case []byte:
+		return loweredCurrency.UnmarshalText(source)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into LoweredCurrency: %w", src, validation.ErrUnsupportedSource)
+	}
+}
+
+// ShoutedSku is a stock code typed in any case.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type ShoutedSku struct {
+	value string
+	set   bool
+}
+
+// NewShoutedSku validates raw and returns the ShoutedSku it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
+func NewShoutedSku(raw string) (ShoutedSku, error) {
+	var notification validation.Notification
+
+	value := raw
+	value = strings.ToUpper(value)
+	if !strings.HasPrefix(value, "SKU-") {
+		notification.Reject(
+			"shoutedSku",
+			"prefix",
+			"SKU-",
+			value,
+			"shoutedSku must start with \"SKU-\"",
+		)
+	}
+
+	if notification.HasErrors() {
+		var zero ShoutedSku
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := notification
+
+		return zero, &failed
+	}
+
+	return ShoutedSku{value: value, set: true}, nil
+}
+
+// String returns the validated value.
+func (shoutedSku ShoutedSku) String() string { return shoutedSku.value }
+
+// IsZero reports whether the receiver is the zero ShoutedSku: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (shoutedSku ShoutedSku) IsZero() bool { return !shoutedSku.set }
+
+// Equal reports whether both value objects hold the same value.
+func (shoutedSku ShoutedSku) Equal(other ShoutedSku) bool {
+	return shoutedSku.value == other.value && shoutedSku.set == other.set
+}
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so ShoutedSku marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func (shoutedSku ShoutedSku) MarshalText() ([]byte, error) { return []byte(shoutedSku.value), nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a ShoutedSku the constructor would have rejected.
+func (shoutedSku *ShoutedSku) UnmarshalText(data []byte) error {
+	parsed, err := NewShoutedSku(string(data))
+	if err != nil {
+		return err
+	}
+
+	*shoutedSku = parsed
+
+	return nil
+}
+
+// Value implements driver.Valuer. The zero ShoutedSku is stored as NULL, which
+// Scan reads back as the zero ShoutedSku.
+func (shoutedSku ShoutedSku) Value() (driver.Value, error) {
+	if !shoutedSku.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return shoutedSku.value, nil
+}
+
+// Scan implements sql.Scanner for text columns. It re-runs validation, so a
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
+func (shoutedSku *ShoutedSku) Scan(src any) error {
+	switch source := src.(type) {
+	case nil:
+		var zero ShoutedSku
+
+		*shoutedSku = zero
+
+		return nil
+	case string:
+		return shoutedSku.UnmarshalText([]byte(source))
+	case []byte:
+		return shoutedSku.UnmarshalText(source)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into ShoutedSku: %w", src, validation.ErrUnsupportedSource)
+	}
+}
+
+// TrimmedSlug is a slug pasted with blanks around it.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type TrimmedSlug struct {
+	value string
+	set   bool
+}
+
+// NewTrimmedSlug validates raw and returns the TrimmedSlug it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
+func NewTrimmedSlug(raw string) (TrimmedSlug, error) {
+	var notification validation.Notification
+
+	value := raw
+	value = strings.TrimSpace(value)
+	if strings.IndexFunc(value, unicode.IsSpace) >= 0 {
+		notification.Reject(
+			"trimmedSlug",
+			"nospace",
+			"",
+			value,
+			"trimmedSlug must not contain spaces",
+		)
+	}
+
+	if notification.HasErrors() {
+		var zero TrimmedSlug
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := notification
+
+		return zero, &failed
+	}
+
+	return TrimmedSlug{value: value, set: true}, nil
+}
+
+// String returns the validated value.
+func (trimmedSlug TrimmedSlug) String() string { return trimmedSlug.value }
+
+// IsZero reports whether the receiver is the zero TrimmedSlug: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (trimmedSlug TrimmedSlug) IsZero() bool { return !trimmedSlug.set }
+
+// Equal reports whether both value objects hold the same value.
+func (trimmedSlug TrimmedSlug) Equal(other TrimmedSlug) bool {
+	return trimmedSlug.value == other.value && trimmedSlug.set == other.set
+}
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so TrimmedSlug marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func (trimmedSlug TrimmedSlug) MarshalText() ([]byte, error) { return []byte(trimmedSlug.value), nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a TrimmedSlug the constructor would have rejected.
+func (trimmedSlug *TrimmedSlug) UnmarshalText(data []byte) error {
+	parsed, err := NewTrimmedSlug(string(data))
+	if err != nil {
+		return err
+	}
+
+	*trimmedSlug = parsed
+
+	return nil
+}
+
+// Value implements driver.Valuer. The zero TrimmedSlug is stored as NULL, which
+// Scan reads back as the zero TrimmedSlug.
+func (trimmedSlug TrimmedSlug) Value() (driver.Value, error) {
+	if !trimmedSlug.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return trimmedSlug.value, nil
+}
+
+// Scan implements sql.Scanner for text columns. It re-runs validation, so a
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
+func (trimmedSlug *TrimmedSlug) Scan(src any) error {
+	switch source := src.(type) {
+	case nil:
+		var zero TrimmedSlug
+
+		*trimmedSlug = zero
+
+		return nil
+	case string:
+		return trimmedSlug.UnmarshalText([]byte(source))
+	case []byte:
+		return trimmedSlug.UnmarshalText(source)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into TrimmedSlug: %w", src, validation.ErrUnsupportedSource)
+	}
+}
+
+// SquishedLine is one line of text pasted with extra blanks.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type SquishedLine struct {
+	value string
+	set   bool
+}
+
+// NewSquishedLine validates raw and returns the SquishedLine it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
+func NewSquishedLine(raw string) (SquishedLine, error) {
+	var notification validation.Notification
+
+	value := raw
+	value = strings.Join(strings.Fields(value), " ")
+	if strings.IndexFunc(value, func(character rune) bool {
+		return !unicode.IsPrint(character)
+	}) >= 0 {
+		notification.Reject(
+			"squishedLine",
+			"printable",
+			"",
+			value,
+			"squishedLine must not contain control characters",
+		)
+	}
+
+	if notification.HasErrors() {
+		var zero SquishedLine
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := notification
+
+		return zero, &failed
+	}
+
+	return SquishedLine{value: value, set: true}, nil
+}
+
+// String returns the validated value.
+func (squishedLine SquishedLine) String() string { return squishedLine.value }
+
+// IsZero reports whether the receiver is the zero SquishedLine: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (squishedLine SquishedLine) IsZero() bool { return !squishedLine.set }
+
+// Equal reports whether both value objects hold the same value.
+func (squishedLine SquishedLine) Equal(other SquishedLine) bool {
+	return squishedLine.value == other.value && squishedLine.set == other.set
+}
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so SquishedLine marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func (squishedLine SquishedLine) MarshalText() ([]byte, error) {
+	return []byte(squishedLine.value), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a SquishedLine the constructor would have rejected.
+func (squishedLine *SquishedLine) UnmarshalText(data []byte) error {
+	parsed, err := NewSquishedLine(string(data))
+	if err != nil {
+		return err
+	}
+
+	*squishedLine = parsed
+
+	return nil
+}
+
+// Value implements driver.Valuer. The zero SquishedLine is stored as NULL, which
+// Scan reads back as the zero SquishedLine.
+func (squishedLine SquishedLine) Value() (driver.Value, error) {
+	if !squishedLine.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return squishedLine.value, nil
+}
+
+// Scan implements sql.Scanner for text columns. It re-runs validation, so a
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
+func (squishedLine *SquishedLine) Scan(src any) error {
+	switch source := src.(type) {
+	case nil:
+		var zero SquishedLine
+
+		*squishedLine = zero
+
+		return nil
+	case string:
+		return squishedLine.UnmarshalText([]byte(source))
+	case []byte:
+		return squishedLine.UnmarshalText(source)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into SquishedLine: %w", src, validation.ErrUnsupportedSource)
+	}
+}
+
+// LoweredFile is a file name typed in any case.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type LoweredFile struct {
+	value string
+	set   bool
+}
+
+// NewLoweredFile validates raw and returns the LoweredFile it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
+func NewLoweredFile(raw string) (LoweredFile, error) {
+	var notification validation.Notification
+
+	value := raw
+	value = strings.ToLower(value)
+	if !strings.HasSuffix(value, ".pdf") {
+		notification.Reject(
+			"loweredFile",
+			"suffix",
+			".pdf",
+			value,
+			"loweredFile must end with \".pdf\"",
+		)
+	}
+
+	if notification.HasErrors() {
+		var zero LoweredFile
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := notification
+
+		return zero, &failed
+	}
+
+	return LoweredFile{value: value, set: true}, nil
+}
+
+// String returns the validated value.
+func (loweredFile LoweredFile) String() string { return loweredFile.value }
+
+// IsZero reports whether the receiver is the zero LoweredFile: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (loweredFile LoweredFile) IsZero() bool { return !loweredFile.set }
+
+// Equal reports whether both value objects hold the same value.
+func (loweredFile LoweredFile) Equal(other LoweredFile) bool {
+	return loweredFile.value == other.value && loweredFile.set == other.set
+}
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so LoweredFile marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func (loweredFile LoweredFile) MarshalText() ([]byte, error) { return []byte(loweredFile.value), nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a LoweredFile the constructor would have rejected.
+func (loweredFile *LoweredFile) UnmarshalText(data []byte) error {
+	parsed, err := NewLoweredFile(string(data))
+	if err != nil {
+		return err
+	}
+
+	*loweredFile = parsed
+
+	return nil
+}
+
+// Value implements driver.Valuer. The zero LoweredFile is stored as NULL, which
+// Scan reads back as the zero LoweredFile.
+func (loweredFile LoweredFile) Value() (driver.Value, error) {
+	if !loweredFile.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return loweredFile.value, nil
+}
+
+// Scan implements sql.Scanner for text columns. It re-runs validation, so a
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
+func (loweredFile *LoweredFile) Scan(src any) error {
+	switch source := src.(type) {
+	case nil:
+		var zero LoweredFile
+
+		*loweredFile = zero
+
+		return nil
+	case string:
+		return loweredFile.UnmarshalText([]byte(source))
+	case []byte:
+		return loweredFile.UnmarshalText(source)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into LoweredFile: %w", src, validation.ErrUnsupportedSource)
+	}
+}

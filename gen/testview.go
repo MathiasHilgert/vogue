@@ -105,7 +105,7 @@ func (g *Generator) testFile(file parse.File) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("gen: formatting the test of %s: %w\n%s", file.Path, err, buf.String())
 	}
-	return hoistRepeatedStrings(formatted)
+	return formatted, nil
 }
 
 // testImports returns the imports the rendered test bodies reference: testing
@@ -218,13 +218,23 @@ type rejection struct {
 }
 
 // rejections collects the rejected examples of a directive in the order the
-// rules are written, merging the rows that share an input.
+// rules are written, merging the rows that share an input. Only the rules no
+// normalizer precedes contribute.
 func rejections(d parse.Directive) []rejection {
 	var rows []rejection
 	index := map[string]int{}
 
+	normalized := false
 	for _, use := range d.Rules {
 		if use.Rule.Normalize {
+			normalized = true
+			continue
+		}
+		// A rule's invalid example is invalid as the rule sees it. A
+		// normalizer written before the rule rewrites the input first — lower
+		// turns "EUR" into an accepted "eur" — so the example says nothing
+		// about what the constructor does with it, and no row is derived.
+		if normalized {
 			continue
 		}
 		for _, example := range use.Rule.Examples.Invalid {

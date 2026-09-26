@@ -61,6 +61,15 @@ func TestGenerator_Files_Kinds(t *testing.T) {
 		assert.Contains(t, got, `func (Channels) DineIn() Channel { return Channel{value: "dine_in"} }`)
 	})
 
+	t.Run("parses a member with a switch over its members, not a loop over a fresh slice", func(t *testing.T) {
+		// Act
+		got := generate(t, "//vogue:enum Channel dine_in,takeaway\n", &vogue.RuleSet{})
+
+		// Assert
+		assert.Contains(t, got, "\tswitch raw {\n\tcase channels.DineIn().value:\n\t\treturn channels.DineIn(), nil\n")
+		assert.NotContains(t, got, "range channels.All()")
+	})
+
 	t.Run("keeps a doc comment that already opens with the type name", func(t *testing.T) {
 		// Arrange
 		body := "// Channel is where an order came from.\n//vogue:enum Channel dine_in,takeaway\n"

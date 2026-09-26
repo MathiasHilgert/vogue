@@ -146,3 +146,22 @@ package catalogue
 
 // Adjustment is a correction to a bill, which is pointless when it is zero.
 //vogue:decimal Adjustment nonzero
+
+// The directives below pair a normalizer with a check whose rejected examples
+// the normalizer would rewrite into accepted ones: a rejected row is only
+// generated for a check no normalizer runs before.
+
+// LoweredCurrency is a currency code typed in any case.
+//vogue:string LoweredCurrency lower oneof=eur,usd,gbp
+
+// ShoutedSku is a stock code typed in any case.
+//vogue:string ShoutedSku upper prefix=SKU-
+
+// TrimmedSlug is a slug pasted with blanks around it.
+//vogue:string TrimmedSlug trim nospace
+
+// SquishedLine is one line of text pasted with extra blanks.
+//vogue:string SquishedLine squish printable
+
+// LoweredFile is a file name typed in any case.
+//vogue:string LoweredFile lower suffix=.pdf

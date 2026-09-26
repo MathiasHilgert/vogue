@@ -92,7 +92,7 @@ func (suite Scalar[Object, Reference, Raw]) Run(t *testing.T) {
 	})
 
 	for _, row := range suite.Rejected {
-		t.Run("rejects "+row.Name, func(t *testing.T) {
+		t.Run(row.Name, func(t *testing.T) {
 			t.Parallel()
 
 			got, err := suite.New(row.Input)

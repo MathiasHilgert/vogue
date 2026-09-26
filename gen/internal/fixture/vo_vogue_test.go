@@ -8,11 +8,6 @@ import (
 	"github.com/MathiasHilgert/vogue/voguetest"
 )
 
-// The strings below are shared by several rows of the tables in this file.
-const (
-	exampleMin = "min"
-)
-
 // TestTitle runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestTitle(t *testing.T) {
@@ -30,12 +25,7 @@ func TestTitle(t *testing.T) {
 			{
 				Name:  "rejects the empty string",
 				Input: "",
-				Rules: []string{"required", exampleMin},
-			},
-			{
-				Name:  "rejects a value carrying a digit",
-				Input: "a1",
-				Rules: []string{"nodigits"},
+				Rules: []string{"required"},
 			},
 		},
 		Normalized: []voguetest.Normalization[string]{
@@ -71,7 +61,7 @@ func TestCovers(t *testing.T) {
 			{
 				Name:  "rejects a table with nobody at it",
 				Input: 0,
-				Rules: []string{exampleMin},
+				Rules: []string{"min"},
 			},
 			{
 				Name:  "rejects one guest more than the house holds",
@@ -84,7 +74,12 @@ func TestCovers(t *testing.T) {
 	}.Run(t)
 }
 
-// TestTabStatus pins the members of TabStatus and runs the enum suite over them.
+// TestTabStatus runs the enum suite: the catalogue lists the members the
+// directive declares, in order, parses each of them and nothing else, and
+// round-trips them. The expected list is generated from the same directive, so
+// it proves the catalogue is consistent with the directive, not that the
+// directive is right; pin the members in a hand-written test when a change to
+// them must be deliberate.
 func TestTabStatus(t *testing.T) {
 	t.Parallel()
 
@@ -166,7 +161,7 @@ func TestWeight(t *testing.T) {
 			{
 				Name:  "rejects a weight below zero",
 				Input: "-0.25",
-				Rules: []string{exampleMin},
+				Rules: []string{"min"},
 			},
 			{
 				Name:  "rejects four decimal places do not",
