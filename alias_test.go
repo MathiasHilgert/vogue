@@ -15,11 +15,11 @@ func TestAliases(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	var n vogue.Notification
-	n.Add(vogue.FieldError{Field: "title", Rule: "required", Message: "title is required"})
+	var notification vogue.Notification
+	notification.Add(vogue.FieldError{Field: "title", Rule: "required", Message: "title is required"})
 
 	// Act
-	err := n.ErrOrNil()
+	err := notification.ErrOrNil()
 
 	// Assert
 	require.ErrorIs(t, err, validation.FieldError{Rule: "required"})

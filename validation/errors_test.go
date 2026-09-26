@@ -33,13 +33,13 @@ func TestFieldError_Error(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
 			// Act
-			got := tc.err.Error()
+			got := testCase.err.Error()
 
 			// Assert
-			assert.Equal(t, tc.want, got)
+			assert.Equal(t, testCase.want, got)
 		})
 	}
 }
@@ -74,13 +74,13 @@ func TestFieldError_Is(t *testing.T) {
 		{name: "foreign error", target: errors.New("boom"), want: false},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
 			// Act
-			got := errors.Is(err, tc.target)
+			got := errors.Is(err, testCase.target)
 
 			// Assert
-			assert.Equal(t, tc.want, got)
+			assert.Equal(t, testCase.want, got)
 		})
 	}
 }

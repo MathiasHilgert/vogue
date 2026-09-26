@@ -27,11 +27,11 @@ func TestErrInvalid(t *testing.T) {
 		t.Parallel()
 
 		// Arrange
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "title", Rule: "required", Message: "title is required"})
+		var notification validation.Notification
+		notification.Add(validation.FieldError{Field: "title", Rule: "required", Message: "title is required"})
 
 		// Act
-		err := fmt.Errorf("creating the tab: %w", n.ErrOrNil())
+		err := fmt.Errorf("creating the tab: %w", notification.ErrOrNil())
 
 		// Assert
 		require.ErrorIs(t, err, validation.ErrInvalid)
@@ -69,17 +69,17 @@ func TestSourceSentinels(t *testing.T) {
 		{name: "a lossy source", sentinel: validation.ErrLossySource},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
 			// Arrange
-			err := fmt.Errorf("vogue: cannot scan float64 into Rate: %w", tc.sentinel)
+			err := fmt.Errorf("vogue: cannot scan float64 into Rate: %w", testCase.sentinel)
 
 			// Act & Assert
-			require.ErrorIs(t, err, tc.sentinel)
+			require.ErrorIs(t, err, testCase.sentinel)
 			require.NotErrorIs(t, err, validation.ErrInvalid, "a driver problem is not a validation failure")
-			assert.NotEmpty(t, tc.sentinel.Error())
+			assert.NotEmpty(t, testCase.sentinel.Error())
 		})
 	}
 }
@@ -88,13 +88,13 @@ func TestNotification_HasErrors(t *testing.T) {
 	t.Parallel()
 
 	// Arrange
-	var n validation.Notification
+	var notification validation.Notification
 
 	// Act
-	before := n.HasErrors()
-	n.Add(validation.FieldError{Field: "title", Rule: "required", Message: "title is required"})
+	before := notification.HasErrors()
+	notification.Add(validation.FieldError{Field: "title", Rule: "required", Message: "title is required"})
 
 	// Assert
 	assert.False(t, before)
-	assert.True(t, n.HasErrors())
+	assert.True(t, notification.HasErrors())
 }

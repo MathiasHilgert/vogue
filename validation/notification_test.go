@@ -12,46 +12,46 @@ import (
 func TestNotification_Add(t *testing.T) {
 	t.Run("zero value is usable", func(t *testing.T) {
 		// Arrange
-		var n validation.Notification
+		var notification validation.Notification
 
 		// Act
-		n.Add(validation.FieldError{Field: "title", Rule: "required", Message: "is required"})
+		notification.Add(validation.FieldError{Field: "title", Rule: "required", Message: "is required"})
 
 		// Assert
-		assert.Equal(t, 1, n.Len())
-		assert.True(t, n.HasErrors())
+		assert.Equal(t, 1, notification.Len())
+		assert.True(t, notification.HasErrors())
 	})
 
 	t.Run("empty notification reports no errors", func(t *testing.T) {
 		// Arrange
-		var n validation.Notification
+		var notification validation.Notification
 
 		// Act
-		got := n.HasErrors()
+		got := notification.HasErrors()
 
 		// Assert
 		assert.False(t, got)
-		assert.Equal(t, 0, n.Len())
-		assert.Empty(t, n.Errors())
+		assert.Equal(t, 0, notification.Len())
+		assert.Empty(t, notification.Errors())
 	})
 }
 
 func TestNotification_Addf(t *testing.T) {
 	// Arrange
-	var n validation.Notification
+	var notification validation.Notification
 
 	// Act
-	n.Addf("title", "min", "3", "ab", "must be at least %d characters", 3)
+	notification.Addf("title", "min", "3", "ab", "must be at least %d characters", 3)
 
 	// Assert
-	require.Equal(t, 1, n.Len())
+	require.Equal(t, 1, notification.Len())
 	assert.Equal(t, validation.FieldError{
 		Field:   "title",
 		Rule:    "min",
 		Param:   "3",
 		Value:   "ab",
 		Message: "must be at least 3 characters",
-	}, n.Errors()[0])
+	}, notification.Errors()[0])
 }
 
 func TestNotification_Merge(t *testing.T) {
@@ -84,32 +84,32 @@ func TestNotification_Merge_nilIsNoop(t *testing.T) {
 
 func TestNotification_Errors(t *testing.T) {
 	// Arrange
-	var n validation.Notification
-	n.Add(validation.FieldError{Field: "title", Rule: "required", Message: "is required"})
+	var notification validation.Notification
+	notification.Add(validation.FieldError{Field: "title", Rule: "required", Message: "is required"})
 
 	// Act
-	got := n.Errors()
+	got := notification.Errors()
 	got[0].Field = "mutated"
 
 	// Assert
-	assert.Equal(t, "title", n.Errors()[0].Field, "Errors must return a defensive copy")
+	assert.Equal(t, "title", notification.Errors()[0].Field, "Errors must return a defensive copy")
 }
 
 func TestNotification_Field(t *testing.T) {
 	// Arrange
-	var n validation.Notification
-	n.Add(validation.FieldError{Field: "title", Rule: "required", Message: "is required"})
-	n.Add(validation.FieldError{Field: "email", Rule: "email", Message: "must be a valid email address"})
-	n.Add(validation.FieldError{Field: "title", Rule: "min", Param: "1", Message: "too short"})
+	var notification validation.Notification
+	notification.Add(validation.FieldError{Field: "title", Rule: "required", Message: "is required"})
+	notification.Add(validation.FieldError{Field: "email", Rule: "email", Message: "must be a valid email address"})
+	notification.Add(validation.FieldError{Field: "title", Rule: "min", Param: "1", Message: "too short"})
 
 	// Act
-	got := n.Field("title")
+	got := notification.Field("title")
 
 	// Assert
 	require.Len(t, got, 2)
 	assert.Equal(t, "required", got[0].Rule)
 	assert.Equal(t, "min", got[1].Rule)
-	assert.Empty(t, n.Field("missing"))
+	assert.Empty(t, notification.Field("missing"))
 }
 
 func TestNotification_Error(t *testing.T) {
@@ -138,19 +138,19 @@ func TestNotification_Error(t *testing.T) {
 		},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
 			// Arrange
-			var n validation.Notification
-			for _, e := range tc.errs {
-				n.Add(e)
+			var notification validation.Notification
+			for _, fieldError := range testCase.errs {
+				notification.Add(fieldError)
 			}
 
 			// Act
-			got := n.Error()
+			got := notification.Error()
 
 			// Assert
-			assert.Equal(t, tc.want, got)
+			assert.Equal(t, testCase.want, got)
 		})
 	}
 }
@@ -158,10 +158,10 @@ func TestNotification_Error(t *testing.T) {
 func TestNotification_ErrOrNil(t *testing.T) {
 	t.Run("empty returns a truly nil error", func(t *testing.T) {
 		// Arrange
-		var n validation.Notification
+		var notification validation.Notification
 
 		// Act
-		err := n.ErrOrNil()
+		err := notification.ErrOrNil()
 
 		// Assert
 		require.NoError(t, err)
@@ -170,24 +170,24 @@ func TestNotification_ErrOrNil(t *testing.T) {
 
 	t.Run("non empty returns the notification", func(t *testing.T) {
 		// Arrange
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: "title", Rule: "required", Message: "is required"})
+		var notification validation.Notification
+		notification.Add(validation.FieldError{Field: "title", Rule: "required", Message: "is required"})
 
 		// Act
-		err := n.ErrOrNil()
+		err := notification.ErrOrNil()
 
 		// Assert
 		require.Error(t, err)
-		assert.Same(t, &n, err)
+		assert.Same(t, &notification, err)
 	})
 }
 
 func TestNotification_Unwrap(t *testing.T) {
 	// Arrange
-	var n validation.Notification
-	n.Add(validation.FieldError{Field: "title", Rule: "min", Param: "1", Message: "too short"})
-	n.Add(validation.FieldError{Field: "email", Rule: "email", Message: "must be a valid email address"})
-	err := n.ErrOrNil()
+	var notification validation.Notification
+	notification.Add(validation.FieldError{Field: "title", Rule: "min", Param: "1", Message: "too short"})
+	notification.Add(validation.FieldError{Field: "email", Rule: "email", Message: "must be a valid email address"})
+	err := notification.ErrOrNil()
 
 	t.Run("errors.Is finds a rule", func(t *testing.T) {
 		// Act & Assert
@@ -208,12 +208,12 @@ func TestNotification_Unwrap(t *testing.T) {
 
 func TestNotification_Add_zeroAllocationsWhenEmpty(t *testing.T) {
 	// Arrange
-	var n validation.Notification
+	var notification validation.Notification
 
 	// Act
 	allocs := testing.AllocsPerRun(100, func() {
-		n.Reset()
-		n.Add(validation.FieldError{Field: "title", Rule: "required", Message: "is required"})
+		notification.Reset()
+		notification.Add(validation.FieldError{Field: "title", Rule: "required", Message: "is required"})
 	})
 
 	// Assert

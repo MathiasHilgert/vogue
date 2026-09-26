@@ -31,44 +31,44 @@ type FieldError struct {
 //	<field>: <message> (rule "<rule>", param "<param>")
 //
 // omitting the param clause when [FieldError.Param] is empty.
-func (e FieldError) Error() string {
-	var b strings.Builder
-	b.Grow(len(e.Field) + len(e.Message) + len(e.Rule) + len(e.Param) + 24)
-	b.WriteString(e.Field)
-	b.WriteString(": ")
-	b.WriteString(e.Message)
-	b.WriteString(` (rule "`)
-	b.WriteString(e.Rule)
-	if e.Param != "" {
-		b.WriteString(`", param "`)
-		b.WriteString(e.Param)
+func (fieldError FieldError) Error() string {
+	var builder strings.Builder
+	builder.Grow(len(fieldError.Field) + len(fieldError.Message) + len(fieldError.Rule) + len(fieldError.Param) + 24)
+	builder.WriteString(fieldError.Field)
+	builder.WriteString(": ")
+	builder.WriteString(fieldError.Message)
+	builder.WriteString(` (rule "`)
+	builder.WriteString(fieldError.Rule)
+	if fieldError.Param != "" {
+		builder.WriteString(`", param "`)
+		builder.WriteString(fieldError.Param)
 	}
-	b.WriteString(`")`)
-	return b.String()
+	builder.WriteString(`")`)
+	return builder.String()
 }
 
 // Code returns the stable machine-readable identifier of the failure,
 // `<field>.<rule>`, suitable for API error payloads and translation keys.
-func (e FieldError) Code() string { return e.Field + "." + e.Rule }
+func (fieldError FieldError) Code() string { return fieldError.Field + "." + fieldError.Rule }
 
 // Is implements errors.Is. Every FieldError matches [ErrInvalid]. Another
 // FieldError matches by example: the target matches when every non-empty field
 // of the target equals the corresponding field of the receiver. This lets
 // callers write errors.Is(err, validation.FieldError{Rule: "min"}) to ask "did
 // the min rule fail?" without restating the whole failure.
-func (e FieldError) Is(target error) bool {
+func (fieldError FieldError) Is(target error) bool {
 	if target == ErrInvalid {
 		return true
 	}
-	t, ok := target.(FieldError)
+	wanted, ok := target.(FieldError)
 	if !ok {
 		return false
 	}
-	return matches(t.Field, e.Field) &&
-		matches(t.Rule, e.Rule) &&
-		matches(t.Param, e.Param) &&
-		matches(t.Value, e.Value) &&
-		matches(t.Message, e.Message)
+	return matches(wanted.Field, fieldError.Field) &&
+		matches(wanted.Rule, fieldError.Rule) &&
+		matches(wanted.Param, fieldError.Param) &&
+		matches(wanted.Value, fieldError.Value) &&
+		matches(wanted.Message, fieldError.Message)
 }
 
 // matches reports whether an errors.Is target component constrains the

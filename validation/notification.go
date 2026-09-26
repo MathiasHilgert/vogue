@@ -17,19 +17,19 @@ import (
 // A Notification is not safe for concurrent use; generated constructors keep
 // one on the stack for the duration of a single call.
 type Notification struct {
-	errs []FieldError
+	failures []FieldError
 }
 
 // Add appends a failure to the notification.
-func (n *Notification) Add(err FieldError) {
-	n.errs = append(n.errs, err)
+func (notification *Notification) Add(err FieldError) {
+	notification.failures = append(notification.failures, err)
 }
 
 // Addf appends a failure whose message is built with fmt.Sprintf. It is the
 // form generated code uses when the message template has already been rendered
 // into a format string at generate time.
-func (n *Notification) Addf(field, rule, param, value, format string, args ...any) {
-	n.errs = append(n.errs, FieldError{
+func (notification *Notification) Addf(field, rule, param, value, format string, args ...any) {
+	notification.failures = append(notification.failures, FieldError{
 		Field:   field,
 		Rule:    rule,
 		Param:   param,
@@ -41,38 +41,38 @@ func (n *Notification) Addf(field, rule, param, value, format string, args ...an
 // Merge appends every failure of other, preserving order. A nil other is a
 // no-op, so callers can merge the result of an optional sub-validation without
 // a guard. The other notification is left untouched.
-func (n *Notification) Merge(other *Notification) {
-	if other == nil || len(other.errs) == 0 {
+func (notification *Notification) Merge(other *Notification) {
+	if other == nil || len(other.failures) == 0 {
 		return
 	}
-	n.errs = append(n.errs, other.errs...)
+	notification.failures = append(notification.failures, other.failures...)
 }
 
 // Len returns the number of collected failures.
-func (n *Notification) Len() int { return len(n.errs) }
+func (notification *Notification) Len() int { return len(notification.failures) }
 
 // HasErrors reports whether any failure was collected.
-func (n *Notification) HasErrors() bool { return len(n.errs) > 0 }
+func (notification *Notification) HasErrors() bool { return len(notification.failures) > 0 }
 
 // Errors returns a copy of the collected failures in the order they were added.
 // The copy keeps callers from mutating the notification through the slice they
 // were handed.
-func (n *Notification) Errors() []FieldError {
-	if len(n.errs) == 0 {
+func (notification *Notification) Errors() []FieldError {
+	if len(notification.failures) == 0 {
 		return nil
 	}
-	out := make([]FieldError, len(n.errs))
-	copy(out, n.errs)
+	out := make([]FieldError, len(notification.failures))
+	copy(out, notification.failures)
 	return out
 }
 
 // Field returns a copy of the failures recorded for the named field, in order.
 // It returns nil when the field has no failure.
-func (n *Notification) Field(name string) []FieldError {
+func (notification *Notification) Field(name string) []FieldError {
 	var out []FieldError
-	for _, e := range n.errs {
-		if e.Field == name {
-			out = append(out, e)
+	for _, fieldError := range notification.failures {
+		if fieldError.Field == name {
+			out = append(out, fieldError)
 		}
 	}
 	return out
@@ -80,7 +80,7 @@ func (n *Notification) Field(name string) []FieldError {
 
 // Reset drops every collected failure while keeping the allocated capacity, so
 // a notification can be reused across iterations without allocating again.
-func (n *Notification) Reset() { n.errs = n.errs[:0] }
+func (notification *Notification) Reset() { notification.failures = notification.failures[:0] }
 
 // Error renders every failure, one per line, behind a count header:
 //
@@ -90,34 +90,34 @@ func (n *Notification) Reset() { n.errs = n.errs[:0] }
 //
 // An empty notification renders "no validation errors"; callers should use
 // [Notification.ErrOrNil] rather than returning an empty notification.
-func (n *Notification) Error() string {
-	switch len(n.errs) {
+func (notification *Notification) Error() string {
+	switch len(notification.failures) {
 	case 0:
 		return "no validation errors"
 	case 1:
-		return "1 validation error:\n  - " + n.errs[0].Error()
+		return "1 validation error:\n  - " + notification.failures[0].Error()
 	}
 
-	var b strings.Builder
-	b.WriteString(strconv.Itoa(len(n.errs)))
-	b.WriteString(" validation errors:")
-	for i := range n.errs {
-		b.WriteString("\n  - ")
-		b.WriteString(n.errs[i].Error())
+	var builder strings.Builder
+	builder.WriteString(strconv.Itoa(len(notification.failures)))
+	builder.WriteString(" validation errors:")
+	for index := range notification.failures {
+		builder.WriteString("\n  - ")
+		builder.WriteString(notification.failures[index].Error())
 	}
-	return b.String()
+	return builder.String()
 }
 
 // Unwrap exposes the collected failures to errors.Is and errors.As, so callers
 // can ask errors.Is(err, validation.FieldError{Rule: "email"}) or extract a
 // [FieldError] from a notification without type-asserting it first.
-func (n *Notification) Unwrap() []error {
-	if len(n.errs) == 0 {
+func (notification *Notification) Unwrap() []error {
+	if len(notification.failures) == 0 {
 		return nil
 	}
-	out := make([]error, len(n.errs))
-	for i := range n.errs {
-		out[i] = n.errs[i]
+	out := make([]error, len(notification.failures))
+	for index := range notification.failures {
+		out[index] = notification.failures[index]
 	}
 	return out
 }
@@ -126,9 +126,9 @@ func (n *Notification) Unwrap() []error {
 // otherwise. It returns an untyped nil interface, never a nil *Notification
 // wrapped in a non-nil error, which is the classic pitfall of returning a
 // concrete pointer type as an error.
-func (n *Notification) ErrOrNil() error {
-	if n == nil || len(n.errs) == 0 {
+func (notification *Notification) ErrOrNil() error {
+	if notification == nil || len(notification.failures) == 0 {
 		return nil
 	}
-	return n
+	return notification
 }
