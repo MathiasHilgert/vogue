@@ -1,4 +1,4 @@
-package fn
+package rulecheck
 
 import (
 	"regexp"
@@ -19,16 +19,16 @@ var patterns sync.Map
 // pattern once to validate the directive, so a pattern reaching this function
 // from generated code always compiles; one that does not is reported as a
 // value that does not match rather than as a panic.
-func Regexp(v, pattern string) bool {
+func Regexp(value, pattern string) bool {
 	if cached, ok := patterns.Load(pattern); ok {
-		re, _ := cached.(*regexp.Regexp)
-		return re != nil && re.MatchString(v)
+		compiled, _ := cached.(*regexp.Regexp)
+		return compiled != nil && compiled.MatchString(value)
 	}
-	re, err := regexp.Compile(pattern)
+	compiled, err := regexp.Compile(pattern)
 	if err != nil {
 		patterns.Store(pattern, (*regexp.Regexp)(nil))
 		return false
 	}
-	patterns.Store(pattern, re)
-	return re.MatchString(v)
+	patterns.Store(pattern, compiled)
+	return compiled.MatchString(value)
 }

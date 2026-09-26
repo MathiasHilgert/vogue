@@ -1,4 +1,4 @@
-{{$n := .Name}}{{$r := .Recv}}{{$c := .Catalogue}}
+{{$n := .Name}}{{$r := .Recv}}{{$c := .Catalogue}}{{$k := .CatalogueRecv}}
 {{range .DocLines}}// {{.}}
 {{end}}//
 // The members are returned by the methods of [{{$c}}]: {{$c}}{}.{{(index .Members 0).Method}}() and
@@ -9,57 +9,63 @@
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 {{- end}}
-type {{$n}} struct{ v string }
+type {{$n}} struct{ value string }
 
 // {{$c}} is the catalogue of the members of {{$n}}. It holds nothing: its zero
 // value is the whole catalogue, so a member is spelled {{$c}}{}.{{(index .Members 0).Method}}().
 type {{$c}} struct{}
 {{range .Members}}
 // {{.Method}} returns the {{q .Value}} member of {{$n}}.
-func ({{$c}}) {{.Method}}() {{$n}} { return {{$n}}{v: {{q .Value}}} }
+func ({{$c}}) {{.Method}}() {{$n}} { return {{$n}}{value: {{q .Value}}} }
 {{end}}
 // All returns every member in declaration order. Ranging over it is what makes
 // a test exhaustive: a member added to the directive shows up here without the
 // test being touched.
-func (k {{$c}}) All() []{{$n}} {
+func ({{$k}} {{$c}}) All() []{{$n}} {
 	return []{{$n}}{
-{{range .Members}}		k.{{.Method}}(),
+{{range .Members}}		{{$k}}.{{.Method}}(),
 {{end}}	}
 }
 
 // Parse resolves the wire representation of a member, rejecting anything else
 // as a failure of the "oneof" rule.
-func (k {{$c}}) Parse(raw string) ({{$n}}, error) {
-	for _, member := range k.All() {
-		if member.v == raw {
+func ({{$k}} {{$c}}) Parse(raw string) ({{$n}}, error) {
+	for _, member := range {{$k}}.All() {
+		if member.value == raw {
 			return member, nil
 		}
 	}
 
 	var (
 		zero {{$n}}
-		n    validation.Notification
+		notification validation.Notification
 	)
 
-	n.Reject({{q .Field}}, "oneof", {{q .MemberParam}}, raw, "{{.Field}} must be one of: {{.MemberList}}")
+	notification.Reject(
+		{{q .Field}},
+		"oneof",
+		{{q .MemberParam}},
+		raw,
+		"{{.Field}} must be one of: {{.MemberList}}",
+	)
 
-	return zero, &n
+	return zero, &notification
 }
 
 // String returns the wire representation of the member, empty for the zero
 // value.
-func ({{$r}} {{$n}}) String() string { return {{$r}}.v }
+func ({{$r}} {{$n}}) String() string { return {{$r}}.value }
 
 // IsZero reports whether the receiver is the zero {{$n}} rather than one of
 // its members.
-func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.v == "" }
+func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.value == "" }
 
 // Equal reports whether both value objects hold the same member.
-func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.v == other.v }
+func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.value == other.value }
 
 // MarshalText implements encoding.TextMarshaler, which is also what
 // encoding/json uses, so a member marshals as its wire string.
-func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.v), nil }
+func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.value), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler through {{$c}}.Parse, so
 // an unknown member is rejected rather than accepted as a new state.
@@ -75,12 +81,12 @@ func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 }
 {{if .SQL}}
 // Value implements driver.Valuer.
-func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.v, nil }
+func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.value, nil }
 
 // Scan implements sql.Scanner for text columns, rejecting a stored value that
 // is no longer a member.
 func ({{$r}} *{{$n}}) Scan(src any) error {
-	switch value := src.(type) {
+	switch source := src.(type) {
 	case nil:
 		var zero {{$n}}
 
@@ -88,9 +94,9 @@ func ({{$r}} *{{$n}}) Scan(src any) error {
 
 		return nil
 	case string:
-		return {{$r}}.UnmarshalText([]byte(value))
+		return {{$r}}.UnmarshalText([]byte(source))
 	case []byte:
-		return {{$r}}.UnmarshalText(value)
+		return {{$r}}.UnmarshalText(source)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into {{$n}}: %w", src, validation.ErrUnsupportedSource)
 	}

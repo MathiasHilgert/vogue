@@ -10,13 +10,13 @@ import (
 )
 
 // Enum is the suite of an enum value object.
-type Enum[V ValueObject[V], P Pointer[V]] struct {
+type Enum[Object ValueObject[Object], Reference Pointer[Object]] struct {
 	// Field is the name the enum reports its failures under.
 	Field string
 	// All is what the catalogue's All returns.
-	All []V
+	All []Object
 	// Parse is the catalogue's Parse.
-	Parse func(string) (V, error)
+	Parse func(string) (Object, error)
 	// Want are the wire values of the members, in declaration order. Pinning
 	// them here is what makes a member added to or removed from the directive
 	// fail the test first.
@@ -24,16 +24,16 @@ type Enum[V ValueObject[V], P Pointer[V]] struct {
 }
 
 // Run runs the suite.
-func (s Enum[V, P]) Run(t *testing.T) {
+func (suite Enum[Object, Reference]) Run(t *testing.T) {
 	t.Helper()
 
 	t.Run("lists every member in declaration order", func(t *testing.T) {
 		t.Parallel()
 
-		require.Len(t, s.All, len(s.Want))
+		require.Len(t, suite.All, len(suite.Want))
 
-		for i, member := range s.All {
-			assert.Equal(t, s.Want[i], member.String())
+		for index, member := range suite.All {
+			assert.Equal(t, suite.Want[index], member.String())
 			assert.False(t, member.IsZero())
 		}
 	})
@@ -41,10 +41,10 @@ func (s Enum[V, P]) Run(t *testing.T) {
 	t.Run("parses every member", func(t *testing.T) {
 		t.Parallel()
 
-		for i, raw := range s.Want {
-			got, err := s.Parse(raw)
+		for index, raw := range suite.Want {
+			got, err := suite.Parse(raw)
 			require.NoError(t, err)
-			assert.True(t, s.All[i].Equal(got))
+			assert.True(t, suite.All[index].Equal(got))
 		}
 	})
 
@@ -52,8 +52,8 @@ func (s Enum[V, P]) Run(t *testing.T) {
 		t.Parallel()
 
 		for _, raw := range []string{"not-a-member", ""} {
-			got, err := s.Parse(raw)
-			require.ErrorIs(t, err, validation.FieldError{Field: s.Field, Rule: "oneof"})
+			got, err := suite.Parse(raw)
+			require.ErrorIs(t, err, validation.FieldError{Field: suite.Field, Rule: "oneof"})
 			assert.True(t, got.IsZero())
 		}
 	})
@@ -61,18 +61,18 @@ func (s Enum[V, P]) Run(t *testing.T) {
 	t.Run("round trips every member", func(t *testing.T) {
 		t.Parallel()
 
-		for _, member := range s.All {
-			roundTrips[V, P](t, member)
+		for _, member := range suite.All {
+			roundTrips[Object, Reference](t, member)
 		}
 	})
 
-	if hasScan[V, P]() {
+	if hasScan[Object, Reference]() {
 		t.Run("scans", func(t *testing.T) {
 			t.Parallel()
 
-			var got V
+			var got Object
 
-			scan, _ := scanner[V, P](&got)
+			scan, _ := scanner[Object, Reference](&got)
 
 			require.NoError(t, scan.Scan(nil))
 			assert.True(t, got.IsZero(), "a NULL column must produce the zero value")
@@ -84,12 +84,12 @@ func (s Enum[V, P]) Run(t *testing.T) {
 	t.Run("keeps the zero value out of the members", func(t *testing.T) {
 		t.Parallel()
 
-		var zero V
+		var zero Object
 
 		assert.True(t, zero.IsZero())
 		assert.Empty(t, zero.String())
 
-		for _, member := range s.All {
+		for _, member := range suite.All {
 			assert.False(t, zero.Equal(member), "the zero value must not equal %s", member.String())
 		}
 	})

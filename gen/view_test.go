@@ -58,7 +58,7 @@ func TestGenerator_Files_Kinds(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, got, `// Channel is the enum value object for the field "channel".`)
-		assert.Contains(t, got, `func (Channels) DineIn() Channel { return Channel{v: "dine_in"} }`)
+		assert.Contains(t, got, `func (Channels) DineIn() Channel { return Channel{value: "dine_in"} }`)
 	})
 
 	t.Run("keeps a doc comment that already opens with the type name", func(t *testing.T) {
@@ -89,8 +89,8 @@ func TestGenerator_Files_Kinds(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, got, `"example.com/checks/v2"`)
-		assert.Contains(t, got, `if !checks.HasPrefix(v, "SKU-") {`)
-		assert.Contains(t, got, `n.Reject("sku", "prefix", "SKU-", v, "sku must start with SKU-")`)
+		assert.Contains(t, got, `if !checks.HasPrefix(value, "SKU-") {`)
+		assert.Regexp(t, `notification\.Reject\(\s*"sku",\s*"prefix",\s*"SKU\-",\s*value,\s*"sku\ must\ start\ with\ SKU\-",\s*\)`, got)
 	})
 
 	t.Run("leaves the SQL codec out when asked to", func(t *testing.T) {

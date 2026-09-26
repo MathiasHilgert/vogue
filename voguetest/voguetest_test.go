@@ -20,20 +20,20 @@ type Code struct{ v string }
 func NewCode(raw string) (Code, error) {
 	var n validation.Notification
 
-	v := strings.TrimSpace(raw)
-	if v == "" {
-		n.Reject("code", "required", "", v, "code is required")
+	value := strings.TrimSpace(raw)
+	if value == "" {
+		n.Reject("code", "required", "", value, "code is required")
 	}
 
-	if len([]rune(v)) != 2 {
-		n.Reject("code", "len", "2", v, "code must be exactly 2 characters long")
+	if len([]rune(value)) != 2 {
+		n.Reject("code", "len", "2", value, "code must be exactly 2 characters long")
 	}
 
 	if n.HasErrors() {
 		return Code{}, &n
 	}
 
-	return Code{v: v}, nil
+	return Code{v: value}, nil
 }
 
 func (c Code) String() string                   { return c.v }
@@ -78,12 +78,12 @@ func TestScalar(t *testing.T) {
 		Examples:   []string{"AR"},
 		Candidates: []string{"Tortilla", "DE"},
 		Rejected: []voguetest.Rejection[string]{
-			{Name: "the empty string", In: "", Rules: []string{"required", "len"}},
-			{Name: "a code too long", In: "ARG", Rules: []string{"len"}},
+			{Name: "the empty string", Input: "", Rules: []string{"required", "len"}},
+			{Name: "a code too long", Input: "ARG", Rules: []string{"len"}},
 		},
 		Normalized: []voguetest.Normalization[string]{
-			{Name: "the blanks around it", In: "  AR ", Out: "AR"},
-			{Name: "a rewrite the directive rejects", In: " Tortilla ", Out: "Tortilla"},
+			{Name: "the blanks around it", Input: "  AR ", Out: "AR"},
+			{Name: "a rewrite the directive rejects", Input: " Tortilla ", Out: "Tortilla"},
 		},
 		RefusesFloat: false,
 	}.Run(t)
@@ -105,7 +105,7 @@ func NewSeqFromInt64(raw int64) (Seq, error) {
 }
 
 func NewSeqFromString(raw string) (Seq, error) {
-	v, err := strconv.ParseInt(raw, 10, 64)
+	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
 		var n validation.Notification
 
@@ -114,20 +114,20 @@ func NewSeqFromString(raw string) (Seq, error) {
 		return Seq{}, &n
 	}
 
-	return NewSeqFromInt64(v)
+	return NewSeqFromInt64(value)
 }
 
-func (s Seq) String() string               { return strconv.FormatInt(s.v, 10) }
-func (s Seq) IsZero() bool                 { return s.v == 0 }
-func (s Seq) Equal(other Seq) bool         { return s.v == other.v }
-func (s Seq) MarshalText() ([]byte, error) { return []byte(s.String()), nil }
-func (s *Seq) UnmarshalText(data []byte) error {
+func (suite Seq) String() string               { return strconv.FormatInt(suite.v, 10) }
+func (suite Seq) IsZero() bool                 { return suite.v == 0 }
+func (suite Seq) Equal(other Seq) bool         { return suite.v == other.v }
+func (suite Seq) MarshalText() ([]byte, error) { return []byte(suite.String()), nil }
+func (suite *Seq) UnmarshalText(data []byte) error {
 	parsed, err := NewSeqFromString(string(data))
 	if err != nil {
 		return err
 	}
 
-	*s = parsed
+	*suite = parsed
 
 	return nil
 }

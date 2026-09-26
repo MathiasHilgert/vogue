@@ -2,6 +2,8 @@ package gen
 
 import (
 	"fmt"
+	"go/token"
+	"go/types"
 	"slices"
 	"strings"
 
@@ -71,10 +73,12 @@ type voView struct {
 	// SQL marks a value object that implements driver.Valuer and sql.Scanner.
 	SQL bool
 	// Catalogue, Members, MemberList and MemberParam describe an enum.
-	Catalogue   string
-	Members     []memberView
-	MemberList  string
-	MemberParam string
+	Catalogue string
+	// CatalogueRecv is the receiver of the catalogue's methods.
+	CatalogueRecv string
+	Members       []memberView
+	MemberList    string
+	MemberParam   string
 	// Mint is the uuid constructor an id value object mints through, and
 	// MintDoc the sentence documenting the strategy.
 	Mint, MintDoc string
@@ -102,14 +106,14 @@ func (g *Generator) newView(d parse.Directive, imports *importSet, decls *declSe
 	var name string
 	switch d.Kind {
 	case vogue.String:
-		v.ValueExpr, name = "v", "string"
+		v.ValueExpr, name = "value", "string"
 
 	case vogue.Int:
-		v.ValueExpr, name = "strconv.FormatInt(v, 10)", "int"
+		v.ValueExpr, name = "strconv.FormatInt(value, 10)", "int"
 		paths = append(paths, importStrconv)
 
 	case vogue.Decimal:
-		v.ValueExpr, name = "v.String()", "decimal"
+		v.ValueExpr, name = "value.String()", "decimal"
 		paths = append(paths, importDecimal)
 
 	case vogue.Enum:
@@ -144,7 +148,7 @@ func (g *Generator) enumView(v *voView, d parse.Directive) {
 		v.Members[i] = memberView{Method: member.Method, Value: member.Value}
 		values[i] = member.Value
 	}
-	v.Catalogue = d.Catalogue
+	v.Catalogue, v.CatalogueRecv = d.Catalogue, receiver(d.Catalogue)
 	v.MemberParam = strings.Join(values, ",")
 	v.MemberList = strings.Join(values, ", ")
 }
@@ -276,10 +280,11 @@ func (g *Generator) code(d parse.Directive, use parse.RuleUse, imports *importSe
 		if rule.Call.Path != g.opts.ImportPath {
 			call = rule.Call.Selector()
 		}
+		working := emitContext(d, use).Var
 		if rule.Param.Presence == vogue.ParamNone || use.Param == "" {
-			return call + "(v)", nil
+			return call + "(" + working + ")", nil
 		}
-		return call + "(v, " + quote(use.Param) + ")", nil
+		return call + "(" + working + ", " + quote(use.Param) + ")", nil
 	}
 	if rule.Emit == nil {
 		return "", fmt.Errorf("gen: %s: rule %q has neither Emit nor Call", use.Pos, rule.Name)
@@ -290,22 +295,29 @@ func (g *Generator) code(d parse.Directive, use parse.RuleUse, imports *importSe
 // emitContext builds the context handed to [vogue.Rule.Emit] and
 // [vogue.Rule.Declare], so both always see exactly the same identifiers.
 func emitContext(d parse.Directive, use parse.RuleUse) vogue.EmitContext {
-	return vogue.EmitContext{Var: "v", Param: use.Param, Field: d.Field, Kind: d.Kind, Ident: ident(use.Rule.Name)}
+	return vogue.EmitContext{Var: "value", Param: use.Param, Field: d.Field, Kind: d.Kind, Ident: ident(use.Rule.Name)}
 }
 
+// spelledOut are the built-in rule names that are abbreviations, and the word
+// the identifier reserved for them spells out instead.
+var spelledOut = map[string]string{"len": "length", "min": "minimum", "max": "maximum"}
+
 // ident returns the identifier reserved for one use of a rule: its name in
-// lower camel case followed by "Param", so `max` reserves maxParam. The suffix
+// lower camel case followed by "Parameter", so `max` reserves maximumParameter and `len` lengthParameter. The suffix
 // keeps the identifier from shadowing a builtin — min, max and len are all
 // rule names — and a directive may use a rule only once, so it is unique
 // within the constructor.
 func ident(rule string) string {
+	if word, ok := spelledOut[rule]; ok {
+		rule = word
+	}
 	parts := strings.Split(rule, "_")
 	for i := 1; i < len(parts); i++ {
 		if parts[i] != "" {
 			parts[i] = strings.ToUpper(parts[i][:1]) + parts[i][1:]
 		}
 	}
-	return strings.Join(parts, "") + "Param"
+	return strings.Join(parts, "") + "Parameter"
 }
 
 // renderMessage renders a rule message at generate time, rejecting a template
@@ -336,7 +348,26 @@ func docLines(d parse.Directive) []string {
 	return lines
 }
 
-// receiver returns the one-letter method receiver of a type name.
+// receiver returns the method receiver of a type name: the name in lower
+// camel case, so CountryCode methods read countryCode.value. A name that
+// would shadow an import, a keyword, a predeclared identifier or a local the
+// templates declare takes a "Value" suffix instead.
 func receiver(name string) string {
-	return strings.ToLower(name[:1])
+	recv := parse.FieldName(name)
+	if _, taken := reservedReceivers[recv]; taken || token.IsKeyword(recv) || types.Universe.Lookup(recv) != nil {
+		return recv + "Value"
+	}
+	return recv
+}
+
+// reservedReceivers are the identifiers a receiver must not take: the
+// packages generated code imports and the locals and parameters its methods
+// declare.
+var reservedReceivers = map[string]struct{}{
+	"decimal": {}, "driver": {}, "fmt": {}, "regexp": {}, "rulecheck": {}, "schema": {},
+	"slices": {}, "strconv": {}, "strings": {}, "unicode": {}, "utf8": {}, "uuid": {},
+	"validation": {},
+	"data":       {}, "err": {}, "failed": {}, "id": {}, "member": {}, "notification": {}, "null": {},
+	"number": {}, "other": {}, "parsed": {}, "raw": {}, "source": {}, "src": {}, "value": {},
+	"zero": {},
 }

@@ -14,7 +14,7 @@ import (
 // the import it depends on cannot drift apart.
 const (
 	importDecimal = "github.com/govalues/decimal"
-	importFn      = "github.com/MathiasHilgert/vogue/rules/fn"
+	importFn      = "github.com/MathiasHilgert/vogue/rules/rulecheck"
 	importSlices  = "slices"
 	importStrings = "strings"
 	importUnicode = "unicode"
@@ -30,13 +30,13 @@ func runeCount(c vogue.EmitContext) string {
 // value satisfies pred, which is the shape every character-class check has.
 // The empty string satisfies it, since it holds no offending rune.
 func noRuneWhere(c vogue.EmitContext, pred string) string {
-	return "strings.IndexFunc(" + c.Var + ", func(r rune) bool { return " + pred + " }) < 0"
+	return "strings.IndexFunc(" + c.Var + ", func(character rune) bool { return " + pred + " }) < 0"
 }
 
 // compare returns the comparison a bound rule emits for the kind being
 // generated: a rune count for a string, the value itself for an integer, and a
 // three-way Cmp for a decimal. The bound is never written inline: it is the
-// constant [boundConst] declares, so the constructor reads `v <= maxParam`
+// constant [boundConst] declares, so the constructor reads `value <= maximumParameter`
 // rather than comparing against a bare number.
 func compare(c vogue.EmitContext, op string) string {
 	switch c.Kind {

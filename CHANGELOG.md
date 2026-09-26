@@ -29,12 +29,18 @@ is zero, a minor release may break the API; every break is listed under
 - `example=<value>` directive tokens declare values the directive accepts; the
   generated test requires every one of them to be accepted and proves the
   round trips with the first.
+- Generated code, the runtime packages and `voguetest` spell identifiers out
+  (`value`, `notification`, receivers named after their type such as
+  `countryCode`, constants such as `lengthParameter`); a test fails on any
+  identifier under three characters in the generated goldens except `ok`,
+  `id`, `ctx`, `err` (and `t` in generated tests). The rule helper package
+  is `rules/rulecheck` (was `rules/fn` in pre-release drafts).
 - Package `voguetest`, the suites generated tests run (`Scalar`, `Enum`,
   `UUID`, `Int64ID`).
 - `vogue.Rule.Local` and `vogue.EmitContext.Ident`: a rule may declare a
   constant inside the constructor, named after the identifier reserved for it,
   instead of writing a magic number or a package-level variable.
-- `fn.Regexp`, which compiles a pattern once and caches it.
+- `rulecheck.Regexp`, which compiles a pattern once and caches it.
 
 ### Changed
 
@@ -64,7 +70,7 @@ is zero, a minor release may break the API; every break is listed under
 - The built-in bounds (`min`, `max`, `len`, `multipleof`, `scale`) declare
   their parameter as a constant inside the constructor; decimal bounds are
   built with `decimal.MustNew` from a coefficient and a scale instead of a
-  package-level `decimal.MustParse` variable. `regex` calls `fn.Regexp`
+  package-level `decimal.MustParse` variable. `regex` calls `rulecheck.Regexp`
   instead of declaring a package-level compiled pattern, and `oneof` on an
   integer is a `slices.Contains` over a literal.
 

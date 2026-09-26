@@ -8,7 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/MathiasHilgert/vogue/rules/fn"
+	"github.com/MathiasHilgert/vogue/rules/rulecheck"
 	"github.com/MathiasHilgert/vogue/validation"
 	"github.com/google/uuid"
 	"github.com/govalues/decimal"
@@ -20,81 +20,87 @@ import (
 // its siblings. The type stays a struct with an unexported field so its zero
 // value is not a member: an uninitialised PlaceKind reports IsZero and can never
 // be mistaken for a meaningful state.
-type PlaceKind struct{ v string }
+type PlaceKind struct{ value string }
 
 // PlaceKinds is the catalogue of the members of PlaceKind. It holds nothing: its zero
 // value is the whole catalogue, so a member is spelled PlaceKinds{}.Country().
 type PlaceKinds struct{}
 
 // Country returns the "country" member of PlaceKind.
-func (PlaceKinds) Country() PlaceKind { return PlaceKind{v: "country"} }
+func (PlaceKinds) Country() PlaceKind { return PlaceKind{value: "country"} }
 
 // Subdivision returns the "subdivision" member of PlaceKind.
-func (PlaceKinds) Subdivision() PlaceKind { return PlaceKind{v: "subdivision"} }
+func (PlaceKinds) Subdivision() PlaceKind { return PlaceKind{value: "subdivision"} }
 
 // City returns the "city" member of PlaceKind.
-func (PlaceKinds) City() PlaceKind { return PlaceKind{v: "city"} }
+func (PlaceKinds) City() PlaceKind { return PlaceKind{value: "city"} }
 
 // All returns every member in declaration order. Ranging over it is what makes
 // a test exhaustive: a member added to the directive shows up here without the
 // test being touched.
-func (k PlaceKinds) All() []PlaceKind {
+func (placeKinds PlaceKinds) All() []PlaceKind {
 	return []PlaceKind{
-		k.Country(),
-		k.Subdivision(),
-		k.City(),
+		placeKinds.Country(),
+		placeKinds.Subdivision(),
+		placeKinds.City(),
 	}
 }
 
 // Parse resolves the wire representation of a member, rejecting anything else
 // as a failure of the "oneof" rule.
-func (k PlaceKinds) Parse(raw string) (PlaceKind, error) {
-	for _, member := range k.All() {
-		if member.v == raw {
+func (placeKinds PlaceKinds) Parse(raw string) (PlaceKind, error) {
+	for _, member := range placeKinds.All() {
+		if member.value == raw {
 			return member, nil
 		}
 	}
 
 	var (
-		zero PlaceKind
-		n    validation.Notification
+		zero         PlaceKind
+		notification validation.Notification
 	)
 
-	n.Reject("placeKind", "oneof", "country,subdivision,city", raw, "placeKind must be one of: country, subdivision, city")
+	notification.Reject(
+		"placeKind",
+		"oneof",
+		"country,subdivision,city",
+		raw,
+		"placeKind must be one of: country, subdivision, city",
+	)
 
-	return zero, &n
+	return zero, &notification
 }
 
 // String returns the wire representation of the member, empty for the zero
 // value.
-func (p PlaceKind) String() string { return p.v }
+func (placeKind PlaceKind) String() string { return placeKind.value }
 
 // IsZero reports whether the receiver is the zero PlaceKind rather than one of
 // its members.
-func (p PlaceKind) IsZero() bool { return p.v == "" }
+func (placeKind PlaceKind) IsZero() bool { return placeKind.value == "" }
 
 // Equal reports whether both value objects hold the same member.
-func (p PlaceKind) Equal(other PlaceKind) bool { return p.v == other.v }
+func (placeKind PlaceKind) Equal(other PlaceKind) bool { return placeKind.value == other.value }
 
 // MarshalText implements encoding.TextMarshaler, which is also what
 // encoding/json uses, so a member marshals as its wire string.
-func (p PlaceKind) MarshalText() ([]byte, error) { return []byte(p.v), nil }
+func (placeKind PlaceKind) MarshalText() ([]byte, error) { return []byte(placeKind.value), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler through PlaceKinds.Parse, so
 // an unknown member is rejected rather than accepted as a new state.
-func (p *PlaceKind) UnmarshalText(data []byte) error {
+func (placeKind *PlaceKind) UnmarshalText(data []byte) error {
 	parsed, err := PlaceKinds{}.Parse(string(data))
 	if err != nil {
 		return err
 	}
 
-	*p = parsed
+	*placeKind = parsed
 
 	return nil
 }
 
 // CountryCode is an ISO 3166-1 alpha-2 country code.
-type CountryCode struct{ v string }
+type CountryCode struct{ value string }
 
 // NewCountryCode validates raw and returns the CountryCode it describes.
 //
@@ -103,67 +109,85 @@ type CountryCode struct{ v string }
 // Every failure is collected, so the returned error describes the whole input
 // rather than the first thing that went wrong.
 func NewCountryCode(raw string) (CountryCode, error) {
-	const lenParam = 2
+	const lengthParameter = 2
 
-	var n validation.Notification
+	var notification validation.Notification
 
-	v := raw
-	v = strings.TrimSpace(v)
-	v = strings.ToUpper(v)
-	if v == "" {
-		n.Reject("countryCode", "required", "", v, "countryCode is required")
+	value := raw
+	value = strings.TrimSpace(value)
+	value = strings.ToUpper(value)
+	if value == "" {
+		notification.Reject(
+			"countryCode",
+			"required",
+			"",
+			value,
+			"countryCode is required",
+		)
 	}
-	if utf8.RuneCountInString(v) != lenParam {
-		n.Reject("countryCode", "len", "2", v, "countryCode must be exactly 2 characters long")
+	if utf8.RuneCountInString(value) != lengthParameter {
+		notification.Reject(
+			"countryCode",
+			"len",
+			"2",
+			value,
+			"countryCode must be exactly 2 characters long",
+		)
 	}
-	if !fn.Regexp(v, "^[A-Z]{2}$") {
-		n.Reject("countryCode", "regex", "^[A-Z]{2}$", v, "countryCode must match the pattern ^[A-Z]{2}$")
+	if !rulecheck.Regexp(value, "^[A-Z]{2}$") {
+		notification.Reject(
+			"countryCode",
+			"regex",
+			"^[A-Z]{2}$",
+			value,
+			"countryCode must match the pattern ^[A-Z]{2}$",
+		)
 	}
 
-	if n.HasErrors() {
+	if notification.HasErrors() {
 		var zero CountryCode
 
 		// Only a rejected input escapes to the heap: the notification is
 		// copied here, so the happy path above allocates nothing.
-		failed := n
+		failed := notification
 
 		return zero, &failed
 	}
 
-	return CountryCode{v: v}, nil
+	return CountryCode{value: value}, nil
 }
 
 // String returns the validated value.
-func (c CountryCode) String() string { return c.v }
+func (countryCode CountryCode) String() string { return countryCode.value }
 
 // IsZero reports whether the receiver is the zero CountryCode, which is the only
 // CountryCode that never passed validation.
-func (c CountryCode) IsZero() bool { return c.v == "" }
+func (countryCode CountryCode) IsZero() bool { return countryCode.value == "" }
 
 // Equal reports whether both value objects hold the same value.
-func (c CountryCode) Equal(other CountryCode) bool { return c.v == other.v }
+func (countryCode CountryCode) Equal(other CountryCode) bool { return countryCode.value == other.value }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so CountryCode marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (c CountryCode) MarshalText() ([]byte, error) { return []byte(c.v), nil }
+func (countryCode CountryCode) MarshalText() ([]byte, error) { return []byte(countryCode.value), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a CountryCode the constructor would have rejected.
-func (c *CountryCode) UnmarshalText(data []byte) error {
+func (countryCode *CountryCode) UnmarshalText(data []byte) error {
 	parsed, err := NewCountryCode(string(data))
 	if err != nil {
 		return err
 	}
 
-	*c = parsed
+	*countryCode = parsed
 
 	return nil
 }
 
 // PlaceName is the display name of a place.
-type PlaceName struct{ v string }
+type PlaceName struct{ value string }
 
 // NewPlaceName validates raw and returns the PlaceName it describes.
 //
@@ -172,62 +196,80 @@ type PlaceName struct{ v string }
 // Every failure is collected, so the returned error describes the whole input
 // rather than the first thing that went wrong.
 func NewPlaceName(raw string) (PlaceName, error) {
-	const minParam = 1
+	const minimumParameter = 1
 
-	const maxParam = 200
+	const maximumParameter = 200
 
-	var n validation.Notification
+	var notification validation.Notification
 
-	v := raw
-	v = strings.Join(strings.Fields(v), " ")
-	if v == "" {
-		n.Reject("placeName", "required", "", v, "placeName is required")
+	value := raw
+	value = strings.Join(strings.Fields(value), " ")
+	if value == "" {
+		notification.Reject(
+			"placeName",
+			"required",
+			"",
+			value,
+			"placeName is required",
+		)
 	}
-	if utf8.RuneCountInString(v) < minParam {
-		n.Reject("placeName", "min", "1", v, "placeName must be at least 1")
+	if utf8.RuneCountInString(value) < minimumParameter {
+		notification.Reject(
+			"placeName",
+			"min",
+			"1",
+			value,
+			"placeName must be at least 1",
+		)
 	}
-	if utf8.RuneCountInString(v) > maxParam {
-		n.Reject("placeName", "max", "200", v, "placeName must be at most 200")
+	if utf8.RuneCountInString(value) > maximumParameter {
+		notification.Reject(
+			"placeName",
+			"max",
+			"200",
+			value,
+			"placeName must be at most 200",
+		)
 	}
 
-	if n.HasErrors() {
+	if notification.HasErrors() {
 		var zero PlaceName
 
 		// Only a rejected input escapes to the heap: the notification is
 		// copied here, so the happy path above allocates nothing.
-		failed := n
+		failed := notification
 
 		return zero, &failed
 	}
 
-	return PlaceName{v: v}, nil
+	return PlaceName{value: value}, nil
 }
 
 // String returns the validated value.
-func (p PlaceName) String() string { return p.v }
+func (placeName PlaceName) String() string { return placeName.value }
 
 // IsZero reports whether the receiver is the zero PlaceName, which is the only
 // PlaceName that never passed validation.
-func (p PlaceName) IsZero() bool { return p.v == "" }
+func (placeName PlaceName) IsZero() bool { return placeName.value == "" }
 
 // Equal reports whether both value objects hold the same value.
-func (p PlaceName) Equal(other PlaceName) bool { return p.v == other.v }
+func (placeName PlaceName) Equal(other PlaceName) bool { return placeName.value == other.value }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so PlaceName marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (p PlaceName) MarshalText() ([]byte, error) { return []byte(p.v), nil }
+func (placeName PlaceName) MarshalText() ([]byte, error) { return []byte(placeName.value), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a PlaceName the constructor would have rejected.
-func (p *PlaceName) UnmarshalText(data []byte) error {
+func (placeName *PlaceName) UnmarshalText(data []byte) error {
 	parsed, err := NewPlaceName(string(data))
 	if err != nil {
 		return err
 	}
 
-	*p = parsed
+	*placeName = parsed
 
 	return nil
 }
@@ -236,79 +278,91 @@ func (p *PlaceName) UnmarshalText(data []byte) error {
 //
 // The value is held as an int64 so it survives every database driver and JSON
 // number without a widening conversion at the boundary.
-type GeoNamesID struct{ v int64 }
+type GeoNamesID struct{ value int64 }
 
 // NewGeoNamesID validates raw and returns the GeoNamesID it describes.
 //
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewGeoNamesID(raw int64) (GeoNamesID, error) {
-	var n validation.Notification
+	var notification validation.Notification
 
-	v := raw
-	if v <= 0 {
-		n.Reject("geoNamesId", "positive", "", strconv.FormatInt(v, 10), "geoNamesId must be greater than zero")
+	value := raw
+	if value <= 0 {
+		notification.Reject(
+			"geoNamesId",
+			"positive",
+			"",
+			strconv.FormatInt(value, 10),
+			"geoNamesId must be greater than zero",
+		)
 	}
 
-	if n.HasErrors() {
+	if notification.HasErrors() {
 		var zero GeoNamesID
 
 		// Only a rejected input escapes to the heap: the notification is
 		// copied here, so the happy path above allocates nothing.
-		failed := n
+		failed := notification
 
 		return zero, &failed
 	}
 
-	return GeoNamesID{v: v}, nil
+	return GeoNamesID{value: value}, nil
 }
 
 // NewGeoNamesIDFromString reads a base-10 representation and validates it. A
 // representation that is not a whole number is reported as a failure of the
 // "int" rule, so a caller handles it like every other rule.
 func NewGeoNamesIDFromString(raw string) (GeoNamesID, error) {
-	v, err := strconv.ParseInt(raw, 10, 64)
+	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
 		var (
-			zero GeoNamesID
-			n    validation.Notification
+			zero         GeoNamesID
+			notification validation.Notification
 		)
 
-		n.Reject("geoNamesId", "int", "", raw, "geoNamesId must be a whole number")
+		notification.Reject(
+			"geoNamesId",
+			"int",
+			"",
+			raw,
+			"geoNamesId must be a whole number",
+		)
 
-		return zero, &n
+		return zero, &notification
 	}
 
-	return NewGeoNamesID(v)
+	return NewGeoNamesID(value)
 }
 
 // Int64 returns the validated value.
-func (g GeoNamesID) Int64() int64 { return g.v }
+func (geoNamesId GeoNamesID) Int64() int64 { return geoNamesId.value }
 
 // String returns the base-10 representation of the value.
-func (g GeoNamesID) String() string { return strconv.FormatInt(g.v, 10) }
+func (geoNamesId GeoNamesID) String() string { return strconv.FormatInt(geoNamesId.value, 10) }
 
 // IsZero reports whether the receiver is the zero GeoNamesID, which is the only
 // GeoNamesID that never passed validation.
-func (g GeoNamesID) IsZero() bool { return g.v == 0 }
+func (geoNamesId GeoNamesID) IsZero() bool { return geoNamesId.value == 0 }
 
 // Equal reports whether both value objects hold the same value.
-func (g GeoNamesID) Equal(other GeoNamesID) bool { return g.v == other.v }
+func (geoNamesId GeoNamesID) Equal(other GeoNamesID) bool { return geoNamesId.value == other.value }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so GeoNamesID round-trips through JSON without
 // a MarshalJSON of its own.
-func (g GeoNamesID) MarshalText() ([]byte, error) { return []byte(g.String()), nil }
+func (geoNamesId GeoNamesID) MarshalText() ([]byte, error) { return []byte(geoNamesId.String()), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a GeoNamesID the constructor would have rejected.
-func (g *GeoNamesID) UnmarshalText(data []byte) error {
+func (geoNamesId *GeoNamesID) UnmarshalText(data []byte) error {
 	parsed, err := NewGeoNamesIDFromString(string(data))
 	if err != nil {
 		return err
 	}
 
-	*g = parsed
+	*geoNamesId = parsed
 
 	return nil
 }
@@ -317,79 +371,91 @@ func (g *GeoNamesID) UnmarshalText(data []byte) error {
 //
 // The value is held as an int64 so it survives every database driver and JSON
 // number without a widening conversion at the boundary.
-type Population struct{ v int64 }
+type Population struct{ value int64 }
 
 // NewPopulation validates raw and returns the Population it describes.
 //
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewPopulation(raw int64) (Population, error) {
-	var n validation.Notification
+	var notification validation.Notification
 
-	v := raw
-	if v < 0 {
-		n.Reject("population", "nonneg", "", strconv.FormatInt(v, 10), "population must not be negative")
+	value := raw
+	if value < 0 {
+		notification.Reject(
+			"population",
+			"nonneg",
+			"",
+			strconv.FormatInt(value, 10),
+			"population must not be negative",
+		)
 	}
 
-	if n.HasErrors() {
+	if notification.HasErrors() {
 		var zero Population
 
 		// Only a rejected input escapes to the heap: the notification is
 		// copied here, so the happy path above allocates nothing.
-		failed := n
+		failed := notification
 
 		return zero, &failed
 	}
 
-	return Population{v: v}, nil
+	return Population{value: value}, nil
 }
 
 // NewPopulationFromString reads a base-10 representation and validates it. A
 // representation that is not a whole number is reported as a failure of the
 // "int" rule, so a caller handles it like every other rule.
 func NewPopulationFromString(raw string) (Population, error) {
-	v, err := strconv.ParseInt(raw, 10, 64)
+	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
 		var (
-			zero Population
-			n    validation.Notification
+			zero         Population
+			notification validation.Notification
 		)
 
-		n.Reject("population", "int", "", raw, "population must be a whole number")
+		notification.Reject(
+			"population",
+			"int",
+			"",
+			raw,
+			"population must be a whole number",
+		)
 
-		return zero, &n
+		return zero, &notification
 	}
 
-	return NewPopulation(v)
+	return NewPopulation(value)
 }
 
 // Int64 returns the validated value.
-func (p Population) Int64() int64 { return p.v }
+func (population Population) Int64() int64 { return population.value }
 
 // String returns the base-10 representation of the value.
-func (p Population) String() string { return strconv.FormatInt(p.v, 10) }
+func (population Population) String() string { return strconv.FormatInt(population.value, 10) }
 
 // IsZero reports whether the receiver is the zero Population, which is the only
 // Population that never passed validation.
-func (p Population) IsZero() bool { return p.v == 0 }
+func (population Population) IsZero() bool { return population.value == 0 }
 
 // Equal reports whether both value objects hold the same value.
-func (p Population) Equal(other Population) bool { return p.v == other.v }
+func (population Population) Equal(other Population) bool { return population.value == other.value }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Population round-trips through JSON without
 // a MarshalJSON of its own.
-func (p Population) MarshalText() ([]byte, error) { return []byte(p.String()), nil }
+func (population Population) MarshalText() ([]byte, error) { return []byte(population.String()), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a Population the constructor would have rejected.
-func (p *Population) UnmarshalText(data []byte) error {
+func (population *Population) UnmarshalText(data []byte) error {
 	parsed, err := NewPopulationFromString(string(data))
 	if err != nil {
 		return err
 	}
 
-	*p = parsed
+	*population = parsed
 
 	return nil
 }
@@ -398,86 +464,104 @@ func (p *Population) UnmarshalText(data []byte) error {
 //
 // The value is held as an int64 so it survives every database driver and JSON
 // number without a widening conversion at the boundary.
-type Elevation struct{ v int64 }
+type Elevation struct{ value int64 }
 
 // NewElevation validates raw and returns the Elevation it describes.
 //
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewElevation(raw int64) (Elevation, error) {
-	const minParam = -500
+	const minimumParameter = -500
 
-	const maxParam = 9000
+	const maximumParameter = 9000
 
-	var n validation.Notification
+	var notification validation.Notification
 
-	v := raw
-	if v < minParam {
-		n.Reject("elevation", "min", "-500", strconv.FormatInt(v, 10), "elevation must be at least -500")
+	value := raw
+	if value < minimumParameter {
+		notification.Reject(
+			"elevation",
+			"min",
+			"-500",
+			strconv.FormatInt(value, 10),
+			"elevation must be at least -500",
+		)
 	}
-	if v > maxParam {
-		n.Reject("elevation", "max", "9000", strconv.FormatInt(v, 10), "elevation must be at most 9000")
+	if value > maximumParameter {
+		notification.Reject(
+			"elevation",
+			"max",
+			"9000",
+			strconv.FormatInt(value, 10),
+			"elevation must be at most 9000",
+		)
 	}
 
-	if n.HasErrors() {
+	if notification.HasErrors() {
 		var zero Elevation
 
 		// Only a rejected input escapes to the heap: the notification is
 		// copied here, so the happy path above allocates nothing.
-		failed := n
+		failed := notification
 
 		return zero, &failed
 	}
 
-	return Elevation{v: v}, nil
+	return Elevation{value: value}, nil
 }
 
 // NewElevationFromString reads a base-10 representation and validates it. A
 // representation that is not a whole number is reported as a failure of the
 // "int" rule, so a caller handles it like every other rule.
 func NewElevationFromString(raw string) (Elevation, error) {
-	v, err := strconv.ParseInt(raw, 10, 64)
+	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
 		var (
-			zero Elevation
-			n    validation.Notification
+			zero         Elevation
+			notification validation.Notification
 		)
 
-		n.Reject("elevation", "int", "", raw, "elevation must be a whole number")
+		notification.Reject(
+			"elevation",
+			"int",
+			"",
+			raw,
+			"elevation must be a whole number",
+		)
 
-		return zero, &n
+		return zero, &notification
 	}
 
-	return NewElevation(v)
+	return NewElevation(value)
 }
 
 // Int64 returns the validated value.
-func (e Elevation) Int64() int64 { return e.v }
+func (elevation Elevation) Int64() int64 { return elevation.value }
 
 // String returns the base-10 representation of the value.
-func (e Elevation) String() string { return strconv.FormatInt(e.v, 10) }
+func (elevation Elevation) String() string { return strconv.FormatInt(elevation.value, 10) }
 
 // IsZero reports whether the receiver is the zero Elevation, which is the only
 // Elevation that never passed validation.
-func (e Elevation) IsZero() bool { return e.v == 0 }
+func (elevation Elevation) IsZero() bool { return elevation.value == 0 }
 
 // Equal reports whether both value objects hold the same value.
-func (e Elevation) Equal(other Elevation) bool { return e.v == other.v }
+func (elevation Elevation) Equal(other Elevation) bool { return elevation.value == other.value }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Elevation round-trips through JSON without
 // a MarshalJSON of its own.
-func (e Elevation) MarshalText() ([]byte, error) { return []byte(e.String()), nil }
+func (elevation Elevation) MarshalText() ([]byte, error) { return []byte(elevation.String()), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a Elevation the constructor would have rejected.
-func (e *Elevation) UnmarshalText(data []byte) error {
+func (elevation *Elevation) UnmarshalText(data []byte) error {
 	parsed, err := NewElevationFromString(string(data))
 	if err != nil {
 		return err
 	}
 
-	*e = parsed
+	*elevation = parsed
 
 	return nil
 }
@@ -487,7 +571,7 @@ func (e *Elevation) UnmarshalText(data []byte) error {
 // The value is held as a decimal.Decimal: an exact base-10 number with no
 // binary float underneath, so a rate, a percentage or a fractional quantity
 // reads back as the value someone typed.
-type Latitude struct{ v decimal.Decimal }
+type Latitude struct{ value decimal.Decimal }
 
 // NewLatitude validates raw and returns the Latitude it describes.
 //
@@ -495,72 +579,96 @@ type Latitude struct{ v decimal.Decimal }
 // collected into one error rather than the first one aborting the rest.
 func NewLatitude(raw decimal.Decimal) (Latitude, error) {
 	const (
-		minParamCoef  = -90
-		minParamScale = 0
+		minimumParameterCoef  = -90
+		minimumParameterScale = 0
 	)
 
 	const (
-		maxParamCoef  = 90
-		maxParamScale = 0
+		maximumParameterCoef  = 90
+		maximumParameterScale = 0
 	)
 
-	const scaleParam = 6
+	const scaleParameter = 6
 
-	var n validation.Notification
+	var notification validation.Notification
 
-	v := raw
-	if v.Cmp(decimal.MustNew(minParamCoef, minParamScale)) < 0 {
-		n.Reject("latitude", "min", "-90", v.String(), "latitude must be at least -90")
+	value := raw
+	if value.Cmp(decimal.MustNew(minimumParameterCoef, minimumParameterScale)) < 0 {
+		notification.Reject(
+			"latitude",
+			"min",
+			"-90",
+			value.String(),
+			"latitude must be at least -90",
+		)
 	}
-	if v.Cmp(decimal.MustNew(maxParamCoef, maxParamScale)) > 0 {
-		n.Reject("latitude", "max", "90", v.String(), "latitude must be at most 90")
+	if value.Cmp(decimal.MustNew(maximumParameterCoef, maximumParameterScale)) > 0 {
+		notification.Reject(
+			"latitude",
+			"max",
+			"90",
+			value.String(),
+			"latitude must be at most 90",
+		)
 	}
-	if v.Scale() > scaleParam {
-		n.Reject("latitude", "scale", "6", v.String(), "latitude must have at most 6 decimal places")
+	if value.Scale() > scaleParameter {
+		notification.Reject(
+			"latitude",
+			"scale",
+			"6",
+			value.String(),
+			"latitude must have at most 6 decimal places",
+		)
 	}
 
-	if n.HasErrors() {
+	if notification.HasErrors() {
 		var zero Latitude
 
 		// Only a rejected input escapes to the heap: the notification is
 		// copied here, so the happy path above allocates nothing.
-		failed := n
+		failed := notification
 
 		return zero, &failed
 	}
 
-	return Latitude{v: v}, nil
+	return Latitude{value: value}, nil
 }
 
 // NewLatitudeFromString reads a decimal representation and validates it. A
 // representation decimal.Parse cannot read is reported as a failure of the
 // "decimal" rule, so a caller handles it the same way as every other rule.
 func NewLatitudeFromString(raw string) (Latitude, error) {
-	v, err := decimal.Parse(raw)
+	value, err := decimal.Parse(raw)
 	if err != nil {
 		var (
-			zero Latitude
-			n    validation.Notification
+			zero         Latitude
+			notification validation.Notification
 		)
 
-		n.Reject("latitude", "decimal", "", raw, "latitude must be an exact decimal number")
+		notification.Reject(
+			"latitude",
+			"decimal",
+			"",
+			raw,
+			"latitude must be an exact decimal number",
+		)
 
-		return zero, &n
+		return zero, &notification
 	}
 
-	return NewLatitude(v)
+	return NewLatitude(value)
 }
 
 // Decimal returns the validated value.
-func (l Latitude) Decimal() decimal.Decimal { return l.v }
+func (latitude Latitude) Decimal() decimal.Decimal { return latitude.value }
 
 // String returns the canonical representation of the value, which keeps the
 // scale it was created with: 1.50 reads back as "1.50", not as "1.5".
-func (l Latitude) String() string { return l.v.String() }
+func (latitude Latitude) String() string { return latitude.value.String() }
 
 // IsZero reports whether the receiver holds zero, which is also the zero
 // Latitude: the only Latitude that never passed validation.
-func (l Latitude) IsZero() bool { return l.v.IsZero() }
+func (latitude Latitude) IsZero() bool { return latitude.value.IsZero() }
 
 // Equal reports whether both value objects hold the same number.
 //
@@ -568,22 +676,22 @@ func (l Latitude) IsZero() bool { return l.v.IsZero() }
 // scale: 1.5 and 1.50 are the same number written at two scales, and == would
 // call them different. Two Latitude values that compare equal here may therefore
 // still marshal to different text, which is what keeps a stored scale intact.
-func (l Latitude) Equal(other Latitude) bool { return l.v.Cmp(other.v) == 0 }
+func (latitude Latitude) Equal(other Latitude) bool { return latitude.value.Cmp(other.value) == 0 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Latitude crosses a JSON boundary as a
 // string and never as a float the receiver would have to round.
-func (l Latitude) MarshalText() ([]byte, error) { return []byte(l.v.String()), nil }
+func (latitude Latitude) MarshalText() ([]byte, error) { return []byte(latitude.value.String()), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a Latitude the constructor would have rejected.
-func (l *Latitude) UnmarshalText(data []byte) error {
+func (latitude *Latitude) UnmarshalText(data []byte) error {
 	parsed, err := NewLatitudeFromString(string(data))
 	if err != nil {
 		return err
 	}
 
-	*l = parsed
+	*latitude = parsed
 
 	return nil
 }
@@ -593,7 +701,7 @@ func (l *Latitude) UnmarshalText(data []byte) error {
 // The value is held as a decimal.Decimal: an exact base-10 number with no
 // binary float underneath, so a rate, a percentage or a fractional quantity
 // reads back as the value someone typed.
-type Longitude struct{ v decimal.Decimal }
+type Longitude struct{ value decimal.Decimal }
 
 // NewLongitude validates raw and returns the Longitude it describes.
 //
@@ -601,72 +709,96 @@ type Longitude struct{ v decimal.Decimal }
 // collected into one error rather than the first one aborting the rest.
 func NewLongitude(raw decimal.Decimal) (Longitude, error) {
 	const (
-		minParamCoef  = -180
-		minParamScale = 0
+		minimumParameterCoef  = -180
+		minimumParameterScale = 0
 	)
 
 	const (
-		maxParamCoef  = 180
-		maxParamScale = 0
+		maximumParameterCoef  = 180
+		maximumParameterScale = 0
 	)
 
-	const scaleParam = 6
+	const scaleParameter = 6
 
-	var n validation.Notification
+	var notification validation.Notification
 
-	v := raw
-	if v.Cmp(decimal.MustNew(minParamCoef, minParamScale)) < 0 {
-		n.Reject("longitude", "min", "-180", v.String(), "longitude must be at least -180")
+	value := raw
+	if value.Cmp(decimal.MustNew(minimumParameterCoef, minimumParameterScale)) < 0 {
+		notification.Reject(
+			"longitude",
+			"min",
+			"-180",
+			value.String(),
+			"longitude must be at least -180",
+		)
 	}
-	if v.Cmp(decimal.MustNew(maxParamCoef, maxParamScale)) > 0 {
-		n.Reject("longitude", "max", "180", v.String(), "longitude must be at most 180")
+	if value.Cmp(decimal.MustNew(maximumParameterCoef, maximumParameterScale)) > 0 {
+		notification.Reject(
+			"longitude",
+			"max",
+			"180",
+			value.String(),
+			"longitude must be at most 180",
+		)
 	}
-	if v.Scale() > scaleParam {
-		n.Reject("longitude", "scale", "6", v.String(), "longitude must have at most 6 decimal places")
+	if value.Scale() > scaleParameter {
+		notification.Reject(
+			"longitude",
+			"scale",
+			"6",
+			value.String(),
+			"longitude must have at most 6 decimal places",
+		)
 	}
 
-	if n.HasErrors() {
+	if notification.HasErrors() {
 		var zero Longitude
 
 		// Only a rejected input escapes to the heap: the notification is
 		// copied here, so the happy path above allocates nothing.
-		failed := n
+		failed := notification
 
 		return zero, &failed
 	}
 
-	return Longitude{v: v}, nil
+	return Longitude{value: value}, nil
 }
 
 // NewLongitudeFromString reads a decimal representation and validates it. A
 // representation decimal.Parse cannot read is reported as a failure of the
 // "decimal" rule, so a caller handles it the same way as every other rule.
 func NewLongitudeFromString(raw string) (Longitude, error) {
-	v, err := decimal.Parse(raw)
+	value, err := decimal.Parse(raw)
 	if err != nil {
 		var (
-			zero Longitude
-			n    validation.Notification
+			zero         Longitude
+			notification validation.Notification
 		)
 
-		n.Reject("longitude", "decimal", "", raw, "longitude must be an exact decimal number")
+		notification.Reject(
+			"longitude",
+			"decimal",
+			"",
+			raw,
+			"longitude must be an exact decimal number",
+		)
 
-		return zero, &n
+		return zero, &notification
 	}
 
-	return NewLongitude(v)
+	return NewLongitude(value)
 }
 
 // Decimal returns the validated value.
-func (l Longitude) Decimal() decimal.Decimal { return l.v }
+func (longitude Longitude) Decimal() decimal.Decimal { return longitude.value }
 
 // String returns the canonical representation of the value, which keeps the
 // scale it was created with: 1.50 reads back as "1.50", not as "1.5".
-func (l Longitude) String() string { return l.v.String() }
+func (longitude Longitude) String() string { return longitude.value.String() }
 
 // IsZero reports whether the receiver holds zero, which is also the zero
 // Longitude: the only Longitude that never passed validation.
-func (l Longitude) IsZero() bool { return l.v.IsZero() }
+func (longitude Longitude) IsZero() bool { return longitude.value.IsZero() }
 
 // Equal reports whether both value objects hold the same number.
 //
@@ -674,22 +806,24 @@ func (l Longitude) IsZero() bool { return l.v.IsZero() }
 // scale: 1.5 and 1.50 are the same number written at two scales, and == would
 // call them different. Two Longitude values that compare equal here may therefore
 // still marshal to different text, which is what keeps a stored scale intact.
-func (l Longitude) Equal(other Longitude) bool { return l.v.Cmp(other.v) == 0 }
+func (longitude Longitude) Equal(other Longitude) bool { return longitude.value.Cmp(other.value) == 0 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Longitude crosses a JSON boundary as a
 // string and never as a float the receiver would have to round.
-func (l Longitude) MarshalText() ([]byte, error) { return []byte(l.v.String()), nil }
+func (longitude Longitude) MarshalText() ([]byte, error) {
+	return []byte(longitude.value.String()), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a Longitude the constructor would have rejected.
-func (l *Longitude) UnmarshalText(data []byte) error {
+func (longitude *Longitude) UnmarshalText(data []byte) error {
 	parsed, err := NewLongitudeFromString(string(data))
 	if err != nil {
 		return err
 	}
 
-	*l = parsed
+	*longitude = parsed
 
 	return nil
 }
@@ -720,13 +854,19 @@ func NewPlaceIDFromString(raw string) (PlaceID, error) {
 	id, err := uuid.Parse(raw)
 	if err != nil {
 		var (
-			zero PlaceID
-			n    validation.Notification
+			zero         PlaceID
+			notification validation.Notification
 		)
 
-		n.Reject("placeId", "uuid", "", raw, "placeId must be a valid UUID")
+		notification.Reject(
+			"placeId",
+			"uuid",
+			"",
+			raw,
+			"placeId must be a valid UUID",
+		)
 
-		return zero, &n
+		return zero, &notification
 	}
 
 	return PlaceID{UUID: id}, nil
@@ -734,17 +874,17 @@ func NewPlaceIDFromString(raw string) (PlaceID, error) {
 
 // IsZero reports whether the receiver is the nil UUID, which is what an
 // unassigned identifier looks like.
-func (p PlaceID) IsZero() bool { return p.UUID == uuid.Nil }
+func (placeId PlaceID) IsZero() bool { return placeId.UUID == uuid.Nil }
 
 // Equal reports whether both identifiers refer to the same entity.
-func (p PlaceID) Equal(other PlaceID) bool { return p.UUID == other.UUID }
+func (placeId PlaceID) Equal(other PlaceID) bool { return placeId.UUID == other.UUID }
 
 // ImportRunID is the sequence number of a GeoNames import run.
 //
 // The value is assigned by the database, so this type has no generator: an
 // identifier is either read from a row or a payload, or built from a number the
 // database already handed out with NewImportRunIDFromInt64.
-type ImportRunID struct{ v int64 }
+type ImportRunID struct{ value int64 }
 
 // NewImportRunIDFromInt64 wraps a database-assigned identifier. Identifiers are
 // positive by definition, so zero and negative values are rejected rather than
@@ -752,61 +892,75 @@ type ImportRunID struct{ v int64 }
 func NewImportRunIDFromInt64(raw int64) (ImportRunID, error) {
 	if raw <= 0 {
 		var (
-			zero ImportRunID
-			n    validation.Notification
+			zero         ImportRunID
+			notification validation.Notification
 		)
 
-		n.Reject("importRunId", "positive", "", strconv.FormatInt(raw, 10), "importRunId must be a positive identifier")
+		notification.Reject(
+			"importRunId",
+			"positive",
+			"",
+			strconv.FormatInt(raw, 10),
+			"importRunId must be a positive identifier",
+		)
 
-		return zero, &n
+		return zero, &notification
 	}
 
-	return ImportRunID{v: raw}, nil
+	return ImportRunID{value: raw}, nil
 }
 
 // NewImportRunIDFromString reads a base-10 representation of an identifier.
 func NewImportRunIDFromString(raw string) (ImportRunID, error) {
-	v, err := strconv.ParseInt(raw, 10, 64)
+	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
 		var (
-			zero ImportRunID
-			n    validation.Notification
+			zero         ImportRunID
+			notification validation.Notification
 		)
 
-		n.Reject("importRunId", "int", "", raw, "importRunId must be a whole number")
+		notification.Reject(
+			"importRunId",
+			"int",
+			"",
+			raw,
+			"importRunId must be a whole number",
+		)
 
-		return zero, &n
+		return zero, &notification
 	}
 
-	return NewImportRunIDFromInt64(v)
+	return NewImportRunIDFromInt64(value)
 }
 
 // Int64 returns the identifier as the database holds it.
-func (i ImportRunID) Int64() int64 { return i.v }
+func (importRunId ImportRunID) Int64() int64 { return importRunId.value }
 
 // String returns the base-10 representation of the identifier.
-func (i ImportRunID) String() string { return strconv.FormatInt(i.v, 10) }
+func (importRunId ImportRunID) String() string { return strconv.FormatInt(importRunId.value, 10) }
 
 // IsZero reports whether the receiver is an unassigned identifier.
-func (i ImportRunID) IsZero() bool { return i.v == 0 }
+func (importRunId ImportRunID) IsZero() bool { return importRunId.value == 0 }
 
 // Equal reports whether both identifiers refer to the same entity.
-func (i ImportRunID) Equal(other ImportRunID) bool { return i.v == other.v }
+func (importRunId ImportRunID) Equal(other ImportRunID) bool { return importRunId.value == other.value }
 
 // MarshalText implements encoding.TextMarshaler, which encoding/json also
 // uses, so the identifier crosses a JSON boundary as a string and keeps its
 // full precision in a JavaScript client.
-func (i ImportRunID) MarshalText() ([]byte, error) { return []byte(i.String()), nil }
+func (importRunId ImportRunID) MarshalText() ([]byte, error) {
+	return []byte(importRunId.String()), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler through
 // NewImportRunIDFromString.
-func (i *ImportRunID) UnmarshalText(data []byte) error {
+func (importRunId *ImportRunID) UnmarshalText(data []byte) error {
 	parsed, err := NewImportRunIDFromString(string(data))
 	if err != nil {
 		return err
 	}
 
-	*i = parsed
+	*importRunId = parsed
 
 	return nil
 }

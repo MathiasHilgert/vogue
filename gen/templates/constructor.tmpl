@@ -6,20 +6,26 @@ value as the text a FieldError carries.
 */}}
 {{define "validate"}}{{range .Locals}}	{{.}}
 
-{{end}}	var n validation.Notification
+{{end}}	var notification validation.Notification
 
-	v := raw
+	value := raw
 {{range .Steps}}{{if .Normalize}}	{{.Code}}
 {{else}}	if {{.Failed}} {
-		n.Reject({{q .Field}}, {{q .Rule}}, {{q .Param}}, {{$.ValueExpr}}, {{q .Message}})
+		notification.Reject(
+			{{q .Field}},
+			{{q .Rule}},
+			{{q .Param}},
+			{{$.ValueExpr}},
+			{{q .Message}},
+		)
 	}
 {{end}}{{end}}
-	if n.HasErrors() {
+	if notification.HasErrors() {
 		var zero {{.Name}}
 
 		// Only a rejected input escapes to the heap: the notification is
 		// copied here, so the happy path above allocates nothing.
-		failed := n
+		failed := notification
 
 		return zero, &failed
 	}

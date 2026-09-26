@@ -15,14 +15,14 @@ func Test{{$n}}(t *testing.T) {
 		Rejected: {{if .Cases}}[]voguetest.Rejection[{{.InType}}]{
 {{range .Cases}}			{
 				Name:  {{q .Name}},
-				In:    {{.Lit}},
+				Input: {{.Lit}},
 				Rules: []string{ {{- range $i, $rule := .Rules}}{{if $i}}, {{end}}{{q $rule}}{{end -}} },
 			},
 {{end}}		}{{else}}nil{{end}},
 		Normalized: {{if .Normalizations}}[]voguetest.Normalization[{{.InType}}]{
 {{range .Normalizations}}			{
 				Name: {{q .Name}},
-				In:   {{.In}},
+				Input: {{.In}},
 				Out:  {{.Out}},
 			},
 {{end}}		}{{else}}nil{{end}},

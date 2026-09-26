@@ -26,12 +26,18 @@ func New{{$n}}FromString(raw string) ({{$n}}, error) {
 	if err != nil {
 		var (
 			zero {{$n}}
-			n    validation.Notification
+			notification validation.Notification
 		)
 
-		n.Reject({{q .Field}}, "uuid", "", raw, "{{.Field}} must be a valid UUID")
+		notification.Reject(
+			{{q .Field}},
+			"uuid",
+			"",
+			raw,
+			"{{.Field}} must be a valid UUID",
+		)
 
-		return zero, &n
+		return zero, &notification
 	}
 
 	return {{$n}}{UUID: id}, nil

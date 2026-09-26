@@ -288,10 +288,10 @@ golangci-lint configuration with nothing excluded for generated files:
 [`gen/testdata/strict/golangci.yml`](gen/testdata/strict/golangci.yml) is a
 real consumer's configuration with `default: all`, and CI lints the golden
 output, the whole rule catalogue and the custom-rule example with it. Bounds
-are named constants local to the constructor (`const maxParam = 120`), a
+are named constants local to the constructor (`const maximumParameter = 120`), a
 failure is recorded with `Notification.Reject`, the negated check is written
 without a `!(...)` wrapper, `Scan` wraps a sentinel error, and a regular
-expression is compiled once by `fn.Regexp` rather than held in a package-level
+expression is compiled once by `rulecheck.Regexp` rather than held in a package-level
 variable. The one directive the output carries is a `//nolint:recvcheck` on a
 type with `Scan`, which needs a pointer receiver while every other method keeps
 a value receiver; with `-sql=false` there is no `Scan` and no directive.

@@ -20,28 +20,28 @@ const (
 )
 
 // UUID is the suite of a uuid identifier.
-type UUID[V ValueObject[V], P Pointer[V]] struct {
+type UUID[Object ValueObject[Object], Reference Pointer[Object]] struct {
 	// Field is the name the identifier reports its failures under.
 	Field string
 	// New mints an identifier.
-	New func() (V, error)
+	New func() (Object, error)
 	// FromString is New<Name>FromString.
-	FromString func(string) (V, error)
+	FromString func(string) (Object, error)
 	// Version is the UUID version New mints.
 	Version uuid.Version
 }
 
 // Run runs the suite.
-func (s UUID[V, P]) Run(t *testing.T) {
+func (suite UUID[Object, Reference]) Run(t *testing.T) {
 	t.Helper()
 
 	t.Run("mints fresh identifiers of the declared version", func(t *testing.T) {
 		t.Parallel()
 
-		first, err := s.New()
+		first, err := suite.New()
 		require.NoError(t, err)
 
-		second, err := s.New()
+		second, err := suite.New()
 		require.NoError(t, err)
 
 		assert.False(t, first.IsZero())
@@ -49,14 +49,14 @@ func (s UUID[V, P]) Run(t *testing.T) {
 
 		versioned, ok := any(first).(interface{ Version() uuid.Version })
 		require.True(t, ok)
-		assert.Equal(t, s.Version, versioned.Version())
+		assert.Equal(t, suite.Version, versioned.Version())
 	})
 
 	t.Run("reads any RFC 4122 UUID", func(t *testing.T) {
 		t.Parallel()
 
 		for _, raw := range []string{sampleUUIDv7, sampleUUIDv4, nilUUID} {
-			got, err := s.FromString(raw)
+			got, err := suite.FromString(raw)
 			require.NoError(t, err)
 			assert.Equal(t, raw, got.String())
 			assert.Equal(t, raw == nilUUID, got.IsZero())
@@ -67,8 +67,8 @@ func (s UUID[V, P]) Run(t *testing.T) {
 		t.Parallel()
 
 		for _, raw := range []string{"not-a-uuid", ""} {
-			got, err := s.FromString(raw)
-			require.ErrorIs(t, err, validation.FieldError{Field: s.Field, Rule: "uuid"})
+			got, err := suite.FromString(raw)
+			require.ErrorIs(t, err, validation.FieldError{Field: suite.Field, Rule: "uuid"})
 			assert.True(t, got.IsZero())
 		}
 	})
@@ -76,17 +76,17 @@ func (s UUID[V, P]) Run(t *testing.T) {
 	t.Run("round trips", func(t *testing.T) {
 		t.Parallel()
 
-		minted, err := s.New()
+		minted, err := suite.New()
 		require.NoError(t, err)
-		roundTrips[V, P](t, minted)
+		roundTrips[Object, Reference](t, minted)
 	})
 
 	t.Run("separates an unassigned identifier from a minted one", func(t *testing.T) {
 		t.Parallel()
 
-		var zero V
+		var zero Object
 
-		minted, err := s.New()
+		minted, err := suite.New()
 		require.NoError(t, err)
 		assert.True(t, zero.IsZero())
 		assert.False(t, zero.Equal(minted))
@@ -94,13 +94,13 @@ func (s UUID[V, P]) Run(t *testing.T) {
 }
 
 // Int64ID is the suite of a database-assigned integer identifier.
-type Int64ID[V ValueObject[V], P Pointer[V]] struct {
+type Int64ID[Object ValueObject[Object], Reference Pointer[Object]] struct {
 	// Field is the name the identifier reports its failures under.
 	Field string
 	// FromInt64 is New<Name>FromInt64.
-	FromInt64 func(int64) (V, error)
+	FromInt64 func(int64) (Object, error)
 	// FromString is New<Name>FromString.
-	FromString func(string) (V, error)
+	FromString func(string) (Object, error)
 }
 
 // largeID is above 2^53, the largest integer a JavaScript number holds
@@ -108,14 +108,14 @@ type Int64ID[V ValueObject[V], P Pointer[V]] struct {
 const largeID = 9007199254740993
 
 // Run runs the suite.
-func (s Int64ID[V, P]) Run(t *testing.T) {
+func (suite Int64ID[Object, Reference]) Run(t *testing.T) {
 	t.Helper()
 
 	t.Run("accepts what a sequence hands out", func(t *testing.T) {
 		t.Parallel()
 
-		for _, in := range []int64{1, largeID} {
-			got, err := s.FromInt64(in)
+		for _, input := range []int64{1, largeID} {
+			got, err := suite.FromInt64(input)
 			require.NoError(t, err)
 			assert.False(t, got.IsZero())
 		}
@@ -124,9 +124,9 @@ func (s Int64ID[V, P]) Run(t *testing.T) {
 	t.Run("rejects what no sequence hands out", func(t *testing.T) {
 		t.Parallel()
 
-		for _, in := range []int64{0, -1} {
-			got, err := s.FromInt64(in)
-			require.ErrorIs(t, err, validation.FieldError{Field: s.Field, Rule: "positive"})
+		for _, input := range []int64{0, -1} {
+			got, err := suite.FromInt64(input)
+			require.ErrorIs(t, err, validation.FieldError{Field: suite.Field, Rule: "positive"})
 			assert.True(t, got.IsZero())
 		}
 	})
@@ -134,36 +134,36 @@ func (s Int64ID[V, P]) Run(t *testing.T) {
 	t.Run("reads its textual representation", func(t *testing.T) {
 		t.Parallel()
 
-		got, err := s.FromString("42")
+		got, err := suite.FromString("42")
 		require.NoError(t, err)
 		assert.Equal(t, "42", got.String())
 
-		_, err = s.FromString("not-a-number")
-		require.ErrorIs(t, err, validation.FieldError{Field: s.Field, Rule: "int"})
+		_, err = suite.FromString("not-a-number")
+		require.ErrorIs(t, err, validation.FieldError{Field: suite.Field, Rule: "int"})
 
-		_, err = s.FromString("0")
-		require.ErrorIs(t, err, validation.FieldError{Field: s.Field, Rule: "positive"})
+		_, err = suite.FromString("0")
+		require.ErrorIs(t, err, validation.FieldError{Field: suite.Field, Rule: "positive"})
 	})
 
 	t.Run("round trips", func(t *testing.T) {
 		t.Parallel()
 
-		want, err := s.FromInt64(largeID)
+		want, err := suite.FromInt64(largeID)
 		require.NoError(t, err)
 
 		text, err := want.MarshalText()
 		require.NoError(t, err)
 		assert.Equal(t, "9007199254740993", string(text))
-		roundTrips[V, P](t, want)
+		roundTrips[Object, Reference](t, want)
 	})
 
-	if hasScan[V, P]() {
+	if hasScan[Object, Reference]() {
 		t.Run("scans", func(t *testing.T) {
 			t.Parallel()
 
-			var got V
+			var got Object
 
-			scan, _ := scanner[V, P](&got)
+			scan, _ := scanner[Object, Reference](&got)
 
 			require.NoError(t, scan.Scan(nil))
 			assert.True(t, got.IsZero(), "a NULL column must produce the unassigned identifier")
@@ -175,9 +175,9 @@ func (s Int64ID[V, P]) Run(t *testing.T) {
 	t.Run("separates an unassigned identifier from an assigned one", func(t *testing.T) {
 		t.Parallel()
 
-		var zero V
+		var zero Object
 
-		assigned, err := s.FromInt64(1)
+		assigned, err := suite.FromInt64(1)
 		require.NoError(t, err)
 		assert.True(t, zero.IsZero())
 		assert.Equal(t, "0", zero.String())

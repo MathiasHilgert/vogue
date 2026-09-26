@@ -48,40 +48,40 @@ func TestCountryCode(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects the empty string",
-				In:    "",
+				Input: "",
 				Rules: []string{"required"},
 			},
 		},
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name: "the blanks around a pasted value are dropped",
-				In:   "  Tortilla  ",
-				Out:  exampleTortilla,
+				Name:  "the blanks around a pasted value are dropped",
+				Input: "  Tortilla  ",
+				Out:   exampleTortilla,
 			},
 			{
-				Name: "tabs and newlines count as whitespace too",
-				In:   "\tTortilla\n",
-				Out:  exampleTortilla,
+				Name:  "tabs and newlines count as whitespace too",
+				Input: "\tTortilla\n",
+				Out:   exampleTortilla,
 			},
 			{
-				Name: "an already clean value is left alone",
-				In:   exampleTortilla,
-				Out:  exampleTortilla,
+				Name:  "an already clean value is left alone",
+				Input: exampleTortilla,
+				Out:   exampleTortilla,
 			},
 			{
-				Name: "a currency code is shouted the way the standard writes it",
-				In:   "eur",
-				Out:  exampleEUR,
+				Name:  "a currency code is shouted the way the standard writes it",
+				Input: "eur",
+				Out:   exampleEUR,
 			},
 			{
-				Name: "digits and punctuation are left untouched",
-				In:   "sku-12",
-				Out:  "SKU-12",
+				Name:  "digits and punctuation are left untouched",
+				Input: "sku-12",
+				Out:   "SKU-12",
 			},
 			{
-				Name: "a value already in upper case is left alone",
-				In:   exampleEUR,
-				Out:  exampleEUR,
+				Name:  "a value already in upper case is left alone",
+				Input: exampleEUR,
+				Out:   exampleEUR,
 			},
 		},
 		RefusesFloat: false,
@@ -104,25 +104,25 @@ func TestPlaceName(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects the empty string",
-				In:    "",
+				Input: "",
 				Rules: []string{"required", "min"},
 			},
 		},
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name: "a run of spaces becomes one",
-				In:   "Tortilla   de  patatas",
-				Out:  exampleTortillaDePatatas,
+				Name:  "a run of spaces becomes one",
+				Input: "Tortilla   de  patatas",
+				Out:   exampleTortillaDePatatas,
 			},
 			{
-				Name: "the ends are trimmed as well",
-				In:   "  Tortilla de patatas  ",
-				Out:  exampleTortillaDePatatas,
+				Name:  "the ends are trimmed as well",
+				Input: "  Tortilla de patatas  ",
+				Out:   exampleTortillaDePatatas,
 			},
 			{
-				Name: "a tab and a newline become plain spaces",
-				In:   "Tortilla\tde\npatatas",
-				Out:  exampleTortillaDePatatas,
+				Name:  "a tab and a newline become plain spaces",
+				Input: "Tortilla\tde\npatatas",
+				Out:   exampleTortillaDePatatas,
 			},
 		},
 		RefusesFloat: false,
@@ -145,12 +145,12 @@ func TestGeoNamesID(t *testing.T) {
 		Rejected: []voguetest.Rejection[int64]{
 			{
 				Name:  "rejects zero, which is not positive",
-				In:    0,
+				Input: 0,
 				Rules: []string{"positive"},
 			},
 			{
 				Name:  "rejects a negative count",
-				In:    -1,
+				Input: -1,
 				Rules: []string{"positive"},
 			},
 		},
@@ -175,12 +175,12 @@ func TestPopulation(t *testing.T) {
 		Rejected: []voguetest.Rejection[int64]{
 			{
 				Name:  "rejects one below the floor",
-				In:    -1,
+				Input: -1,
 				Rules: []string{"nonneg"},
 			},
 			{
 				Name:  "rejects a quantity nobody can have",
-				In:    -100,
+				Input: -100,
 				Rules: []string{"nonneg"},
 			},
 		},

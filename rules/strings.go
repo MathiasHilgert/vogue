@@ -210,7 +210,7 @@ var Regex = vogue.Rule{
 	Kinds: str,
 	Doc: "Requires the value to match the given RE2 pattern. The pattern is compiled at generate " +
 		"time, so a malformed one is a generator error naming the directive rather than a panic in " +
-		"production, and the generated constructor calls fn.Regexp, which compiles it on first use " +
+		"production, and the generated constructor calls rulecheck.Regexp, which compiles it on first use " +
 		"and caches it, so every later call only matches. The match is unanchored: write ^ and $ when the whole " +
 		"value must match. The pattern may not contain a space, because a directive is read as " +
 		"whitespace-separated tokens; use `[[:space:]]` or `\\s` for one. Reach for a named rule " +
@@ -272,7 +272,7 @@ var Alpha = vogue.Rule{
 		"rune; pair it with `required` when the field is mandatory.",
 	Message: "{{.Field}} must contain letters only",
 	Imports: []string{importStrings, importUnicode},
-	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "!unicode.IsLetter(r)") },
+	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "!unicode.IsLetter(character)") },
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{In: "Tortilla", Note: "plain letters"},
@@ -297,7 +297,7 @@ var Alphanum = vogue.Rule{
 	Message: "{{.Field}} must contain letters and digits only",
 	Imports: []string{importStrings, importUnicode},
 	Emit: func(c vogue.EmitContext) string {
-		return noRuneWhere(c, "!unicode.IsLetter(r) && !unicode.IsDigit(r)")
+		return noRuneWhere(c, "!unicode.IsLetter(character) && !unicode.IsDigit(character)")
 	},
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
@@ -323,7 +323,7 @@ var Numeric = vogue.Rule{
 		"one of those. The empty string passes; pair it with `required`.",
 	Message: "{{.Field}} must contain digits only",
 	Imports: []string{importStrings},
-	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "r < '0' || r > '9'") },
+	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "character < '0' || character > '9'") },
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{In: "0042", Note: "a digit string keeping its leading zero"},
@@ -348,7 +348,7 @@ var ASCII = vogue.Rule{
 		"passes; pair it with `required`.",
 	Message: "{{.Field}} must contain ASCII characters only",
 	Imports: []string{importStrings, importUTF8},
-	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "r >= utf8.RuneSelf") },
+	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "character >= utf8.RuneSelf") },
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{In: "tortilla", Note: "plain ASCII letters"},
@@ -373,7 +373,7 @@ var Printable = vogue.Rule{
 		"it with `required`.",
 	Message: "{{.Field}} must not contain control characters",
 	Imports: []string{importStrings, importUnicode},
-	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "!unicode.IsPrint(r)") },
+	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "!unicode.IsPrint(character)") },
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{In: "Tortilla de patatas", Note: "an ordinary line of text"},

@@ -101,7 +101,7 @@ func TestTestGenerator_NormalizerOnlyDirective(t *testing.T) {
 		require.Len(t, files, 2)
 		test := string(files[1].Content)
 		assert.Regexp(t, `Candidates:\s+nil,`, test)
-		assert.Contains(t, test, `Out:  "ábc",`)
+		assert.Contains(t, test, `Out:   "ábc",`)
 	})
 
 	t.Run("imports only testing and the suites", func(t *testing.T) {
@@ -181,7 +181,7 @@ func TestTestGenerator_Normalizations(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, string(files[1].Content), `Out:  "Tortilla",`,
+		assert.Contains(t, string(files[1].Content), `Out:   "Tortilla",`,
 			"the suite asks the constructor whether the rest of the directive accepts the rewrite")
 	})
 
@@ -198,6 +198,6 @@ func TestTestGenerator_Normalizations(t *testing.T) {
 		require.NoError(t, err)
 		test := string(files[1].Content)
 		assert.Contains(t, test, "Normalized: []voguetest.Normalization[string]{")
-		assert.Contains(t, test, `Name: "the blanks are dropped",`)
+		assert.Contains(t, test, `Name:  "the blanks are dropped",`)
 	})
 }

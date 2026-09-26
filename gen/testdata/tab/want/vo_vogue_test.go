@@ -24,25 +24,25 @@ func TestTitle(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects the empty string",
-				In:    "",
+				Input: "",
 				Rules: []string{"required", "min"},
 			},
 			{
 				Name:  "rejects a value carrying a digit",
-				In:    "a1",
+				Input: "a1",
 				Rules: []string{"nodigits"},
 			},
 		},
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name: "trim removes the blanks around a value",
-				In:   "  a  ",
-				Out:  "a",
+				Name:  "trim removes the blanks around a value",
+				Input: "  a  ",
+				Out:   "a",
 			},
 			{
-				Name: "lower folds an upper-case value",
-				In:   "A",
-				Out:  "a",
+				Name:  "lower folds an upper-case value",
+				Input: "A",
+				Out:   "a",
 			},
 		},
 		RefusesFloat: false,
@@ -65,12 +65,12 @@ func TestCovers(t *testing.T) {
 		Rejected: []voguetest.Rejection[int64]{
 			{
 				Name:  "rejects a table with nobody at it",
-				In:    0,
+				Input: 0,
 				Rules: []string{"min"},
 			},
 			{
 				Name:  "rejects one guest more than the house holds",
-				In:    201,
+				Input: 201,
 				Rules: []string{"max"},
 			},
 		},

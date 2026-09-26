@@ -60,8 +60,8 @@
 //     VALID. The generator writes the negation itself, so a rule never has to
 //     know how a failure is recorded:
 //
-//     if utf8.RuneCountInString(v) < minParam {
-//     n.Reject("title", "min", "1", v, "title must be at least 1")
+//     if utf8.RuneCountInString(value) < minimumParameter {
+//     notification.Reject("title", "min", "1", value, "title must be at least 1")
 //     }
 //
 //     The negation is pushed into the expression — a comparison flips its
@@ -74,7 +74,7 @@
 //     rewritten value.
 //
 //   - A rule with [vogue.Rule.Call] set is emitted as a static call,
-//     `pkg.Func(v)` or `pkg.Func(v, "<param>")`, with the same
+//     `pkg.Func(value)` or `pkg.Func(value, "<param>")`, with the same
 //     true-means-valid direction, and its package is added to the imports.
 //
 //   - A rule with [vogue.Rule.Local] set also contributes a declaration at

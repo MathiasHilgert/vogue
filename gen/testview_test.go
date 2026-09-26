@@ -53,7 +53,7 @@ func TestGenerator_Tests(t *testing.T) {
 
 		// Assert
 		assert.Regexp(t, `Field:\s+"title",`, got)
-		assert.Contains(t, got, "Name:  \"rejects a value carrying a digit\",\n\t\t\t\tIn:    \"a1\",\n\t\t\t\tRules: []string{\"nodigits\"},")
+		assert.Contains(t, got, "Name:  \"rejects a value carrying a digit\",\n\t\t\t\tInput: \"a1\",\n\t\t\t\tRules: []string{\"nodigits\"},")
 	})
 
 	t.Run("hands the suite no candidate when the rules declare no example", func(t *testing.T) {
@@ -94,7 +94,7 @@ func TestGenerator_Tests(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, got, "Normalized: []voguetest.Normalization[string]{")
-		assert.Contains(t, got, "In:   \"  a  \",\n\t\t\t\tOut:  \"a\",")
+		assert.Contains(t, got, "Input: \"  a  \",\n\t\t\t\tOut:   \"a\",")
 		assert.Regexp(t, `Get:\s+nil,`, got)
 	})
 
@@ -180,7 +180,7 @@ func TestGenerator_Tests(t *testing.T) {
 		got := generateTest(t, "//vogue:string Title squash any\n", set)
 
 		// Assert
-		assert.Contains(t, got, `Name: "squash rewrites \" a \" to \"a\"",`)
+		assert.Contains(t, got, `Name:  "squash rewrites \" a \" to \"a\"",`)
 	})
 
 	t.Run("drops a rewrite the kind cannot express", func(t *testing.T) {

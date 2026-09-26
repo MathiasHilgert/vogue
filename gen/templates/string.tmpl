@@ -3,7 +3,7 @@
 {{end}}
 {{- if .SQL}}//
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-{{end}}type {{$n}} struct{ v string }
+{{end}}type {{$n}} struct{ value string }
 
 // New{{$n}} validates raw and returns the {{$n}} it describes.
 //
@@ -13,24 +13,24 @@
 // rather than the first thing that went wrong.
 func New{{$n}}(raw string) ({{$n}}, error) {
 {{template "validate" .}}
-	return {{$n}}{v: v}, nil
+	return {{$n}}{value: value}, nil
 }
 
 // String returns the validated value.
-func ({{$r}} {{$n}}) String() string { return {{$r}}.v }
+func ({{$r}} {{$n}}) String() string { return {{$r}}.value }
 
 // IsZero reports whether the receiver is the zero {{$n}}, which is the only
 // {{$n}} that never passed validation.
-func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.v == "" }
+func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.value == "" }
 
 // Equal reports whether both value objects hold the same value.
-func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.v == other.v }
+func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.value == other.value }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so {{$n}} marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.v), nil }
+func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.value), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a {{$n}} the constructor would have rejected.
@@ -46,13 +46,13 @@ func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 }
 {{if .SQL}}
 // Value implements driver.Valuer.
-func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.v, nil }
+func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.value, nil }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
 // instead of an invalid value object.
 func ({{$r}} *{{$n}}) Scan(src any) error {
-	switch value := src.(type) {
+	switch source := src.(type) {
 	case nil:
 		var zero {{$n}}
 
@@ -60,9 +60,9 @@ func ({{$r}} *{{$n}}) Scan(src any) error {
 
 		return nil
 	case string:
-		return {{$r}}.UnmarshalText([]byte(value))
+		return {{$r}}.UnmarshalText([]byte(source))
 	case []byte:
-		return {{$r}}.UnmarshalText(value)
+		return {{$r}}.UnmarshalText(source)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into {{$n}}: %w", src, validation.ErrUnsupportedSource)
 	}

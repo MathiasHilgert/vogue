@@ -30,38 +30,38 @@ import (
 )
 
 // ValueObject is the method set every generated value object has.
-type ValueObject[V any] interface {
+type ValueObject[Object any] interface {
 	String() string
 	IsZero() bool
-	Equal(other V) bool
+	Equal(other Object) bool
 	MarshalText() ([]byte, error)
 }
 
 // Pointer is the pointer to a value object, which is what decodes into it.
-type Pointer[V any] interface {
-	*V
+type Pointer[Object any] interface {
+	*Object
 	encoding.TextUnmarshaler
 }
 
 // valuer returns the SQL codec of v, when it has one.
-func valuer[V any](v V) (driver.Valuer, bool) {
-	valuer, ok := any(v).(driver.Valuer)
+func valuer[Object any](value Object) (driver.Valuer, bool) {
+	valuer, ok := any(value).(driver.Valuer)
 
 	return valuer, ok
 }
 
 // scanner returns p as an sql.Scanner, when it is one.
-func scanner[V any, P Pointer[V]](p P) (sql.Scanner, bool) {
-	scanner, ok := any(p).(sql.Scanner)
+func scanner[Object any, Reference Pointer[Object]](reference Reference) (sql.Scanner, bool) {
+	scanner, ok := any(reference).(sql.Scanner)
 
 	return scanner, ok
 }
 
 // hasScan reports whether the value object was generated with the SQL codec.
-func hasScan[V any, P Pointer[V]]() bool {
-	var probe V
+func hasScan[Object any, Reference Pointer[Object]]() bool {
+	var probe Object
 
-	_, ok := scanner[V, P](&probe)
+	_, ok := scanner[Object, Reference](&probe)
 
 	return ok
 }

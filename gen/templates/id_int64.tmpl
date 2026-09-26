@@ -8,7 +8,7 @@
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 {{- end}}
-type {{$n}} struct{ v int64 }
+type {{$n}} struct{ value int64 }
 
 // New{{$n}}FromInt64 wraps a database-assigned identifier. Identifiers are
 // positive by definition, so zero and negative values are rejected rather than
@@ -17,45 +17,57 @@ func New{{$n}}FromInt64(raw int64) ({{$n}}, error) {
 	if raw <= 0 {
 		var (
 			zero {{$n}}
-			n    validation.Notification
+			notification validation.Notification
 		)
 
-		n.Reject({{q .Field}}, "positive", "", strconv.FormatInt(raw, 10), "{{.Field}} must be a positive identifier")
+		notification.Reject(
+			{{q .Field}},
+			"positive",
+			"",
+			strconv.FormatInt(raw, 10),
+			"{{.Field}} must be a positive identifier",
+		)
 
-		return zero, &n
+		return zero, &notification
 	}
 
-	return {{$n}}{v: raw}, nil
+	return {{$n}}{value: raw}, nil
 }
 
 // New{{$n}}FromString reads a base-10 representation of an identifier.
 func New{{$n}}FromString(raw string) ({{$n}}, error) {
-	v, err := strconv.ParseInt(raw, 10, 64)
+	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
 		var (
 			zero {{$n}}
-			n    validation.Notification
+			notification validation.Notification
 		)
 
-		n.Reject({{q .Field}}, "int", "", raw, "{{.Field}} must be a whole number")
+		notification.Reject(
+			{{q .Field}},
+			"int",
+			"",
+			raw,
+			"{{.Field}} must be a whole number",
+		)
 
-		return zero, &n
+		return zero, &notification
 	}
 
-	return New{{$n}}FromInt64(v)
+	return New{{$n}}FromInt64(value)
 }
 
 // Int64 returns the identifier as the database holds it.
-func ({{$r}} {{$n}}) Int64() int64 { return {{$r}}.v }
+func ({{$r}} {{$n}}) Int64() int64 { return {{$r}}.value }
 
 // String returns the base-10 representation of the identifier.
-func ({{$r}} {{$n}}) String() string { return strconv.FormatInt({{$r}}.v, 10) }
+func ({{$r}} {{$n}}) String() string { return strconv.FormatInt({{$r}}.value, 10) }
 
 // IsZero reports whether the receiver is an unassigned identifier.
-func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.v == 0 }
+func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.value == 0 }
 
 // Equal reports whether both identifiers refer to the same entity.
-func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.v == other.v }
+func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.value == other.value }
 
 // MarshalText implements encoding.TextMarshaler, which encoding/json also
 // uses, so the identifier crosses a JSON boundary as a string and keeps its
@@ -76,11 +88,11 @@ func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 }
 {{if .SQL}}
 // Value implements driver.Valuer.
-func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.v, nil }
+func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.value, nil }
 
 // Scan implements sql.Scanner for integer and text columns.
 func ({{$r}} *{{$n}}) Scan(src any) error {
-	switch value := src.(type) {
+	switch source := src.(type) {
 	case nil:
 		var zero {{$n}}
 
@@ -88,7 +100,7 @@ func ({{$r}} *{{$n}}) Scan(src any) error {
 
 		return nil
 	case int64:
-		parsed, err := New{{$n}}FromInt64(value)
+		parsed, err := New{{$n}}FromInt64(source)
 		if err != nil {
 			return err
 		}
@@ -97,9 +109,9 @@ func ({{$r}} *{{$n}}) Scan(src any) error {
 
 		return nil
 	case string:
-		return {{$r}}.UnmarshalText([]byte(value))
+		return {{$r}}.UnmarshalText([]byte(source))
 	case []byte:
-		return {{$r}}.UnmarshalText(value)
+		return {{$r}}.UnmarshalText(source)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into {{$n}}: %w", src, validation.ErrUnsupportedSource)
 	}

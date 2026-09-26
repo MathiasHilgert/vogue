@@ -326,6 +326,6 @@ func TestRegex(t *testing.T) {
 		// Assert
 		assert.Nil(t, rules.Regex.Declare)
 		require.NotNil(t, rules.Regex.Call)
-		assert.Equal(t, "fn.Regexp", rules.Regex.Call.Selector())
+		assert.Equal(t, "rulecheck.Regexp", rules.Regex.Call.Selector())
 	})
 }

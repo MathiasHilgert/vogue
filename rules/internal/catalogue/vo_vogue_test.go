@@ -52,25 +52,25 @@ func TestTrimmedName(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  exampleRejectsTheEmptyString,
-				In:    "",
+				Input: "",
 				Rules: []string{exampleRequired},
 			},
 		},
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name: "the blanks around a pasted value are dropped",
-				In:   "  Tortilla  ",
-				Out:  exampleTortilla,
+				Name:  "the blanks around a pasted value are dropped",
+				Input: "  Tortilla  ",
+				Out:   exampleTortilla,
 			},
 			{
-				Name: "tabs and newlines count as whitespace too",
-				In:   "\tTortilla\n",
-				Out:  exampleTortilla,
+				Name:  "tabs and newlines count as whitespace too",
+				Input: "\tTortilla\n",
+				Out:   exampleTortilla,
 			},
 			{
-				Name: "an already clean value is left alone",
-				In:   exampleTortilla,
-				Out:  exampleTortilla,
+				Name:  "an already clean value is left alone",
+				Input: exampleTortilla,
+				Out:   exampleTortilla,
 			},
 		},
 		RefusesFloat: false,
@@ -93,25 +93,25 @@ func TestSquishedName(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  exampleRejectsTheEmptyString,
-				In:    "",
+				Input: "",
 				Rules: []string{exampleRequired},
 			},
 		},
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name: "a run of spaces becomes one",
-				In:   "Tortilla   de  patatas",
-				Out:  exampleTortillaDePatatas,
+				Name:  "a run of spaces becomes one",
+				Input: "Tortilla   de  patatas",
+				Out:   exampleTortillaDePatatas,
 			},
 			{
-				Name: "the ends are trimmed as well",
-				In:   "  Tortilla de patatas  ",
-				Out:  exampleTortillaDePatatas,
+				Name:  "the ends are trimmed as well",
+				Input: "  Tortilla de patatas  ",
+				Out:   exampleTortillaDePatatas,
 			},
 			{
-				Name: "a tab and a newline become plain spaces",
-				In:   "Tortilla\tde\npatatas",
-				Out:  exampleTortillaDePatatas,
+				Name:  "a tab and a newline become plain spaces",
+				Input: "Tortilla\tde\npatatas",
+				Out:   exampleTortillaDePatatas,
 			},
 		},
 		RefusesFloat: false,
@@ -134,25 +134,25 @@ func TestLoweredName(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  exampleRejectsTheEmptyString,
-				In:    "",
+				Input: "",
 				Rules: []string{exampleRequired},
 			},
 		},
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name: "an address is folded to one canonical spelling",
-				In:   "Waiter@Example.Com",
-				Out:  exampleWaiterExampleCom,
+				Name:  "an address is folded to one canonical spelling",
+				Input: "Waiter@Example.Com",
+				Out:   exampleWaiterExampleCom,
 			},
 			{
-				Name: "an accented capital folds like any other letter",
-				In:   "ÁRBOL",
-				Out:  "árbol",
+				Name:  "an accented capital folds like any other letter",
+				Input: "ÁRBOL",
+				Out:   "árbol",
 			},
 			{
-				Name: "a value already in lower case is left alone",
-				In:   exampleAlready,
-				Out:  exampleAlready,
+				Name:  "a value already in lower case is left alone",
+				Input: exampleAlready,
+				Out:   exampleAlready,
 			},
 		},
 		RefusesFloat: false,
@@ -175,25 +175,25 @@ func TestUpperedName(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  exampleRejectsTheEmptyString,
-				In:    "",
+				Input: "",
 				Rules: []string{exampleRequired},
 			},
 		},
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name: "a currency code is shouted the way the standard writes it",
-				In:   exampleEur,
-				Out:  exampleEUR,
+				Name:  "a currency code is shouted the way the standard writes it",
+				Input: exampleEur,
+				Out:   exampleEUR,
 			},
 			{
-				Name: "digits and punctuation are left untouched",
-				In:   "sku-12",
-				Out:  "SKU-12",
+				Name:  "digits and punctuation are left untouched",
+				Input: "sku-12",
+				Out:   "SKU-12",
 			},
 			{
-				Name: "a value already in upper case is left alone",
-				In:   exampleEUR,
-				Out:  exampleEUR,
+				Name:  "a value already in upper case is left alone",
+				Input: exampleEUR,
+				Out:   exampleEUR,
 			},
 		},
 		RefusesFloat: false,
@@ -216,19 +216,19 @@ func TestTrimmedOnly(t *testing.T) {
 		Rejected:   nil,
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name: "the blanks around a pasted value are dropped",
-				In:   "  Tortilla  ",
-				Out:  exampleTortilla,
+				Name:  "the blanks around a pasted value are dropped",
+				Input: "  Tortilla  ",
+				Out:   exampleTortilla,
 			},
 			{
-				Name: "tabs and newlines count as whitespace too",
-				In:   "\tTortilla\n",
-				Out:  exampleTortilla,
+				Name:  "tabs and newlines count as whitespace too",
+				Input: "\tTortilla\n",
+				Out:   exampleTortilla,
 			},
 			{
-				Name: "an already clean value is left alone",
-				In:   exampleTortilla,
-				Out:  exampleTortilla,
+				Name:  "an already clean value is left alone",
+				Input: exampleTortilla,
+				Out:   exampleTortilla,
 			},
 		},
 		RefusesFloat: false,
@@ -251,19 +251,19 @@ func TestSquishedOnly(t *testing.T) {
 		Rejected:   nil,
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name: "a run of spaces becomes one",
-				In:   "Tortilla   de  patatas",
-				Out:  exampleTortillaDePatatas,
+				Name:  "a run of spaces becomes one",
+				Input: "Tortilla   de  patatas",
+				Out:   exampleTortillaDePatatas,
 			},
 			{
-				Name: "the ends are trimmed as well",
-				In:   "  Tortilla de patatas  ",
-				Out:  exampleTortillaDePatatas,
+				Name:  "the ends are trimmed as well",
+				Input: "  Tortilla de patatas  ",
+				Out:   exampleTortillaDePatatas,
 			},
 			{
-				Name: "a tab and a newline become plain spaces",
-				In:   "Tortilla\tde\npatatas",
-				Out:  exampleTortillaDePatatas,
+				Name:  "a tab and a newline become plain spaces",
+				Input: "Tortilla\tde\npatatas",
+				Out:   exampleTortillaDePatatas,
 			},
 		},
 		RefusesFloat: false,
@@ -286,19 +286,19 @@ func TestLoweredOnly(t *testing.T) {
 		Rejected:   nil,
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name: "an address is folded to one canonical spelling",
-				In:   "Waiter@Example.Com",
-				Out:  exampleWaiterExampleCom,
+				Name:  "an address is folded to one canonical spelling",
+				Input: "Waiter@Example.Com",
+				Out:   exampleWaiterExampleCom,
 			},
 			{
-				Name: "an accented capital folds like any other letter",
-				In:   "ÁRBOL",
-				Out:  "árbol",
+				Name:  "an accented capital folds like any other letter",
+				Input: "ÁRBOL",
+				Out:   "árbol",
 			},
 			{
-				Name: "a value already in lower case is left alone",
-				In:   exampleAlready,
-				Out:  exampleAlready,
+				Name:  "a value already in lower case is left alone",
+				Input: exampleAlready,
+				Out:   exampleAlready,
 			},
 		},
 		RefusesFloat: false,
@@ -321,19 +321,19 @@ func TestUpperedOnly(t *testing.T) {
 		Rejected:   nil,
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name: "a currency code is shouted the way the standard writes it",
-				In:   exampleEur,
-				Out:  exampleEUR,
+				Name:  "a currency code is shouted the way the standard writes it",
+				Input: exampleEur,
+				Out:   exampleEUR,
 			},
 			{
-				Name: "digits and punctuation are left untouched",
-				In:   "sku-12",
-				Out:  "SKU-12",
+				Name:  "digits and punctuation are left untouched",
+				Input: "sku-12",
+				Out:   "SKU-12",
 			},
 			{
-				Name: "a value already in upper case is left alone",
-				In:   exampleEUR,
-				Out:  exampleEUR,
+				Name:  "a value already in upper case is left alone",
+				Input: exampleEUR,
+				Out:   exampleEUR,
 			},
 		},
 		RefusesFloat: false,
@@ -356,7 +356,7 @@ func TestRequiredName(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  exampleRejectsTheEmptyString,
-				In:    "",
+				Input: "",
 				Rules: []string{exampleRequired},
 			},
 		},
@@ -381,7 +381,7 @@ func TestShortName(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects the empty string is shorter than one rune",
-				In:    "",
+				Input: "",
 				Rules: []string{exampleMin},
 			},
 		},
@@ -406,7 +406,7 @@ func TestLongerName(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects two runes fall short of three",
-				In:    "ab",
+				Input: "ab",
 				Rules: []string{exampleMin},
 			},
 		},
@@ -431,12 +431,12 @@ func TestBoundedName(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects one rune more than the bound holds",
-				In:    "abcde",
+				Input: "abcde",
 				Rules: []string{exampleMax},
 			},
 			{
 				Name:  "rejects five accented runes are five, not ten",
-				In:    "añóra",
+				Input: "añóra",
 				Rules: []string{exampleMax},
 			},
 		},
@@ -461,17 +461,17 @@ func TestCurrencyCode(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects a code one character short",
-				In:    "EU",
+				Input: "EU",
 				Rules: []string{exampleLen},
 			},
 			{
 				Name:  "rejects a code one character long",
-				In:    "EURO",
+				Input: "EURO",
 				Rules: []string{exampleLen},
 			},
 			{
 				Name:  "rejects the empty string, which has no characters at all",
-				In:    "",
+				Input: "",
 				Rules: []string{exampleLen},
 			},
 		},
@@ -496,17 +496,17 @@ func TestEmailAddress(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects a local part with no domain",
-				In:    "waiter",
+				Input: "waiter",
 				Rules: []string{exampleEmail},
 			},
 			{
 				Name:  "rejects a display name, which a stored address must not carry",
-				In:    "Waiter <a@b.test>",
+				Input: "Waiter <a@b.test>",
 				Rules: []string{exampleEmail},
 			},
 			{
 				Name:  exampleRejectsTheEmptyString,
-				In:    "",
+				Input: "",
 				Rules: []string{exampleEmail},
 			},
 		},
@@ -531,17 +531,17 @@ func TestMenuLink(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects a bare host with no scheme",
-				In:    "example.com",
+				Input: "example.com",
 				Rules: []string{exampleUrl},
 			},
 			{
 				Name:  "rejects a scheme that is not http or https",
-				In:    "ftp://example.com",
+				Input: "ftp://example.com",
 				Rules: []string{exampleUrl},
 			},
 			{
 				Name:  exampleRejectsTheEmptyString,
-				In:    "",
+				Input: "",
 				Rules: []string{exampleUrl},
 			},
 		},
@@ -566,17 +566,17 @@ func TestExternalRef(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects the undashed form, which stored ids never use",
-				In:    "9b2b4f521c2d4e5a9f3b6d7c8e9f0a1b",
+				Input: "9b2b4f521c2d4e5a9f3b6d7c8e9f0a1b",
 				Rules: []string{exampleUuid},
 			},
 			{
 				Name:  "rejects a value that is not hexadecimal at all",
-				In:    "not-a-uuid",
+				Input: "not-a-uuid",
 				Rules: []string{exampleUuid},
 			},
 			{
 				Name:  exampleRejectsTheEmptyString,
-				In:    "",
+				Input: "",
 				Rules: []string{exampleUuid},
 			},
 		},
@@ -601,17 +601,17 @@ func TestStockCode(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects the prefix is not upper case",
-				In:    exampleSku0042,
+				Input: exampleSku0042,
 				Rules: []string{exampleRegex},
 			},
 			{
 				Name:  "rejects the number is too short",
-				In:    "SKU-42",
+				Input: "SKU-42",
 				Rules: []string{exampleRegex},
 			},
 			{
 				Name:  "rejects the empty string, which an anchored pattern rejects",
-				In:    "",
+				Input: "",
 				Rules: []string{exampleRegex},
 			},
 		},
@@ -636,12 +636,12 @@ func TestCurrency(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects a currency nobody listed",
-				In:    "chf",
+				Input: "chf",
 				Rules: []string{exampleOneof},
 			},
 			{
 				Name:  "rejects the right item in the wrong case",
-				In:    exampleEUR,
+				Input: exampleEUR,
 				Rules: []string{exampleOneof},
 			},
 		},
@@ -666,12 +666,12 @@ func TestLetterName(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects a digit among the letters",
-				In:    "Tab7",
+				Input: "Tab7",
 				Rules: []string{"alpha"},
 			},
 			{
 				Name:  "rejects a space, which is not a letter",
-				In:    "de patatas",
+				Input: "de patatas",
 				Rules: []string{"alpha"},
 			},
 		},
@@ -696,12 +696,12 @@ func TestHandle(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects a hyphen, which is neither a letter nor a digit",
-				In:    exampleSku0042,
+				Input: exampleSku0042,
 				Rules: []string{"alphanum"},
 			},
 			{
 				Name:  "rejects a space",
-				In:    "tab 7",
+				Input: "tab 7",
 				Rules: []string{"alphanum"},
 			},
 		},
@@ -726,17 +726,17 @@ func TestPhoneDigits(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects a sign, which a digit string does not carry",
-				In:    "-42",
+				Input: "-42",
 				Rules: []string{exampleNumeric},
 			},
 			{
 				Name:  "rejects a decimal point",
-				In:    "4.2",
+				Input: "4.2",
 				Rules: []string{exampleNumeric},
 			},
 			{
 				Name:  "rejects Arabic-Indic digits, which no parser here would read",
-				In:    "٤٢",
+				Input: "٤٢",
 				Rules: []string{exampleNumeric},
 			},
 		},
@@ -761,12 +761,12 @@ func TestLegacyCode(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects an accented letter above U+007F",
-				In:    "Muñoz",
+				Input: "Muñoz",
 				Rules: []string{"ascii"},
 			},
 			{
 				Name:  "rejects a combining accent, which is not ASCII either",
-				In:    "café",
+				Input: "café",
 				Rules: []string{"ascii"},
 			},
 		},
@@ -791,12 +791,12 @@ func TestSingleLine(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects a newline smuggled into a single-line value",
-				In:    "Tortilla\nde patatas",
+				Input: "Tortilla\nde patatas",
 				Rules: []string{"printable"},
 			},
 			{
 				Name:  "rejects a tab, which is a control character too",
-				In:    "Tab\t7",
+				Input: "Tab\t7",
 				Rules: []string{"printable"},
 			},
 		},
@@ -821,12 +821,12 @@ func TestSlug(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects a space in the middle",
-				In:    "tortilla de patatas",
+				Input: "tortilla de patatas",
 				Rules: []string{"nospace"},
 			},
 			{
 				Name:  "rejects a trailing space a paste left behind",
-				In:    "sku0042 ",
+				Input: "sku0042 ",
 				Rules: []string{"nospace"},
 			},
 		},
@@ -851,17 +851,17 @@ func TestProductCode(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects the right prefix in the wrong case",
-				In:    exampleSku0042,
+				Input: exampleSku0042,
 				Rules: []string{examplePrefix},
 			},
 			{
 				Name:  "rejects no namespace at all",
-				In:    "0042",
+				Input: "0042",
 				Rules: []string{examplePrefix},
 			},
 			{
 				Name:  "rejects the empty string, which starts with nothing",
-				In:    "",
+				Input: "",
 				Rules: []string{examplePrefix},
 			},
 		},
@@ -886,12 +886,12 @@ func TestDocumentFile(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects the right extension in the wrong case",
-				In:    "invoice.PDF",
+				Input: "invoice.PDF",
 				Rules: []string{"suffix"},
 			},
 			{
 				Name:  "rejects a different extension",
-				In:    "invoice.png",
+				Input: "invoice.png",
 				Rules: []string{"suffix"},
 			},
 		},
@@ -916,12 +916,12 @@ func TestResourcePath(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects a different separator",
-				In:    "tabs-7",
+				Input: "tabs-7",
 				Rules: []string{"contains"},
 			},
 			{
 				Name:  "rejects the empty string, which contains nothing",
-				In:    "",
+				Input: "",
 				Rules: []string{"contains"},
 			},
 		},
@@ -946,12 +946,12 @@ func TestFlatName(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects the forbidden separator in the middle",
-				In:    "tabs/7",
+				Input: "tabs/7",
 				Rules: []string{"excludes"},
 			},
 			{
 				Name:  "rejects the forbidden separator at the front",
-				In:    "/tabs",
+				Input: "/tabs",
 				Rules: []string{"excludes"},
 			},
 		},
@@ -976,12 +976,12 @@ func TestCovers(t *testing.T) {
 		Rejected: []voguetest.Rejection[int64]{
 			{
 				Name:  "rejects a table with nobody at it",
-				In:    0,
+				Input: 0,
 				Rules: []string{exampleMin},
 			},
 			{
 				Name:  "rejects a negative count is below any positive bound",
-				In:    -5,
+				Input: -5,
 				Rules: []string{exampleMin},
 			},
 		},
@@ -1006,12 +1006,12 @@ func TestSeats(t *testing.T) {
 		Rejected: []voguetest.Rejection[int64]{
 			{
 				Name:  "rejects one guest more than the room holds",
-				In:    201,
+				Input: 201,
 				Rules: []string{exampleMax},
 			},
 			{
 				Name:  "rejects a value far above the bound",
-				In:    1000,
+				Input: 1000,
 				Rules: []string{exampleMax},
 			},
 		},
@@ -1036,12 +1036,12 @@ func TestCourseCount(t *testing.T) {
 		Rejected: []voguetest.Rejection[int64]{
 			{
 				Name:  "rejects a number between two allowed ones",
-				In:    3,
+				Input: 3,
 				Rules: []string{exampleOneof},
 			},
 			{
 				Name:  "rejects a number below the whole list",
-				In:    0,
+				Input: 0,
 				Rules: []string{exampleOneof},
 			},
 		},
@@ -1066,12 +1066,12 @@ func TestPortions(t *testing.T) {
 		Rejected: []voguetest.Rejection[int64]{
 			{
 				Name:  "rejects zero, which is not positive",
-				In:    0,
+				Input: 0,
 				Rules: []string{examplePositive},
 			},
 			{
 				Name:  "rejects a negative count",
-				In:    -1,
+				Input: -1,
 				Rules: []string{examplePositive},
 			},
 		},
@@ -1096,12 +1096,12 @@ func TestStockLevel(t *testing.T) {
 		Rejected: []voguetest.Rejection[int64]{
 			{
 				Name:  "rejects one below the floor",
-				In:    -1,
+				Input: -1,
 				Rules: []string{exampleNonneg},
 			},
 			{
 				Name:  "rejects a quantity nobody can have",
-				In:    -100,
+				Input: -100,
 				Rules: []string{exampleNonneg},
 			},
 		},
@@ -1126,12 +1126,12 @@ func TestSlotMinutes(t *testing.T) {
 		Rejected: []voguetest.Rejection[int64]{
 			{
 				Name:  "rejects a duration that does not fill whole slots",
-				In:    20,
+				Input: 20,
 				Rules: []string{"multipleof"},
 			},
 			{
 				Name:  "rejects less than one slot",
-				In:    1,
+				Input: 1,
 				Rules: []string{"multipleof"},
 			},
 		},
@@ -1156,12 +1156,12 @@ func TestMinRate(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects a quarter below a floor of nothing",
-				In:    "-0.25",
+				Input: "-0.25",
 				Rules: []string{exampleMin},
 			},
 			{
 				Name:  "rejects a whole unit below the floor",
-				In:    "-1",
+				Input: "-1",
 				Rules: []string{exampleMin},
 			},
 		},
@@ -1186,12 +1186,12 @@ func TestMaxRate(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects half again more than the whole",
-				In:    example15,
+				Input: example15,
 				Rules: []string{exampleMax},
 			},
 			{
 				Name:  "rejects twice the whole bill",
-				In:    "2",
+				Input: "2",
 				Rules: []string{exampleMax},
 			},
 		},
@@ -1216,12 +1216,12 @@ func TestUnitWeight(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects zero written at three decimal places is still zero",
-				In:    "0.000",
+				Input: "0.000",
 				Rules: []string{examplePositive},
 			},
 			{
 				Name:  "rejects half a unit less than nothing",
-				In:    "-0.5",
+				Input: "-0.5",
 				Rules: []string{examplePositive},
 			},
 		},
@@ -1246,12 +1246,12 @@ func TestShelfWeight(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects a hundredth below the floor",
-				In:    "-0.01",
+				Input: "-0.01",
 				Rules: []string{exampleNonneg},
 			},
 			{
 				Name:  "rejects a quantity nobody can have",
-				In:    "-100",
+				Input: "-100",
 				Rules: []string{exampleNonneg},
 			},
 		},
@@ -1276,7 +1276,7 @@ func TestTaxRate(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects one decimal place more than the column holds",
-				In:    "0.12345",
+				Input: "0.12345",
 				Rules: []string{"scale"},
 			},
 		},
@@ -1301,7 +1301,7 @@ func TestPreciseWeight(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects a weight measured finer than the scale reads",
-				In:    "0.1234",
+				Input: "0.1234",
 				Rules: []string{"scale"},
 			},
 		},
@@ -1326,12 +1326,12 @@ func TestAdjustment(t *testing.T) {
 		Rejected: []voguetest.Rejection[string]{
 			{
 				Name:  "rejects nothing to adjust",
-				In:    "0",
+				Input: "0",
 				Rules: []string{"nonzero"},
 			},
 			{
 				Name:  "rejects nothing, written to the cent",
-				In:    "0.00",
+				Input: "0.00",
 				Rules: []string{"nonzero"},
 			},
 		},
