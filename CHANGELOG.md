@@ -8,6 +8,13 @@ is zero, a minor release may break the API; every break is listed under
 
 ## [Unreleased]
 
+### Fixed
+
+- Switching `-suffix` under `go generate` no longer fails the first run with
+  "no such file or directory": go generate opens every file it listed before
+  running, so a stale generated file is emptied into a `//go:build ignore`
+  stub while go generate runs, and removed by the next run.
+
 ### Added
 
 - `-suffix` / `generator.WithSuffix` / `gen.Options.Suffix` name the generated
