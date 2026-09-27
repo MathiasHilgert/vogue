@@ -1,20 +1,20 @@
 package rulecheck
 
-import "time"
+import "sort"
 
-// TimeZone reports whether value names a zone of the IANA time zone database, such
-// as "America/Argentina/Buenos_Aires" or "UTC".
+// TimeZone reports whether value is the canonical name of a zone of the IANA
+// time zone database, such as "America/Argentina/Buenos_Aires" or "UTC".
 //
-// The name is resolved with time.LoadLocation, so it is only as current as
-// the zone database the process can read: the system's, or the one embedded by
-// importing time/tzdata, which a binary running in a minimal container needs.
-// "Local" and the empty string, which LoadLocation maps to the process's own
-// zone and to UTC, are rejected, since neither names a place a stored value
-// could mean.
+// The name is looked up, case-exactly, in the list of zones the Go toolchain's
+// zone database holds (zones.go, written by internal/zonelist), rather than
+// loaded with time.LoadLocation: LoadLocation reads the system's database
+// first, which on a case-insensitive file system accepts "europe/madrid", and
+// it accepts the database's own files — Factory, localtime, posixrules — that
+// name no place. The list needs no zone database at run time; converting the
+// value to a time.Location still does, so a binary in a minimal container
+// image should import time/tzdata. The empty string and "Local" are not in the
+// list. A lookup is a binary search over a sorted array, so nothing is cached.
 func TimeZone(value string) bool {
-	if value == "" || value == "Local" {
-		return false
-	}
-	_, err := time.LoadLocation(value)
-	return err == nil
+	index := sort.SearchStrings(zones[:], value)
+	return index < len(zones) && zones[index] == value
 }

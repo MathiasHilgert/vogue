@@ -182,12 +182,13 @@ var URL = vogue.Rule{
 var TimeZone = vogue.Rule{
 	Name:  "timezone",
 	Kinds: str,
-	Doc: "Requires the name of a zone in the IANA time zone database, such as " +
-		"\"America/Argentina/Buenos_Aires\" or \"UTC\", resolved with time.LoadLocation. The " +
-		"database is the one the process can read at run time — the system's, or the copy a binary " +
-		"embeds by importing time/tzdata, which a minimal container image needs. \"Local\" and the " +
-		"empty string are rejected: LoadLocation maps them to the process's own zone and to UTC, and " +
-		"neither names a place a stored value could mean.",
+	Doc: "Requires the canonical name of a zone in the IANA time zone database, such as " +
+		"\"America/Argentina/Buenos_Aires\" or \"UTC\", compared case-exactly against the zones " +
+		"of the database the Go toolchain ships. \"europe/madrid\" is rejected even where a " +
+		"case-insensitive file system would load it, and so are the database's own files " +
+		"(Factory, localtime, posixrules), \"Local\" and the empty string, none of which names a " +
+		"place. The check needs no zone database at run time; turning the value into a " +
+		"time.Location does, so a binary in a minimal container image should import time/tzdata.",
 	Message: "{{.Field}} must be an IANA time zone",
 	Call:    &vogue.FuncRef{Path: importFn, Name: "TimeZone"},
 	Examples: vogue.Examples{
@@ -198,6 +199,7 @@ var TimeZone = vogue.Rule{
 		Invalid: []vogue.Example{
 			{In: "Mars/Olympus_Mons", Note: "a zone the database does not hold"},
 			{In: "Local", Note: "the process-local zone, which names no place"},
+			{In: "europe/madrid", Note: "a zone in the wrong case"},
 			{In: "", Note: "the empty string"},
 		},
 	},

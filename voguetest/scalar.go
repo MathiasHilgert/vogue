@@ -2,6 +2,7 @@ package voguetest
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -19,6 +20,11 @@ type Rejection[Raw any] struct {
 	Input Raw
 	// Rules are the rules that must each report a failure.
 	Rules []string
+	// Described marks a row every one of whose rules the generated JSON
+	// schema models, so the input must fail the schema too. It is false when
+	// a rule has no schema counterpart, or a normalizer changes the text the
+	// schema describes.
+	Described bool
 }
 
 // Normalization is a rewrite a normalizer declares: Raw is handed to the
@@ -81,9 +87,16 @@ func (suite Scalar[Object, Reference, Raw]) Run(t *testing.T) {
 	t.Run("accepts every example the directive declares", func(t *testing.T) {
 		t.Parallel()
 
+		for _, input := range suite.Candidates {
+			if candidate, err := suite.New(input); err == nil {
+				describes(t, candidate)
+			}
+		}
+
 		for _, input := range suite.Examples {
 			got, err := suite.New(input)
 			require.NoError(t, err, "the directive declares %v valid", input)
+			describes(t, got)
 			assert.False(t, got.IsZero(), "a constructed value object is never the zero value, even for %v", input)
 
 			if suite.Get != nil {
@@ -100,6 +113,10 @@ func (suite Scalar[Object, Reference, Raw]) Run(t *testing.T) {
 
 			require.ErrorIs(t, err, validation.ErrInvalid)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
+
+			if row.Described {
+				rejectedBySchema(t, got, fmt.Sprint(row.Input))
+			}
 
 			for _, rule := range row.Rules {
 				assert.ErrorIs(t, err, validation.FieldError{Field: suite.Field, Rule: rule},

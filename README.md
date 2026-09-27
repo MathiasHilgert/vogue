@@ -75,8 +75,8 @@ package tab
 Generated files carry the `// Code generated` header and are never read back as
 input, so a second run is a no-op.
 
-The command takes `-dir`, `-import-path`, `-tests`, `-sql`, `-dry-run`,
-`-list` (the catalogue below) and `-version`. It exits 1 on a rejected
+The command takes `-dir`, `-import-path`, `-tests`, `-sql`, `-schema`,
+`-dry-run`, `-list` (the catalogue below) and `-version`. It exits 1 on a rejected
 directive and 2 when it is called wrongly.
 
 `-sql=false` (`generator.WithSQL(false)`) leaves the `database/sql/driver`
@@ -98,8 +98,26 @@ crosses JSON: its type (always `string`, since every value object marshals as
 text), format (`email`, `uri`, `uuid`, `int64`, `decimal`), pattern, enum
 members, length limits and numeric limits, derived from the directive and its
 built-in rules. A custom rule adds nothing, because the generator cannot know
-what it accepts. The generated test checks that every value the constructor
-accepts satisfies the schema.
+what it accepts. The schema describes the canonical text `String` returns, so
+on a string only the checks written after the last normalizer contribute, and
+where several rules bound the same thing the tightest bound wins (`min=3
+len=2` is a length of at least 3 and at most 2; `required` makes a minimum
+length of at least 1; `min=-5 nonneg` is a minimum of 0).
+
+The generated test checks the schema against the constructor in both
+directions: every example the directive or its rules declare that the
+constructor accepts satisfies the schema, and every rejected row whose rules
+the schema models (`required`, `len`, `min`, `max`, `positive`, `nonneg`,
+`oneof` and a published `regex`) fails it. A format (`email`, `uri`, `uuid`)
+is published but not checked by `schema.Schema.Accepts`.
+
+`regex` patterns are RE2, Go's dialect, while JSON Schema and OpenAPI patterns
+are ECMA-262. The two agree on the common core (classes, quantifiers, anchors
+`^` and `$`, alternation, groups), and such a pattern is published unchanged.
+A pattern using an RE2-only construct — inline flags such as `(?i)`, `\A` and
+`\z`, POSIX classes such as `[[:alpha:]]`, Unicode classes such as `\pL` or
+`\p{Greek}`, `\Q...\E` — is left out of the schema rather than published in a
+dialect a client would read differently; the constructor still enforces it.
 
 The method returns a neutral struct rather than implementing
 `huma.SchemaProvider` on purpose: that would make the domain package import an
@@ -187,7 +205,7 @@ name.
 | `email` | string | none | Requires a single email address in the RFC 5322 grammar, parsed by net/mail rather than matched against a regular expression. |
 | `url` | string | none | Requires an absolute http or https URL, parsed by net/url as a request URI. |
 | `uuid` | string | none | Requires a UUID written in the canonical RFC 4122 form, 8-4-4-4-12 hexadecimal digits separated by hyphens, in either case. |
-| `timezone` | string | none | Requires the name of a zone in the IANA time zone database, such as "America/Argentina/Buenos_Aires" or "UTC", resolved with time.LoadLocation. |
+| `timezone` | string | none | Requires the canonical name of a zone in the IANA time zone database, such as "America/Argentina/Buenos_Aires" or "UTC", compared case-exactly against the zones of the database the Go toolchain ships. |
 | `regex` | string | required regex | Requires the value to match the given RE2 pattern. |
 | `oneof` | string, int | required list | Restricts the value to one of the comma-separated items of the parameter, compared for exact equality: on a string it is case-sensitive, so pair it with `lower` or `upper` when the input is typed by a human, and on an integer every item must itself be an integer. |
 | `alpha` | string | none | Requires every rune of the value to be a letter, in the Unicode sense: "Muñoz" passes and so does a name in Greek or Cyrillic, while a digit, a space, a hyphen or an apostrophe does not. |
@@ -419,10 +437,13 @@ func NewCoordinates(latitude, longitude string) (Coordinates, error) {
 text codec and test, written to the same strict lint profile as the generated
 code.
 
-**Time zones.** The `timezone` rule resolves a name with `time.LoadLocation`,
-so it is as current as the zone database the process can read. A binary that
-runs in a minimal container image has none of its own and should import
-`time/tzdata` to embed one.
+**Time zones.** The `timezone` rule accepts the canonical, case-exact names of
+the zone database the Go toolchain ships (listed in `rules/rulecheck/zones.go`,
+refreshed with `go run ./rules/rulecheck/internal/zonelist`), and rejects the
+database's own files — `Factory`, `localtime`, `posixrules` — `Local` and the
+empty string. The check itself reads no zone database; converting the value
+with `time.LoadLocation` does, so a binary in a minimal container image should
+import `time/tzdata`.
 
 **Identifiers.** `uuid7` is the default because time-ordered identifiers keep
 an index from fragmenting; `uuid4` is there for values that must not leak a
