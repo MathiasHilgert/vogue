@@ -32,6 +32,8 @@ func TestGenerate_NoAbbreviatedIdentifiers(t *testing.T) {
 		filepath.Join("internal", "fixture", "vo_vogue_test.go"),
 		filepath.Join("..", "rules", "internal", "catalogue", "vo_vogue.go"),
 		filepath.Join("..", "rules", "internal", "catalogue", "vo_vogue_test.go"),
+		filepath.Join("..", "examples", "composite", "geo", "vo_vogue.go"),
+		filepath.Join("..", "examples", "composite", "geo", "coordinates.go"),
 	)
 
 	for _, golden := range goldens {

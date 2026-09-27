@@ -21,7 +21,10 @@ import (
 // whitespace is empty by the time the check sees it.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type TrimmedName struct{ value string }
+type TrimmedName struct {
+	value string
+	set   bool
+}
 
 // NewTrimmedName validates raw and returns the TrimmedName it describes.
 //
@@ -54,18 +57,21 @@ func NewTrimmedName(raw string) (TrimmedName, error) {
 		return zero, &failed
 	}
 
-	return TrimmedName{value: value}, nil
+	return TrimmedName{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (trimmedName TrimmedName) String() string { return trimmedName.value }
 
-// IsZero reports whether the receiver is the zero TrimmedName, which is the only
-// TrimmedName that never passed validation.
-func (trimmedName TrimmedName) IsZero() bool { return trimmedName.value == "" }
+// IsZero reports whether the receiver is the zero TrimmedName: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (trimmedName TrimmedName) IsZero() bool { return !trimmedName.set }
 
 // Equal reports whether both value objects hold the same value.
-func (trimmedName TrimmedName) Equal(other TrimmedName) bool { return trimmedName.value == other.value }
+func (trimmedName TrimmedName) Equal(other TrimmedName) bool {
+	return trimmedName.value == other.value && trimmedName.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so TrimmedName marshals and
@@ -86,8 +92,18 @@ func (trimmedName *TrimmedName) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (trimmedName TrimmedName) Value() (driver.Value, error) { return trimmedName.value, nil }
+// Value implements driver.Valuer. The zero TrimmedName is stored as NULL, which
+// Scan reads back as the zero TrimmedName.
+func (trimmedName TrimmedName) Value() (driver.Value, error) {
+	if !trimmedName.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return trimmedName.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -112,7 +128,10 @@ func (trimmedName *TrimmedName) Scan(src any) error {
 // SquishedName is a name whose internal whitespace is collapsed.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type SquishedName struct{ value string }
+type SquishedName struct {
+	value string
+	set   bool
+}
 
 // NewSquishedName validates raw and returns the SquishedName it describes.
 //
@@ -145,19 +164,20 @@ func NewSquishedName(raw string) (SquishedName, error) {
 		return zero, &failed
 	}
 
-	return SquishedName{value: value}, nil
+	return SquishedName{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (squishedName SquishedName) String() string { return squishedName.value }
 
-// IsZero reports whether the receiver is the zero SquishedName, which is the only
-// SquishedName that never passed validation.
-func (squishedName SquishedName) IsZero() bool { return squishedName.value == "" }
+// IsZero reports whether the receiver is the zero SquishedName: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (squishedName SquishedName) IsZero() bool { return !squishedName.set }
 
 // Equal reports whether both value objects hold the same value.
 func (squishedName SquishedName) Equal(other SquishedName) bool {
-	return squishedName.value == other.value
+	return squishedName.value == other.value && squishedName.set == other.set
 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
@@ -181,8 +201,18 @@ func (squishedName *SquishedName) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (squishedName SquishedName) Value() (driver.Value, error) { return squishedName.value, nil }
+// Value implements driver.Valuer. The zero SquishedName is stored as NULL, which
+// Scan reads back as the zero SquishedName.
+func (squishedName SquishedName) Value() (driver.Value, error) {
+	if !squishedName.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return squishedName.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -207,7 +237,10 @@ func (squishedName *SquishedName) Scan(src any) error {
 // LoweredName is a name folded to lower case.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type LoweredName struct{ value string }
+type LoweredName struct {
+	value string
+	set   bool
+}
 
 // NewLoweredName validates raw and returns the LoweredName it describes.
 //
@@ -240,18 +273,21 @@ func NewLoweredName(raw string) (LoweredName, error) {
 		return zero, &failed
 	}
 
-	return LoweredName{value: value}, nil
+	return LoweredName{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (loweredName LoweredName) String() string { return loweredName.value }
 
-// IsZero reports whether the receiver is the zero LoweredName, which is the only
-// LoweredName that never passed validation.
-func (loweredName LoweredName) IsZero() bool { return loweredName.value == "" }
+// IsZero reports whether the receiver is the zero LoweredName: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (loweredName LoweredName) IsZero() bool { return !loweredName.set }
 
 // Equal reports whether both value objects hold the same value.
-func (loweredName LoweredName) Equal(other LoweredName) bool { return loweredName.value == other.value }
+func (loweredName LoweredName) Equal(other LoweredName) bool {
+	return loweredName.value == other.value && loweredName.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so LoweredName marshals and
@@ -272,8 +308,18 @@ func (loweredName *LoweredName) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (loweredName LoweredName) Value() (driver.Value, error) { return loweredName.value, nil }
+// Value implements driver.Valuer. The zero LoweredName is stored as NULL, which
+// Scan reads back as the zero LoweredName.
+func (loweredName LoweredName) Value() (driver.Value, error) {
+	if !loweredName.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return loweredName.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -298,7 +344,10 @@ func (loweredName *LoweredName) Scan(src any) error {
 // UpperedName is a name folded to upper case.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type UpperedName struct{ value string }
+type UpperedName struct {
+	value string
+	set   bool
+}
 
 // NewUpperedName validates raw and returns the UpperedName it describes.
 //
@@ -331,18 +380,21 @@ func NewUpperedName(raw string) (UpperedName, error) {
 		return zero, &failed
 	}
 
-	return UpperedName{value: value}, nil
+	return UpperedName{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (upperedName UpperedName) String() string { return upperedName.value }
 
-// IsZero reports whether the receiver is the zero UpperedName, which is the only
-// UpperedName that never passed validation.
-func (upperedName UpperedName) IsZero() bool { return upperedName.value == "" }
+// IsZero reports whether the receiver is the zero UpperedName: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (upperedName UpperedName) IsZero() bool { return !upperedName.set }
 
 // Equal reports whether both value objects hold the same value.
-func (upperedName UpperedName) Equal(other UpperedName) bool { return upperedName.value == other.value }
+func (upperedName UpperedName) Equal(other UpperedName) bool {
+	return upperedName.value == other.value && upperedName.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so UpperedName marshals and
@@ -363,8 +415,18 @@ func (upperedName *UpperedName) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (upperedName UpperedName) Value() (driver.Value, error) { return upperedName.value, nil }
+// Value implements driver.Valuer. The zero UpperedName is stored as NULL, which
+// Scan reads back as the zero UpperedName.
+func (upperedName UpperedName) Value() (driver.Value, error) {
+	if !upperedName.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return upperedName.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -389,7 +451,10 @@ func (upperedName *UpperedName) Scan(src any) error {
 // TrimmedOnly proves what `trim` rewrites.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type TrimmedOnly struct{ value string }
+type TrimmedOnly struct {
+	value string
+	set   bool
+}
 
 // NewTrimmedOnly validates raw and returns the TrimmedOnly it describes.
 //
@@ -413,18 +478,21 @@ func NewTrimmedOnly(raw string) (TrimmedOnly, error) {
 		return zero, &failed
 	}
 
-	return TrimmedOnly{value: value}, nil
+	return TrimmedOnly{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (trimmedOnly TrimmedOnly) String() string { return trimmedOnly.value }
 
-// IsZero reports whether the receiver is the zero TrimmedOnly, which is the only
-// TrimmedOnly that never passed validation.
-func (trimmedOnly TrimmedOnly) IsZero() bool { return trimmedOnly.value == "" }
+// IsZero reports whether the receiver is the zero TrimmedOnly: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (trimmedOnly TrimmedOnly) IsZero() bool { return !trimmedOnly.set }
 
 // Equal reports whether both value objects hold the same value.
-func (trimmedOnly TrimmedOnly) Equal(other TrimmedOnly) bool { return trimmedOnly.value == other.value }
+func (trimmedOnly TrimmedOnly) Equal(other TrimmedOnly) bool {
+	return trimmedOnly.value == other.value && trimmedOnly.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so TrimmedOnly marshals and
@@ -445,8 +513,18 @@ func (trimmedOnly *TrimmedOnly) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (trimmedOnly TrimmedOnly) Value() (driver.Value, error) { return trimmedOnly.value, nil }
+// Value implements driver.Valuer. The zero TrimmedOnly is stored as NULL, which
+// Scan reads back as the zero TrimmedOnly.
+func (trimmedOnly TrimmedOnly) Value() (driver.Value, error) {
+	if !trimmedOnly.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return trimmedOnly.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -471,7 +549,10 @@ func (trimmedOnly *TrimmedOnly) Scan(src any) error {
 // SquishedOnly proves what `squish` rewrites.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type SquishedOnly struct{ value string }
+type SquishedOnly struct {
+	value string
+	set   bool
+}
 
 // NewSquishedOnly validates raw and returns the SquishedOnly it describes.
 //
@@ -495,19 +576,20 @@ func NewSquishedOnly(raw string) (SquishedOnly, error) {
 		return zero, &failed
 	}
 
-	return SquishedOnly{value: value}, nil
+	return SquishedOnly{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (squishedOnly SquishedOnly) String() string { return squishedOnly.value }
 
-// IsZero reports whether the receiver is the zero SquishedOnly, which is the only
-// SquishedOnly that never passed validation.
-func (squishedOnly SquishedOnly) IsZero() bool { return squishedOnly.value == "" }
+// IsZero reports whether the receiver is the zero SquishedOnly: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (squishedOnly SquishedOnly) IsZero() bool { return !squishedOnly.set }
 
 // Equal reports whether both value objects hold the same value.
 func (squishedOnly SquishedOnly) Equal(other SquishedOnly) bool {
-	return squishedOnly.value == other.value
+	return squishedOnly.value == other.value && squishedOnly.set == other.set
 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
@@ -531,8 +613,18 @@ func (squishedOnly *SquishedOnly) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (squishedOnly SquishedOnly) Value() (driver.Value, error) { return squishedOnly.value, nil }
+// Value implements driver.Valuer. The zero SquishedOnly is stored as NULL, which
+// Scan reads back as the zero SquishedOnly.
+func (squishedOnly SquishedOnly) Value() (driver.Value, error) {
+	if !squishedOnly.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return squishedOnly.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -557,7 +649,10 @@ func (squishedOnly *SquishedOnly) Scan(src any) error {
 // LoweredOnly proves what `lower` rewrites.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type LoweredOnly struct{ value string }
+type LoweredOnly struct {
+	value string
+	set   bool
+}
 
 // NewLoweredOnly validates raw and returns the LoweredOnly it describes.
 //
@@ -581,18 +676,21 @@ func NewLoweredOnly(raw string) (LoweredOnly, error) {
 		return zero, &failed
 	}
 
-	return LoweredOnly{value: value}, nil
+	return LoweredOnly{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (loweredOnly LoweredOnly) String() string { return loweredOnly.value }
 
-// IsZero reports whether the receiver is the zero LoweredOnly, which is the only
-// LoweredOnly that never passed validation.
-func (loweredOnly LoweredOnly) IsZero() bool { return loweredOnly.value == "" }
+// IsZero reports whether the receiver is the zero LoweredOnly: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (loweredOnly LoweredOnly) IsZero() bool { return !loweredOnly.set }
 
 // Equal reports whether both value objects hold the same value.
-func (loweredOnly LoweredOnly) Equal(other LoweredOnly) bool { return loweredOnly.value == other.value }
+func (loweredOnly LoweredOnly) Equal(other LoweredOnly) bool {
+	return loweredOnly.value == other.value && loweredOnly.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so LoweredOnly marshals and
@@ -613,8 +711,18 @@ func (loweredOnly *LoweredOnly) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (loweredOnly LoweredOnly) Value() (driver.Value, error) { return loweredOnly.value, nil }
+// Value implements driver.Valuer. The zero LoweredOnly is stored as NULL, which
+// Scan reads back as the zero LoweredOnly.
+func (loweredOnly LoweredOnly) Value() (driver.Value, error) {
+	if !loweredOnly.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return loweredOnly.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -639,7 +747,10 @@ func (loweredOnly *LoweredOnly) Scan(src any) error {
 // UpperedOnly proves what `upper` rewrites.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type UpperedOnly struct{ value string }
+type UpperedOnly struct {
+	value string
+	set   bool
+}
 
 // NewUpperedOnly validates raw and returns the UpperedOnly it describes.
 //
@@ -663,18 +774,21 @@ func NewUpperedOnly(raw string) (UpperedOnly, error) {
 		return zero, &failed
 	}
 
-	return UpperedOnly{value: value}, nil
+	return UpperedOnly{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (upperedOnly UpperedOnly) String() string { return upperedOnly.value }
 
-// IsZero reports whether the receiver is the zero UpperedOnly, which is the only
-// UpperedOnly that never passed validation.
-func (upperedOnly UpperedOnly) IsZero() bool { return upperedOnly.value == "" }
+// IsZero reports whether the receiver is the zero UpperedOnly: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (upperedOnly UpperedOnly) IsZero() bool { return !upperedOnly.set }
 
 // Equal reports whether both value objects hold the same value.
-func (upperedOnly UpperedOnly) Equal(other UpperedOnly) bool { return upperedOnly.value == other.value }
+func (upperedOnly UpperedOnly) Equal(other UpperedOnly) bool {
+	return upperedOnly.value == other.value && upperedOnly.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so UpperedOnly marshals and
@@ -695,8 +809,18 @@ func (upperedOnly *UpperedOnly) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (upperedOnly UpperedOnly) Value() (driver.Value, error) { return upperedOnly.value, nil }
+// Value implements driver.Valuer. The zero UpperedOnly is stored as NULL, which
+// Scan reads back as the zero UpperedOnly.
+func (upperedOnly UpperedOnly) Value() (driver.Value, error) {
+	if !upperedOnly.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return upperedOnly.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -721,7 +845,10 @@ func (upperedOnly *UpperedOnly) Scan(src any) error {
 // RequiredName is a name that must be given.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type RequiredName struct{ value string }
+type RequiredName struct {
+	value string
+	set   bool
+}
 
 // NewRequiredName validates raw and returns the RequiredName it describes.
 //
@@ -753,19 +880,20 @@ func NewRequiredName(raw string) (RequiredName, error) {
 		return zero, &failed
 	}
 
-	return RequiredName{value: value}, nil
+	return RequiredName{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (requiredName RequiredName) String() string { return requiredName.value }
 
-// IsZero reports whether the receiver is the zero RequiredName, which is the only
-// RequiredName that never passed validation.
-func (requiredName RequiredName) IsZero() bool { return requiredName.value == "" }
+// IsZero reports whether the receiver is the zero RequiredName: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (requiredName RequiredName) IsZero() bool { return !requiredName.set }
 
 // Equal reports whether both value objects hold the same value.
 func (requiredName RequiredName) Equal(other RequiredName) bool {
-	return requiredName.value == other.value
+	return requiredName.value == other.value && requiredName.set == other.set
 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
@@ -789,8 +917,18 @@ func (requiredName *RequiredName) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (requiredName RequiredName) Value() (driver.Value, error) { return requiredName.value, nil }
+// Value implements driver.Valuer. The zero RequiredName is stored as NULL, which
+// Scan reads back as the zero RequiredName.
+func (requiredName RequiredName) Value() (driver.Value, error) {
+	if !requiredName.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return requiredName.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -815,7 +953,10 @@ func (requiredName *RequiredName) Scan(src any) error {
 // ShortName is a name of at least one character.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type ShortName struct{ value string }
+type ShortName struct {
+	value string
+	set   bool
+}
 
 // NewShortName validates raw and returns the ShortName it describes.
 //
@@ -849,18 +990,21 @@ func NewShortName(raw string) (ShortName, error) {
 		return zero, &failed
 	}
 
-	return ShortName{value: value}, nil
+	return ShortName{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (shortName ShortName) String() string { return shortName.value }
 
-// IsZero reports whether the receiver is the zero ShortName, which is the only
-// ShortName that never passed validation.
-func (shortName ShortName) IsZero() bool { return shortName.value == "" }
+// IsZero reports whether the receiver is the zero ShortName: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (shortName ShortName) IsZero() bool { return !shortName.set }
 
 // Equal reports whether both value objects hold the same value.
-func (shortName ShortName) Equal(other ShortName) bool { return shortName.value == other.value }
+func (shortName ShortName) Equal(other ShortName) bool {
+	return shortName.value == other.value && shortName.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so ShortName marshals and
@@ -881,8 +1025,18 @@ func (shortName *ShortName) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (shortName ShortName) Value() (driver.Value, error) { return shortName.value, nil }
+// Value implements driver.Valuer. The zero ShortName is stored as NULL, which
+// Scan reads back as the zero ShortName.
+func (shortName ShortName) Value() (driver.Value, error) {
+	if !shortName.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return shortName.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -907,7 +1061,10 @@ func (shortName *ShortName) Scan(src any) error {
 // LongerName is a name of at least three characters.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type LongerName struct{ value string }
+type LongerName struct {
+	value string
+	set   bool
+}
 
 // NewLongerName validates raw and returns the LongerName it describes.
 //
@@ -941,18 +1098,21 @@ func NewLongerName(raw string) (LongerName, error) {
 		return zero, &failed
 	}
 
-	return LongerName{value: value}, nil
+	return LongerName{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (longerName LongerName) String() string { return longerName.value }
 
-// IsZero reports whether the receiver is the zero LongerName, which is the only
-// LongerName that never passed validation.
-func (longerName LongerName) IsZero() bool { return longerName.value == "" }
+// IsZero reports whether the receiver is the zero LongerName: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (longerName LongerName) IsZero() bool { return !longerName.set }
 
 // Equal reports whether both value objects hold the same value.
-func (longerName LongerName) Equal(other LongerName) bool { return longerName.value == other.value }
+func (longerName LongerName) Equal(other LongerName) bool {
+	return longerName.value == other.value && longerName.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so LongerName marshals and
@@ -973,8 +1133,18 @@ func (longerName *LongerName) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (longerName LongerName) Value() (driver.Value, error) { return longerName.value, nil }
+// Value implements driver.Valuer. The zero LongerName is stored as NULL, which
+// Scan reads back as the zero LongerName.
+func (longerName LongerName) Value() (driver.Value, error) {
+	if !longerName.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return longerName.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -999,7 +1169,10 @@ func (longerName *LongerName) Scan(src any) error {
 // BoundedName is a name of at most four characters.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type BoundedName struct{ value string }
+type BoundedName struct {
+	value string
+	set   bool
+}
 
 // NewBoundedName validates raw and returns the BoundedName it describes.
 //
@@ -1033,18 +1206,21 @@ func NewBoundedName(raw string) (BoundedName, error) {
 		return zero, &failed
 	}
 
-	return BoundedName{value: value}, nil
+	return BoundedName{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (boundedName BoundedName) String() string { return boundedName.value }
 
-// IsZero reports whether the receiver is the zero BoundedName, which is the only
-// BoundedName that never passed validation.
-func (boundedName BoundedName) IsZero() bool { return boundedName.value == "" }
+// IsZero reports whether the receiver is the zero BoundedName: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (boundedName BoundedName) IsZero() bool { return !boundedName.set }
 
 // Equal reports whether both value objects hold the same value.
-func (boundedName BoundedName) Equal(other BoundedName) bool { return boundedName.value == other.value }
+func (boundedName BoundedName) Equal(other BoundedName) bool {
+	return boundedName.value == other.value && boundedName.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so BoundedName marshals and
@@ -1065,8 +1241,18 @@ func (boundedName *BoundedName) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (boundedName BoundedName) Value() (driver.Value, error) { return boundedName.value, nil }
+// Value implements driver.Valuer. The zero BoundedName is stored as NULL, which
+// Scan reads back as the zero BoundedName.
+func (boundedName BoundedName) Value() (driver.Value, error) {
+	if !boundedName.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return boundedName.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -1091,7 +1277,10 @@ func (boundedName *BoundedName) Scan(src any) error {
 // CurrencyCode is a currency code of exactly three characters.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type CurrencyCode struct{ value string }
+type CurrencyCode struct {
+	value string
+	set   bool
+}
 
 // NewCurrencyCode validates raw and returns the CurrencyCode it describes.
 //
@@ -1125,19 +1314,20 @@ func NewCurrencyCode(raw string) (CurrencyCode, error) {
 		return zero, &failed
 	}
 
-	return CurrencyCode{value: value}, nil
+	return CurrencyCode{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (currencyCode CurrencyCode) String() string { return currencyCode.value }
 
-// IsZero reports whether the receiver is the zero CurrencyCode, which is the only
-// CurrencyCode that never passed validation.
-func (currencyCode CurrencyCode) IsZero() bool { return currencyCode.value == "" }
+// IsZero reports whether the receiver is the zero CurrencyCode: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (currencyCode CurrencyCode) IsZero() bool { return !currencyCode.set }
 
 // Equal reports whether both value objects hold the same value.
 func (currencyCode CurrencyCode) Equal(other CurrencyCode) bool {
-	return currencyCode.value == other.value
+	return currencyCode.value == other.value && currencyCode.set == other.set
 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
@@ -1161,8 +1351,18 @@ func (currencyCode *CurrencyCode) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (currencyCode CurrencyCode) Value() (driver.Value, error) { return currencyCode.value, nil }
+// Value implements driver.Valuer. The zero CurrencyCode is stored as NULL, which
+// Scan reads back as the zero CurrencyCode.
+func (currencyCode CurrencyCode) Value() (driver.Value, error) {
+	if !currencyCode.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return currencyCode.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -1187,7 +1387,10 @@ func (currencyCode *CurrencyCode) Scan(src any) error {
 // EmailAddress is a mailbox a guest can be written to at.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type EmailAddress struct{ value string }
+type EmailAddress struct {
+	value string
+	set   bool
+}
 
 // NewEmailAddress validates raw and returns the EmailAddress it describes.
 //
@@ -1219,19 +1422,20 @@ func NewEmailAddress(raw string) (EmailAddress, error) {
 		return zero, &failed
 	}
 
-	return EmailAddress{value: value}, nil
+	return EmailAddress{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (emailAddress EmailAddress) String() string { return emailAddress.value }
 
-// IsZero reports whether the receiver is the zero EmailAddress, which is the only
-// EmailAddress that never passed validation.
-func (emailAddress EmailAddress) IsZero() bool { return emailAddress.value == "" }
+// IsZero reports whether the receiver is the zero EmailAddress: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (emailAddress EmailAddress) IsZero() bool { return !emailAddress.set }
 
 // Equal reports whether both value objects hold the same value.
 func (emailAddress EmailAddress) Equal(other EmailAddress) bool {
-	return emailAddress.value == other.value
+	return emailAddress.value == other.value && emailAddress.set == other.set
 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
@@ -1255,8 +1459,18 @@ func (emailAddress *EmailAddress) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (emailAddress EmailAddress) Value() (driver.Value, error) { return emailAddress.value, nil }
+// Value implements driver.Valuer. The zero EmailAddress is stored as NULL, which
+// Scan reads back as the zero EmailAddress.
+func (emailAddress EmailAddress) Value() (driver.Value, error) {
+	if !emailAddress.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return emailAddress.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -1281,7 +1495,10 @@ func (emailAddress *EmailAddress) Scan(src any) error {
 // MenuLink is the address of a published menu.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type MenuLink struct{ value string }
+type MenuLink struct {
+	value string
+	set   bool
+}
 
 // NewMenuLink validates raw and returns the MenuLink it describes.
 //
@@ -1313,18 +1530,21 @@ func NewMenuLink(raw string) (MenuLink, error) {
 		return zero, &failed
 	}
 
-	return MenuLink{value: value}, nil
+	return MenuLink{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (menuLink MenuLink) String() string { return menuLink.value }
 
-// IsZero reports whether the receiver is the zero MenuLink, which is the only
-// MenuLink that never passed validation.
-func (menuLink MenuLink) IsZero() bool { return menuLink.value == "" }
+// IsZero reports whether the receiver is the zero MenuLink: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (menuLink MenuLink) IsZero() bool { return !menuLink.set }
 
 // Equal reports whether both value objects hold the same value.
-func (menuLink MenuLink) Equal(other MenuLink) bool { return menuLink.value == other.value }
+func (menuLink MenuLink) Equal(other MenuLink) bool {
+	return menuLink.value == other.value && menuLink.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so MenuLink marshals and
@@ -1345,8 +1565,18 @@ func (menuLink *MenuLink) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (menuLink MenuLink) Value() (driver.Value, error) { return menuLink.value, nil }
+// Value implements driver.Valuer. The zero MenuLink is stored as NULL, which
+// Scan reads back as the zero MenuLink.
+func (menuLink MenuLink) Value() (driver.Value, error) {
+	if !menuLink.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return menuLink.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -1371,7 +1601,10 @@ func (menuLink *MenuLink) Scan(src any) error {
 // ExternalRef is an identifier another system assigned, written as a UUID.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type ExternalRef struct{ value string }
+type ExternalRef struct {
+	value string
+	set   bool
+}
 
 // NewExternalRef validates raw and returns the ExternalRef it describes.
 //
@@ -1403,18 +1636,21 @@ func NewExternalRef(raw string) (ExternalRef, error) {
 		return zero, &failed
 	}
 
-	return ExternalRef{value: value}, nil
+	return ExternalRef{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (externalRef ExternalRef) String() string { return externalRef.value }
 
-// IsZero reports whether the receiver is the zero ExternalRef, which is the only
-// ExternalRef that never passed validation.
-func (externalRef ExternalRef) IsZero() bool { return externalRef.value == "" }
+// IsZero reports whether the receiver is the zero ExternalRef: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (externalRef ExternalRef) IsZero() bool { return !externalRef.set }
 
 // Equal reports whether both value objects hold the same value.
-func (externalRef ExternalRef) Equal(other ExternalRef) bool { return externalRef.value == other.value }
+func (externalRef ExternalRef) Equal(other ExternalRef) bool {
+	return externalRef.value == other.value && externalRef.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so ExternalRef marshals and
@@ -1435,8 +1671,18 @@ func (externalRef *ExternalRef) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (externalRef ExternalRef) Value() (driver.Value, error) { return externalRef.value, nil }
+// Value implements driver.Valuer. The zero ExternalRef is stored as NULL, which
+// Scan reads back as the zero ExternalRef.
+func (externalRef ExternalRef) Value() (driver.Value, error) {
+	if !externalRef.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return externalRef.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -1458,10 +1704,119 @@ func (externalRef *ExternalRef) Scan(src any) error {
 	}
 }
 
+// ZoneName is the IANA time zone a venue keeps its hours in.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type ZoneName struct {
+	value string
+	set   bool
+}
+
+// NewZoneName validates raw and returns the ZoneName it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
+func NewZoneName(raw string) (ZoneName, error) {
+	var notification validation.Notification
+
+	value := raw
+	if !rulecheck.TimeZone(value) {
+		notification.Reject(
+			"zoneName",
+			"timezone",
+			"",
+			value,
+			"zoneName must be an IANA time zone",
+		)
+	}
+
+	if notification.HasErrors() {
+		var zero ZoneName
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := notification
+
+		return zero, &failed
+	}
+
+	return ZoneName{value: value, set: true}, nil
+}
+
+// String returns the validated value.
+func (zoneName ZoneName) String() string { return zoneName.value }
+
+// IsZero reports whether the receiver is the zero ZoneName: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (zoneName ZoneName) IsZero() bool { return !zoneName.set }
+
+// Equal reports whether both value objects hold the same value.
+func (zoneName ZoneName) Equal(other ZoneName) bool {
+	return zoneName.value == other.value && zoneName.set == other.set
+}
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so ZoneName marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func (zoneName ZoneName) MarshalText() ([]byte, error) { return []byte(zoneName.value), nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a ZoneName the constructor would have rejected.
+func (zoneName *ZoneName) UnmarshalText(data []byte) error {
+	parsed, err := NewZoneName(string(data))
+	if err != nil {
+		return err
+	}
+
+	*zoneName = parsed
+
+	return nil
+}
+
+// Value implements driver.Valuer. The zero ZoneName is stored as NULL, which
+// Scan reads back as the zero ZoneName.
+func (zoneName ZoneName) Value() (driver.Value, error) {
+	if !zoneName.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return zoneName.value, nil
+}
+
+// Scan implements sql.Scanner for text columns. It re-runs validation, so a
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
+func (zoneName *ZoneName) Scan(src any) error {
+	switch source := src.(type) {
+	case nil:
+		var zero ZoneName
+
+		*zoneName = zero
+
+		return nil
+	case string:
+		return zoneName.UnmarshalText([]byte(source))
+	case []byte:
+		return zoneName.UnmarshalText(source)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into ZoneName: %w", src, validation.ErrUnsupportedSource)
+	}
+}
+
 // StockCode is a stock code in the documented SKU shape.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type StockCode struct{ value string }
+type StockCode struct {
+	value string
+	set   bool
+}
 
 // NewStockCode validates raw and returns the StockCode it describes.
 //
@@ -1493,18 +1848,21 @@ func NewStockCode(raw string) (StockCode, error) {
 		return zero, &failed
 	}
 
-	return StockCode{value: value}, nil
+	return StockCode{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (stockCode StockCode) String() string { return stockCode.value }
 
-// IsZero reports whether the receiver is the zero StockCode, which is the only
-// StockCode that never passed validation.
-func (stockCode StockCode) IsZero() bool { return stockCode.value == "" }
+// IsZero reports whether the receiver is the zero StockCode: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (stockCode StockCode) IsZero() bool { return !stockCode.set }
 
 // Equal reports whether both value objects hold the same value.
-func (stockCode StockCode) Equal(other StockCode) bool { return stockCode.value == other.value }
+func (stockCode StockCode) Equal(other StockCode) bool {
+	return stockCode.value == other.value && stockCode.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so StockCode marshals and
@@ -1525,8 +1883,18 @@ func (stockCode *StockCode) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (stockCode StockCode) Value() (driver.Value, error) { return stockCode.value, nil }
+// Value implements driver.Valuer. The zero StockCode is stored as NULL, which
+// Scan reads back as the zero StockCode.
+func (stockCode StockCode) Value() (driver.Value, error) {
+	if !stockCode.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return stockCode.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -1551,7 +1919,10 @@ func (stockCode *StockCode) Scan(src any) error {
 // Currency is one of the currencies the restaurant takes.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type Currency struct{ value string }
+type Currency struct {
+	value string
+	set   bool
+}
 
 // NewCurrency validates raw and returns the Currency it describes.
 //
@@ -1583,18 +1954,21 @@ func NewCurrency(raw string) (Currency, error) {
 		return zero, &failed
 	}
 
-	return Currency{value: value}, nil
+	return Currency{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (currency Currency) String() string { return currency.value }
 
-// IsZero reports whether the receiver is the zero Currency, which is the only
-// Currency that never passed validation.
-func (currency Currency) IsZero() bool { return currency.value == "" }
+// IsZero reports whether the receiver is the zero Currency: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (currency Currency) IsZero() bool { return !currency.set }
 
 // Equal reports whether both value objects hold the same value.
-func (currency Currency) Equal(other Currency) bool { return currency.value == other.value }
+func (currency Currency) Equal(other Currency) bool {
+	return currency.value == other.value && currency.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so Currency marshals and
@@ -1615,8 +1989,18 @@ func (currency *Currency) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (currency Currency) Value() (driver.Value, error) { return currency.value, nil }
+// Value implements driver.Valuer. The zero Currency is stored as NULL, which
+// Scan reads back as the zero Currency.
+func (currency Currency) Value() (driver.Value, error) {
+	if !currency.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return currency.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -1641,7 +2025,10 @@ func (currency *Currency) Scan(src any) error {
 // LetterName is a name written in letters only.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type LetterName struct{ value string }
+type LetterName struct {
+	value string
+	set   bool
+}
 
 // NewLetterName validates raw and returns the LetterName it describes.
 //
@@ -1675,18 +2062,21 @@ func NewLetterName(raw string) (LetterName, error) {
 		return zero, &failed
 	}
 
-	return LetterName{value: value}, nil
+	return LetterName{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (letterName LetterName) String() string { return letterName.value }
 
-// IsZero reports whether the receiver is the zero LetterName, which is the only
-// LetterName that never passed validation.
-func (letterName LetterName) IsZero() bool { return letterName.value == "" }
+// IsZero reports whether the receiver is the zero LetterName: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (letterName LetterName) IsZero() bool { return !letterName.set }
 
 // Equal reports whether both value objects hold the same value.
-func (letterName LetterName) Equal(other LetterName) bool { return letterName.value == other.value }
+func (letterName LetterName) Equal(other LetterName) bool {
+	return letterName.value == other.value && letterName.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so LetterName marshals and
@@ -1707,8 +2097,18 @@ func (letterName *LetterName) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (letterName LetterName) Value() (driver.Value, error) { return letterName.value, nil }
+// Value implements driver.Valuer. The zero LetterName is stored as NULL, which
+// Scan reads back as the zero LetterName.
+func (letterName LetterName) Value() (driver.Value, error) {
+	if !letterName.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return letterName.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -1733,7 +2133,10 @@ func (letterName *LetterName) Scan(src any) error {
 // Handle is a short code of letters and digits.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type Handle struct{ value string }
+type Handle struct {
+	value string
+	set   bool
+}
 
 // NewHandle validates raw and returns the Handle it describes.
 //
@@ -1767,18 +2170,21 @@ func NewHandle(raw string) (Handle, error) {
 		return zero, &failed
 	}
 
-	return Handle{value: value}, nil
+	return Handle{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (handle Handle) String() string { return handle.value }
 
-// IsZero reports whether the receiver is the zero Handle, which is the only
-// Handle that never passed validation.
-func (handle Handle) IsZero() bool { return handle.value == "" }
+// IsZero reports whether the receiver is the zero Handle: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (handle Handle) IsZero() bool { return !handle.set }
 
 // Equal reports whether both value objects hold the same value.
-func (handle Handle) Equal(other Handle) bool { return handle.value == other.value }
+func (handle Handle) Equal(other Handle) bool {
+	return handle.value == other.value && handle.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so Handle marshals and
@@ -1799,8 +2205,18 @@ func (handle *Handle) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (handle Handle) Value() (driver.Value, error) { return handle.value, nil }
+// Value implements driver.Valuer. The zero Handle is stored as NULL, which
+// Scan reads back as the zero Handle.
+func (handle Handle) Value() (driver.Value, error) {
+	if !handle.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return handle.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -1825,7 +2241,10 @@ func (handle *Handle) Scan(src any) error {
 // PhoneDigits is a phone number written as digits only.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type PhoneDigits struct{ value string }
+type PhoneDigits struct {
+	value string
+	set   bool
+}
 
 // NewPhoneDigits validates raw and returns the PhoneDigits it describes.
 //
@@ -1859,18 +2278,21 @@ func NewPhoneDigits(raw string) (PhoneDigits, error) {
 		return zero, &failed
 	}
 
-	return PhoneDigits{value: value}, nil
+	return PhoneDigits{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (phoneDigits PhoneDigits) String() string { return phoneDigits.value }
 
-// IsZero reports whether the receiver is the zero PhoneDigits, which is the only
-// PhoneDigits that never passed validation.
-func (phoneDigits PhoneDigits) IsZero() bool { return phoneDigits.value == "" }
+// IsZero reports whether the receiver is the zero PhoneDigits: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (phoneDigits PhoneDigits) IsZero() bool { return !phoneDigits.set }
 
 // Equal reports whether both value objects hold the same value.
-func (phoneDigits PhoneDigits) Equal(other PhoneDigits) bool { return phoneDigits.value == other.value }
+func (phoneDigits PhoneDigits) Equal(other PhoneDigits) bool {
+	return phoneDigits.value == other.value && phoneDigits.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so PhoneDigits marshals and
@@ -1891,8 +2313,18 @@ func (phoneDigits *PhoneDigits) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (phoneDigits PhoneDigits) Value() (driver.Value, error) { return phoneDigits.value, nil }
+// Value implements driver.Valuer. The zero PhoneDigits is stored as NULL, which
+// Scan reads back as the zero PhoneDigits.
+func (phoneDigits PhoneDigits) Value() (driver.Value, error) {
+	if !phoneDigits.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return phoneDigits.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -1917,7 +2349,10 @@ func (phoneDigits *PhoneDigits) Scan(src any) error {
 // LegacyCode is a code an ASCII-only system has to read.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type LegacyCode struct{ value string }
+type LegacyCode struct {
+	value string
+	set   bool
+}
 
 // NewLegacyCode validates raw and returns the LegacyCode it describes.
 //
@@ -1951,18 +2386,21 @@ func NewLegacyCode(raw string) (LegacyCode, error) {
 		return zero, &failed
 	}
 
-	return LegacyCode{value: value}, nil
+	return LegacyCode{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (legacyCode LegacyCode) String() string { return legacyCode.value }
 
-// IsZero reports whether the receiver is the zero LegacyCode, which is the only
-// LegacyCode that never passed validation.
-func (legacyCode LegacyCode) IsZero() bool { return legacyCode.value == "" }
+// IsZero reports whether the receiver is the zero LegacyCode: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (legacyCode LegacyCode) IsZero() bool { return !legacyCode.set }
 
 // Equal reports whether both value objects hold the same value.
-func (legacyCode LegacyCode) Equal(other LegacyCode) bool { return legacyCode.value == other.value }
+func (legacyCode LegacyCode) Equal(other LegacyCode) bool {
+	return legacyCode.value == other.value && legacyCode.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so LegacyCode marshals and
@@ -1983,8 +2421,18 @@ func (legacyCode *LegacyCode) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (legacyCode LegacyCode) Value() (driver.Value, error) { return legacyCode.value, nil }
+// Value implements driver.Valuer. The zero LegacyCode is stored as NULL, which
+// Scan reads back as the zero LegacyCode.
+func (legacyCode LegacyCode) Value() (driver.Value, error) {
+	if !legacyCode.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return legacyCode.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -2009,7 +2457,10 @@ func (legacyCode *LegacyCode) Scan(src any) error {
 // SingleLine is a line of text carrying no control characters.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type SingleLine struct{ value string }
+type SingleLine struct {
+	value string
+	set   bool
+}
 
 // NewSingleLine validates raw and returns the SingleLine it describes.
 //
@@ -2043,18 +2494,21 @@ func NewSingleLine(raw string) (SingleLine, error) {
 		return zero, &failed
 	}
 
-	return SingleLine{value: value}, nil
+	return SingleLine{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (singleLine SingleLine) String() string { return singleLine.value }
 
-// IsZero reports whether the receiver is the zero SingleLine, which is the only
-// SingleLine that never passed validation.
-func (singleLine SingleLine) IsZero() bool { return singleLine.value == "" }
+// IsZero reports whether the receiver is the zero SingleLine: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (singleLine SingleLine) IsZero() bool { return !singleLine.set }
 
 // Equal reports whether both value objects hold the same value.
-func (singleLine SingleLine) Equal(other SingleLine) bool { return singleLine.value == other.value }
+func (singleLine SingleLine) Equal(other SingleLine) bool {
+	return singleLine.value == other.value && singleLine.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so SingleLine marshals and
@@ -2075,8 +2529,18 @@ func (singleLine *SingleLine) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (singleLine SingleLine) Value() (driver.Value, error) { return singleLine.value, nil }
+// Value implements driver.Valuer. The zero SingleLine is stored as NULL, which
+// Scan reads back as the zero SingleLine.
+func (singleLine SingleLine) Value() (driver.Value, error) {
+	if !singleLine.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return singleLine.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -2101,7 +2565,10 @@ func (singleLine *SingleLine) Scan(src any) error {
 // Slug is a URL-safe token carrying no whitespace.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type Slug struct{ value string }
+type Slug struct {
+	value string
+	set   bool
+}
 
 // NewSlug validates raw and returns the Slug it describes.
 //
@@ -2133,18 +2600,19 @@ func NewSlug(raw string) (Slug, error) {
 		return zero, &failed
 	}
 
-	return Slug{value: value}, nil
+	return Slug{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (slug Slug) String() string { return slug.value }
 
-// IsZero reports whether the receiver is the zero Slug, which is the only
-// Slug that never passed validation.
-func (slug Slug) IsZero() bool { return slug.value == "" }
+// IsZero reports whether the receiver is the zero Slug: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (slug Slug) IsZero() bool { return !slug.set }
 
 // Equal reports whether both value objects hold the same value.
-func (slug Slug) Equal(other Slug) bool { return slug.value == other.value }
+func (slug Slug) Equal(other Slug) bool { return slug.value == other.value && slug.set == other.set }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so Slug marshals and
@@ -2165,8 +2633,18 @@ func (slug *Slug) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (slug Slug) Value() (driver.Value, error) { return slug.value, nil }
+// Value implements driver.Valuer. The zero Slug is stored as NULL, which
+// Scan reads back as the zero Slug.
+func (slug Slug) Value() (driver.Value, error) {
+	if !slug.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return slug.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -2191,7 +2669,10 @@ func (slug *Slug) Scan(src any) error {
 // ProductCode is a code inside the SKU namespace.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type ProductCode struct{ value string }
+type ProductCode struct {
+	value string
+	set   bool
+}
 
 // NewProductCode validates raw and returns the ProductCode it describes.
 //
@@ -2223,18 +2704,21 @@ func NewProductCode(raw string) (ProductCode, error) {
 		return zero, &failed
 	}
 
-	return ProductCode{value: value}, nil
+	return ProductCode{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (productCode ProductCode) String() string { return productCode.value }
 
-// IsZero reports whether the receiver is the zero ProductCode, which is the only
-// ProductCode that never passed validation.
-func (productCode ProductCode) IsZero() bool { return productCode.value == "" }
+// IsZero reports whether the receiver is the zero ProductCode: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (productCode ProductCode) IsZero() bool { return !productCode.set }
 
 // Equal reports whether both value objects hold the same value.
-func (productCode ProductCode) Equal(other ProductCode) bool { return productCode.value == other.value }
+func (productCode ProductCode) Equal(other ProductCode) bool {
+	return productCode.value == other.value && productCode.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so ProductCode marshals and
@@ -2255,8 +2739,18 @@ func (productCode *ProductCode) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (productCode ProductCode) Value() (driver.Value, error) { return productCode.value, nil }
+// Value implements driver.Valuer. The zero ProductCode is stored as NULL, which
+// Scan reads back as the zero ProductCode.
+func (productCode ProductCode) Value() (driver.Value, error) {
+	if !productCode.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return productCode.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -2281,7 +2775,10 @@ func (productCode *ProductCode) Scan(src any) error {
 // DocumentFile is the name of a PDF document.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type DocumentFile struct{ value string }
+type DocumentFile struct {
+	value string
+	set   bool
+}
 
 // NewDocumentFile validates raw and returns the DocumentFile it describes.
 //
@@ -2313,19 +2810,20 @@ func NewDocumentFile(raw string) (DocumentFile, error) {
 		return zero, &failed
 	}
 
-	return DocumentFile{value: value}, nil
+	return DocumentFile{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (documentFile DocumentFile) String() string { return documentFile.value }
 
-// IsZero reports whether the receiver is the zero DocumentFile, which is the only
-// DocumentFile that never passed validation.
-func (documentFile DocumentFile) IsZero() bool { return documentFile.value == "" }
+// IsZero reports whether the receiver is the zero DocumentFile: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (documentFile DocumentFile) IsZero() bool { return !documentFile.set }
 
 // Equal reports whether both value objects hold the same value.
 func (documentFile DocumentFile) Equal(other DocumentFile) bool {
-	return documentFile.value == other.value
+	return documentFile.value == other.value && documentFile.set == other.set
 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
@@ -2349,8 +2847,18 @@ func (documentFile *DocumentFile) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (documentFile DocumentFile) Value() (driver.Value, error) { return documentFile.value, nil }
+// Value implements driver.Valuer. The zero DocumentFile is stored as NULL, which
+// Scan reads back as the zero DocumentFile.
+func (documentFile DocumentFile) Value() (driver.Value, error) {
+	if !documentFile.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return documentFile.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -2375,7 +2883,10 @@ func (documentFile *DocumentFile) Scan(src any) error {
 // ResourcePath is a path carrying a separator.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type ResourcePath struct{ value string }
+type ResourcePath struct {
+	value string
+	set   bool
+}
 
 // NewResourcePath validates raw and returns the ResourcePath it describes.
 //
@@ -2407,19 +2918,20 @@ func NewResourcePath(raw string) (ResourcePath, error) {
 		return zero, &failed
 	}
 
-	return ResourcePath{value: value}, nil
+	return ResourcePath{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (resourcePath ResourcePath) String() string { return resourcePath.value }
 
-// IsZero reports whether the receiver is the zero ResourcePath, which is the only
-// ResourcePath that never passed validation.
-func (resourcePath ResourcePath) IsZero() bool { return resourcePath.value == "" }
+// IsZero reports whether the receiver is the zero ResourcePath: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (resourcePath ResourcePath) IsZero() bool { return !resourcePath.set }
 
 // Equal reports whether both value objects hold the same value.
 func (resourcePath ResourcePath) Equal(other ResourcePath) bool {
-	return resourcePath.value == other.value
+	return resourcePath.value == other.value && resourcePath.set == other.set
 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
@@ -2443,8 +2955,18 @@ func (resourcePath *ResourcePath) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (resourcePath ResourcePath) Value() (driver.Value, error) { return resourcePath.value, nil }
+// Value implements driver.Valuer. The zero ResourcePath is stored as NULL, which
+// Scan reads back as the zero ResourcePath.
+func (resourcePath ResourcePath) Value() (driver.Value, error) {
+	if !resourcePath.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return resourcePath.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -2469,7 +2991,10 @@ func (resourcePath *ResourcePath) Scan(src any) error {
 // FlatName is a name carrying no separator.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type FlatName struct{ value string }
+type FlatName struct {
+	value string
+	set   bool
+}
 
 // NewFlatName validates raw and returns the FlatName it describes.
 //
@@ -2501,18 +3026,21 @@ func NewFlatName(raw string) (FlatName, error) {
 		return zero, &failed
 	}
 
-	return FlatName{value: value}, nil
+	return FlatName{value: value, set: true}, nil
 }
 
 // String returns the validated value.
 func (flatName FlatName) String() string { return flatName.value }
 
-// IsZero reports whether the receiver is the zero FlatName, which is the only
-// FlatName that never passed validation.
-func (flatName FlatName) IsZero() bool { return flatName.value == "" }
+// IsZero reports whether the receiver is the zero FlatName: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (flatName FlatName) IsZero() bool { return !flatName.set }
 
 // Equal reports whether both value objects hold the same value.
-func (flatName FlatName) Equal(other FlatName) bool { return flatName.value == other.value }
+func (flatName FlatName) Equal(other FlatName) bool {
+	return flatName.value == other.value && flatName.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so FlatName marshals and
@@ -2533,8 +3061,18 @@ func (flatName *FlatName) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (flatName FlatName) Value() (driver.Value, error) { return flatName.value, nil }
+// Value implements driver.Valuer. The zero FlatName is stored as NULL, which
+// Scan reads back as the zero FlatName.
+func (flatName FlatName) Value() (driver.Value, error) {
+	if !flatName.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return flatName.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
@@ -2562,7 +3100,10 @@ func (flatName *FlatName) Scan(src any) error {
 // number without a widening conversion at the boundary.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type Covers struct{ value int64 }
+type Covers struct {
+	value int64
+	set   bool
+}
 
 // NewCovers validates raw and returns the Covers it describes.
 //
@@ -2594,7 +3135,7 @@ func NewCovers(raw int64) (Covers, error) {
 		return zero, &failed
 	}
 
-	return Covers{value: value}, nil
+	return Covers{value: value, set: true}, nil
 }
 
 // NewCoversFromString reads a base-10 representation and validates it. A
@@ -2628,12 +3169,15 @@ func (covers Covers) Int64() int64 { return covers.value }
 // String returns the base-10 representation of the value.
 func (covers Covers) String() string { return strconv.FormatInt(covers.value, 10) }
 
-// IsZero reports whether the receiver is the zero Covers, which is the only
-// Covers that never passed validation.
-func (covers Covers) IsZero() bool { return covers.value == 0 }
+// IsZero reports whether the receiver is the zero Covers: one that was never
+// constructed, as opposed to one constructed from 0. It is what
+// `json:",omitzero"` asks, and what Value stores as NULL.
+func (covers Covers) IsZero() bool { return !covers.set }
 
 // Equal reports whether both value objects hold the same value.
-func (covers Covers) Equal(other Covers) bool { return covers.value == other.value }
+func (covers Covers) Equal(other Covers) bool {
+	return covers.value == other.value && covers.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Covers round-trips through JSON without
@@ -2653,8 +3197,18 @@ func (covers *Covers) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (covers Covers) Value() (driver.Value, error) { return covers.value, nil }
+// Value implements driver.Valuer. The zero Covers is stored as NULL, which
+// Scan reads back as the zero Covers.
+func (covers Covers) Value() (driver.Value, error) {
+	if !covers.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return covers.value, nil
+}
 
 // Scan implements sql.Scanner for integer and text columns, re-running
 // validation so a row that no longer satisfies the rules surfaces as a
@@ -2691,7 +3245,10 @@ func (covers *Covers) Scan(src any) error {
 // number without a widening conversion at the boundary.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type Seats struct{ value int64 }
+type Seats struct {
+	value int64
+	set   bool
+}
 
 // NewSeats validates raw and returns the Seats it describes.
 //
@@ -2723,7 +3280,7 @@ func NewSeats(raw int64) (Seats, error) {
 		return zero, &failed
 	}
 
-	return Seats{value: value}, nil
+	return Seats{value: value, set: true}, nil
 }
 
 // NewSeatsFromString reads a base-10 representation and validates it. A
@@ -2757,12 +3314,15 @@ func (seats Seats) Int64() int64 { return seats.value }
 // String returns the base-10 representation of the value.
 func (seats Seats) String() string { return strconv.FormatInt(seats.value, 10) }
 
-// IsZero reports whether the receiver is the zero Seats, which is the only
-// Seats that never passed validation.
-func (seats Seats) IsZero() bool { return seats.value == 0 }
+// IsZero reports whether the receiver is the zero Seats: one that was never
+// constructed, as opposed to one constructed from 0. It is what
+// `json:",omitzero"` asks, and what Value stores as NULL.
+func (seats Seats) IsZero() bool { return !seats.set }
 
 // Equal reports whether both value objects hold the same value.
-func (seats Seats) Equal(other Seats) bool { return seats.value == other.value }
+func (seats Seats) Equal(other Seats) bool {
+	return seats.value == other.value && seats.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Seats round-trips through JSON without
@@ -2782,8 +3342,18 @@ func (seats *Seats) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (seats Seats) Value() (driver.Value, error) { return seats.value, nil }
+// Value implements driver.Valuer. The zero Seats is stored as NULL, which
+// Scan reads back as the zero Seats.
+func (seats Seats) Value() (driver.Value, error) {
+	if !seats.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return seats.value, nil
+}
 
 // Scan implements sql.Scanner for integer and text columns, re-running
 // validation so a row that no longer satisfies the rules surfaces as a
@@ -2820,7 +3390,10 @@ func (seats *Seats) Scan(src any) error {
 // number without a widening conversion at the boundary.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type CourseCount struct{ value int64 }
+type CourseCount struct {
+	value int64
+	set   bool
+}
 
 // NewCourseCount validates raw and returns the CourseCount it describes.
 //
@@ -2850,7 +3423,7 @@ func NewCourseCount(raw int64) (CourseCount, error) {
 		return zero, &failed
 	}
 
-	return CourseCount{value: value}, nil
+	return CourseCount{value: value, set: true}, nil
 }
 
 // NewCourseCountFromString reads a base-10 representation and validates it. A
@@ -2884,12 +3457,15 @@ func (courseCount CourseCount) Int64() int64 { return courseCount.value }
 // String returns the base-10 representation of the value.
 func (courseCount CourseCount) String() string { return strconv.FormatInt(courseCount.value, 10) }
 
-// IsZero reports whether the receiver is the zero CourseCount, which is the only
-// CourseCount that never passed validation.
-func (courseCount CourseCount) IsZero() bool { return courseCount.value == 0 }
+// IsZero reports whether the receiver is the zero CourseCount: one that was never
+// constructed, as opposed to one constructed from 0. It is what
+// `json:",omitzero"` asks, and what Value stores as NULL.
+func (courseCount CourseCount) IsZero() bool { return !courseCount.set }
 
 // Equal reports whether both value objects hold the same value.
-func (courseCount CourseCount) Equal(other CourseCount) bool { return courseCount.value == other.value }
+func (courseCount CourseCount) Equal(other CourseCount) bool {
+	return courseCount.value == other.value && courseCount.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so CourseCount round-trips through JSON without
@@ -2911,8 +3487,18 @@ func (courseCount *CourseCount) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (courseCount CourseCount) Value() (driver.Value, error) { return courseCount.value, nil }
+// Value implements driver.Valuer. The zero CourseCount is stored as NULL, which
+// Scan reads back as the zero CourseCount.
+func (courseCount CourseCount) Value() (driver.Value, error) {
+	if !courseCount.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return courseCount.value, nil
+}
 
 // Scan implements sql.Scanner for integer and text columns, re-running
 // validation so a row that no longer satisfies the rules surfaces as a
@@ -2949,7 +3535,10 @@ func (courseCount *CourseCount) Scan(src any) error {
 // number without a widening conversion at the boundary.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type Portions struct{ value int64 }
+type Portions struct {
+	value int64
+	set   bool
+}
 
 // NewPortions validates raw and returns the Portions it describes.
 //
@@ -2979,7 +3568,7 @@ func NewPortions(raw int64) (Portions, error) {
 		return zero, &failed
 	}
 
-	return Portions{value: value}, nil
+	return Portions{value: value, set: true}, nil
 }
 
 // NewPortionsFromString reads a base-10 representation and validates it. A
@@ -3013,12 +3602,15 @@ func (portions Portions) Int64() int64 { return portions.value }
 // String returns the base-10 representation of the value.
 func (portions Portions) String() string { return strconv.FormatInt(portions.value, 10) }
 
-// IsZero reports whether the receiver is the zero Portions, which is the only
-// Portions that never passed validation.
-func (portions Portions) IsZero() bool { return portions.value == 0 }
+// IsZero reports whether the receiver is the zero Portions: one that was never
+// constructed, as opposed to one constructed from 0. It is what
+// `json:",omitzero"` asks, and what Value stores as NULL.
+func (portions Portions) IsZero() bool { return !portions.set }
 
 // Equal reports whether both value objects hold the same value.
-func (portions Portions) Equal(other Portions) bool { return portions.value == other.value }
+func (portions Portions) Equal(other Portions) bool {
+	return portions.value == other.value && portions.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Portions round-trips through JSON without
@@ -3038,8 +3630,18 @@ func (portions *Portions) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (portions Portions) Value() (driver.Value, error) { return portions.value, nil }
+// Value implements driver.Valuer. The zero Portions is stored as NULL, which
+// Scan reads back as the zero Portions.
+func (portions Portions) Value() (driver.Value, error) {
+	if !portions.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return portions.value, nil
+}
 
 // Scan implements sql.Scanner for integer and text columns, re-running
 // validation so a row that no longer satisfies the rules surfaces as a
@@ -3076,7 +3678,10 @@ func (portions *Portions) Scan(src any) error {
 // number without a widening conversion at the boundary.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type StockLevel struct{ value int64 }
+type StockLevel struct {
+	value int64
+	set   bool
+}
 
 // NewStockLevel validates raw and returns the StockLevel it describes.
 //
@@ -3106,7 +3711,7 @@ func NewStockLevel(raw int64) (StockLevel, error) {
 		return zero, &failed
 	}
 
-	return StockLevel{value: value}, nil
+	return StockLevel{value: value, set: true}, nil
 }
 
 // NewStockLevelFromString reads a base-10 representation and validates it. A
@@ -3140,12 +3745,15 @@ func (stockLevel StockLevel) Int64() int64 { return stockLevel.value }
 // String returns the base-10 representation of the value.
 func (stockLevel StockLevel) String() string { return strconv.FormatInt(stockLevel.value, 10) }
 
-// IsZero reports whether the receiver is the zero StockLevel, which is the only
-// StockLevel that never passed validation.
-func (stockLevel StockLevel) IsZero() bool { return stockLevel.value == 0 }
+// IsZero reports whether the receiver is the zero StockLevel: one that was never
+// constructed, as opposed to one constructed from 0. It is what
+// `json:",omitzero"` asks, and what Value stores as NULL.
+func (stockLevel StockLevel) IsZero() bool { return !stockLevel.set }
 
 // Equal reports whether both value objects hold the same value.
-func (stockLevel StockLevel) Equal(other StockLevel) bool { return stockLevel.value == other.value }
+func (stockLevel StockLevel) Equal(other StockLevel) bool {
+	return stockLevel.value == other.value && stockLevel.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so StockLevel round-trips through JSON without
@@ -3165,8 +3773,18 @@ func (stockLevel *StockLevel) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (stockLevel StockLevel) Value() (driver.Value, error) { return stockLevel.value, nil }
+// Value implements driver.Valuer. The zero StockLevel is stored as NULL, which
+// Scan reads back as the zero StockLevel.
+func (stockLevel StockLevel) Value() (driver.Value, error) {
+	if !stockLevel.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return stockLevel.value, nil
+}
 
 // Scan implements sql.Scanner for integer and text columns, re-running
 // validation so a row that no longer satisfies the rules surfaces as a
@@ -3203,7 +3821,10 @@ func (stockLevel *StockLevel) Scan(src any) error {
 // number without a widening conversion at the boundary.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type SlotMinutes struct{ value int64 }
+type SlotMinutes struct {
+	value int64
+	set   bool
+}
 
 // NewSlotMinutes validates raw and returns the SlotMinutes it describes.
 //
@@ -3235,7 +3856,7 @@ func NewSlotMinutes(raw int64) (SlotMinutes, error) {
 		return zero, &failed
 	}
 
-	return SlotMinutes{value: value}, nil
+	return SlotMinutes{value: value, set: true}, nil
 }
 
 // NewSlotMinutesFromString reads a base-10 representation and validates it. A
@@ -3269,12 +3890,15 @@ func (slotMinutes SlotMinutes) Int64() int64 { return slotMinutes.value }
 // String returns the base-10 representation of the value.
 func (slotMinutes SlotMinutes) String() string { return strconv.FormatInt(slotMinutes.value, 10) }
 
-// IsZero reports whether the receiver is the zero SlotMinutes, which is the only
-// SlotMinutes that never passed validation.
-func (slotMinutes SlotMinutes) IsZero() bool { return slotMinutes.value == 0 }
+// IsZero reports whether the receiver is the zero SlotMinutes: one that was never
+// constructed, as opposed to one constructed from 0. It is what
+// `json:",omitzero"` asks, and what Value stores as NULL.
+func (slotMinutes SlotMinutes) IsZero() bool { return !slotMinutes.set }
 
 // Equal reports whether both value objects hold the same value.
-func (slotMinutes SlotMinutes) Equal(other SlotMinutes) bool { return slotMinutes.value == other.value }
+func (slotMinutes SlotMinutes) Equal(other SlotMinutes) bool {
+	return slotMinutes.value == other.value && slotMinutes.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so SlotMinutes round-trips through JSON without
@@ -3296,8 +3920,18 @@ func (slotMinutes *SlotMinutes) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (slotMinutes SlotMinutes) Value() (driver.Value, error) { return slotMinutes.value, nil }
+// Value implements driver.Valuer. The zero SlotMinutes is stored as NULL, which
+// Scan reads back as the zero SlotMinutes.
+func (slotMinutes SlotMinutes) Value() (driver.Value, error) {
+	if !slotMinutes.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return slotMinutes.value, nil
+}
 
 // Scan implements sql.Scanner for integer and text columns, re-running
 // validation so a row that no longer satisfies the rules surfaces as a
@@ -3335,22 +3969,22 @@ func (slotMinutes *SlotMinutes) Scan(src any) error {
 // reads back as the value someone typed.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type MinRate struct{ value decimal.Decimal }
+type MinRate struct {
+	value decimal.Decimal
+	set   bool
+}
 
 // NewMinRate validates raw and returns the MinRate it describes.
 //
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewMinRate(raw decimal.Decimal) (MinRate, error) {
-	const (
-		minimumParameterCoef  = 0
-		minimumParameterScale = 0
-	)
+	const minimumParameter = 0
 
 	var notification validation.Notification
 
 	value := raw
-	if value.Cmp(decimal.MustNew(minimumParameterCoef, minimumParameterScale)) < 0 {
+	if value.Cmp(decimal.MustNew(minimumParameter, 0)) < 0 {
 		notification.Reject(
 			"minRate",
 			"min",
@@ -3370,7 +4004,7 @@ func NewMinRate(raw decimal.Decimal) (MinRate, error) {
 		return zero, &failed
 	}
 
-	return MinRate{value: value}, nil
+	return MinRate{value: value, set: true}, nil
 }
 
 // NewMinRateFromString reads a decimal representation and validates it. A
@@ -3405,9 +4039,10 @@ func (minRate MinRate) Decimal() decimal.Decimal { return minRate.value }
 // scale it was created with: 1.50 reads back as "1.50", not as "1.5".
 func (minRate MinRate) String() string { return minRate.value.String() }
 
-// IsZero reports whether the receiver holds zero, which is also the zero
-// MinRate: the only MinRate that never passed validation.
-func (minRate MinRate) IsZero() bool { return minRate.value.IsZero() }
+// IsZero reports whether the receiver is the zero MinRate: one that was never
+// constructed, as opposed to one constructed from 0. It is what
+// `json:",omitzero"` asks, and what Value stores as NULL.
+func (minRate MinRate) IsZero() bool { return !minRate.set }
 
 // Equal reports whether both value objects hold the same number.
 //
@@ -3415,7 +4050,9 @@ func (minRate MinRate) IsZero() bool { return minRate.value.IsZero() }
 // scale: 1.5 and 1.50 are the same number written at two scales, and == would
 // call them different. Two MinRate values that compare equal here may therefore
 // still marshal to different text, which is what keeps a stored scale intact.
-func (minRate MinRate) Equal(other MinRate) bool { return minRate.value.Cmp(other.value) == 0 }
+func (minRate MinRate) Equal(other MinRate) bool {
+	return minRate.set == other.set && minRate.value.Cmp(other.value) == 0
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so MinRate crosses a JSON boundary as a
@@ -3437,8 +4074,17 @@ func (minRate *MinRate) UnmarshalText(data []byte) error {
 
 // Value implements driver.Valuer, storing the canonical representation as
 // text. A PostgreSQL `numeric` column accepts it and keeps every digit, which
-// a float parameter would not.
-func (minRate MinRate) Value() (driver.Value, error) { return minRate.value.String(), nil }
+// a float parameter would not. The zero MinRate is stored as NULL.
+func (minRate MinRate) Value() (driver.Value, error) {
+	if !minRate.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return minRate.value.String(), nil
+}
 
 // Scan implements sql.Scanner for text and integer columns, re-running
 // validation so a row that no longer satisfies the rules surfaces as a
@@ -3494,22 +4140,22 @@ func (minRate *MinRate) scanInt64(number int64) error {
 // reads back as the value someone typed.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type MaxRate struct{ value decimal.Decimal }
+type MaxRate struct {
+	value decimal.Decimal
+	set   bool
+}
 
 // NewMaxRate validates raw and returns the MaxRate it describes.
 //
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewMaxRate(raw decimal.Decimal) (MaxRate, error) {
-	const (
-		maximumParameterCoef  = 1
-		maximumParameterScale = 0
-	)
+	const maximumParameter = 1
 
 	var notification validation.Notification
 
 	value := raw
-	if value.Cmp(decimal.MustNew(maximumParameterCoef, maximumParameterScale)) > 0 {
+	if value.Cmp(decimal.MustNew(maximumParameter, 0)) > 0 {
 		notification.Reject(
 			"maxRate",
 			"max",
@@ -3529,7 +4175,7 @@ func NewMaxRate(raw decimal.Decimal) (MaxRate, error) {
 		return zero, &failed
 	}
 
-	return MaxRate{value: value}, nil
+	return MaxRate{value: value, set: true}, nil
 }
 
 // NewMaxRateFromString reads a decimal representation and validates it. A
@@ -3564,9 +4210,10 @@ func (maxRate MaxRate) Decimal() decimal.Decimal { return maxRate.value }
 // scale it was created with: 1.50 reads back as "1.50", not as "1.5".
 func (maxRate MaxRate) String() string { return maxRate.value.String() }
 
-// IsZero reports whether the receiver holds zero, which is also the zero
-// MaxRate: the only MaxRate that never passed validation.
-func (maxRate MaxRate) IsZero() bool { return maxRate.value.IsZero() }
+// IsZero reports whether the receiver is the zero MaxRate: one that was never
+// constructed, as opposed to one constructed from 0. It is what
+// `json:",omitzero"` asks, and what Value stores as NULL.
+func (maxRate MaxRate) IsZero() bool { return !maxRate.set }
 
 // Equal reports whether both value objects hold the same number.
 //
@@ -3574,7 +4221,9 @@ func (maxRate MaxRate) IsZero() bool { return maxRate.value.IsZero() }
 // scale: 1.5 and 1.50 are the same number written at two scales, and == would
 // call them different. Two MaxRate values that compare equal here may therefore
 // still marshal to different text, which is what keeps a stored scale intact.
-func (maxRate MaxRate) Equal(other MaxRate) bool { return maxRate.value.Cmp(other.value) == 0 }
+func (maxRate MaxRate) Equal(other MaxRate) bool {
+	return maxRate.set == other.set && maxRate.value.Cmp(other.value) == 0
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so MaxRate crosses a JSON boundary as a
@@ -3596,8 +4245,17 @@ func (maxRate *MaxRate) UnmarshalText(data []byte) error {
 
 // Value implements driver.Valuer, storing the canonical representation as
 // text. A PostgreSQL `numeric` column accepts it and keeps every digit, which
-// a float parameter would not.
-func (maxRate MaxRate) Value() (driver.Value, error) { return maxRate.value.String(), nil }
+// a float parameter would not. The zero MaxRate is stored as NULL.
+func (maxRate MaxRate) Value() (driver.Value, error) {
+	if !maxRate.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return maxRate.value.String(), nil
+}
 
 // Scan implements sql.Scanner for text and integer columns, re-running
 // validation so a row that no longer satisfies the rules surfaces as a
@@ -3653,7 +4311,10 @@ func (maxRate *MaxRate) scanInt64(number int64) error {
 // reads back as the value someone typed.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type UnitWeight struct{ value decimal.Decimal }
+type UnitWeight struct {
+	value decimal.Decimal
+	set   bool
+}
 
 // NewUnitWeight validates raw and returns the UnitWeight it describes.
 //
@@ -3683,7 +4344,7 @@ func NewUnitWeight(raw decimal.Decimal) (UnitWeight, error) {
 		return zero, &failed
 	}
 
-	return UnitWeight{value: value}, nil
+	return UnitWeight{value: value, set: true}, nil
 }
 
 // NewUnitWeightFromString reads a decimal representation and validates it. A
@@ -3718,9 +4379,10 @@ func (unitWeight UnitWeight) Decimal() decimal.Decimal { return unitWeight.value
 // scale it was created with: 1.50 reads back as "1.50", not as "1.5".
 func (unitWeight UnitWeight) String() string { return unitWeight.value.String() }
 
-// IsZero reports whether the receiver holds zero, which is also the zero
-// UnitWeight: the only UnitWeight that never passed validation.
-func (unitWeight UnitWeight) IsZero() bool { return unitWeight.value.IsZero() }
+// IsZero reports whether the receiver is the zero UnitWeight: one that was never
+// constructed, as opposed to one constructed from 0. It is what
+// `json:",omitzero"` asks, and what Value stores as NULL.
+func (unitWeight UnitWeight) IsZero() bool { return !unitWeight.set }
 
 // Equal reports whether both value objects hold the same number.
 //
@@ -3729,7 +4391,7 @@ func (unitWeight UnitWeight) IsZero() bool { return unitWeight.value.IsZero() }
 // call them different. Two UnitWeight values that compare equal here may therefore
 // still marshal to different text, which is what keeps a stored scale intact.
 func (unitWeight UnitWeight) Equal(other UnitWeight) bool {
-	return unitWeight.value.Cmp(other.value) == 0
+	return unitWeight.set == other.set && unitWeight.value.Cmp(other.value) == 0
 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
@@ -3754,8 +4416,17 @@ func (unitWeight *UnitWeight) UnmarshalText(data []byte) error {
 
 // Value implements driver.Valuer, storing the canonical representation as
 // text. A PostgreSQL `numeric` column accepts it and keeps every digit, which
-// a float parameter would not.
-func (unitWeight UnitWeight) Value() (driver.Value, error) { return unitWeight.value.String(), nil }
+// a float parameter would not. The zero UnitWeight is stored as NULL.
+func (unitWeight UnitWeight) Value() (driver.Value, error) {
+	if !unitWeight.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return unitWeight.value.String(), nil
+}
 
 // Scan implements sql.Scanner for text and integer columns, re-running
 // validation so a row that no longer satisfies the rules surfaces as a
@@ -3811,7 +4482,10 @@ func (unitWeight *UnitWeight) scanInt64(number int64) error {
 // reads back as the value someone typed.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type ShelfWeight struct{ value decimal.Decimal }
+type ShelfWeight struct {
+	value decimal.Decimal
+	set   bool
+}
 
 // NewShelfWeight validates raw and returns the ShelfWeight it describes.
 //
@@ -3841,7 +4515,7 @@ func NewShelfWeight(raw decimal.Decimal) (ShelfWeight, error) {
 		return zero, &failed
 	}
 
-	return ShelfWeight{value: value}, nil
+	return ShelfWeight{value: value, set: true}, nil
 }
 
 // NewShelfWeightFromString reads a decimal representation and validates it. A
@@ -3876,9 +4550,10 @@ func (shelfWeight ShelfWeight) Decimal() decimal.Decimal { return shelfWeight.va
 // scale it was created with: 1.50 reads back as "1.50", not as "1.5".
 func (shelfWeight ShelfWeight) String() string { return shelfWeight.value.String() }
 
-// IsZero reports whether the receiver holds zero, which is also the zero
-// ShelfWeight: the only ShelfWeight that never passed validation.
-func (shelfWeight ShelfWeight) IsZero() bool { return shelfWeight.value.IsZero() }
+// IsZero reports whether the receiver is the zero ShelfWeight: one that was never
+// constructed, as opposed to one constructed from 0. It is what
+// `json:",omitzero"` asks, and what Value stores as NULL.
+func (shelfWeight ShelfWeight) IsZero() bool { return !shelfWeight.set }
 
 // Equal reports whether both value objects hold the same number.
 //
@@ -3887,7 +4562,7 @@ func (shelfWeight ShelfWeight) IsZero() bool { return shelfWeight.value.IsZero()
 // call them different. Two ShelfWeight values that compare equal here may therefore
 // still marshal to different text, which is what keeps a stored scale intact.
 func (shelfWeight ShelfWeight) Equal(other ShelfWeight) bool {
-	return shelfWeight.value.Cmp(other.value) == 0
+	return shelfWeight.set == other.set && shelfWeight.value.Cmp(other.value) == 0
 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
@@ -3912,8 +4587,17 @@ func (shelfWeight *ShelfWeight) UnmarshalText(data []byte) error {
 
 // Value implements driver.Valuer, storing the canonical representation as
 // text. A PostgreSQL `numeric` column accepts it and keeps every digit, which
-// a float parameter would not.
-func (shelfWeight ShelfWeight) Value() (driver.Value, error) { return shelfWeight.value.String(), nil }
+// a float parameter would not. The zero ShelfWeight is stored as NULL.
+func (shelfWeight ShelfWeight) Value() (driver.Value, error) {
+	if !shelfWeight.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return shelfWeight.value.String(), nil
+}
 
 // Scan implements sql.Scanner for text and integer columns, re-running
 // validation so a row that no longer satisfies the rules surfaces as a
@@ -3969,7 +4653,10 @@ func (shelfWeight *ShelfWeight) scanInt64(number int64) error {
 // reads back as the value someone typed.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type TaxRate struct{ value decimal.Decimal }
+type TaxRate struct {
+	value decimal.Decimal
+	set   bool
+}
 
 // NewTaxRate validates raw and returns the TaxRate it describes.
 //
@@ -4001,7 +4688,7 @@ func NewTaxRate(raw decimal.Decimal) (TaxRate, error) {
 		return zero, &failed
 	}
 
-	return TaxRate{value: value}, nil
+	return TaxRate{value: value, set: true}, nil
 }
 
 // NewTaxRateFromString reads a decimal representation and validates it. A
@@ -4036,9 +4723,10 @@ func (taxRate TaxRate) Decimal() decimal.Decimal { return taxRate.value }
 // scale it was created with: 1.50 reads back as "1.50", not as "1.5".
 func (taxRate TaxRate) String() string { return taxRate.value.String() }
 
-// IsZero reports whether the receiver holds zero, which is also the zero
-// TaxRate: the only TaxRate that never passed validation.
-func (taxRate TaxRate) IsZero() bool { return taxRate.value.IsZero() }
+// IsZero reports whether the receiver is the zero TaxRate: one that was never
+// constructed, as opposed to one constructed from 0. It is what
+// `json:",omitzero"` asks, and what Value stores as NULL.
+func (taxRate TaxRate) IsZero() bool { return !taxRate.set }
 
 // Equal reports whether both value objects hold the same number.
 //
@@ -4046,7 +4734,9 @@ func (taxRate TaxRate) IsZero() bool { return taxRate.value.IsZero() }
 // scale: 1.5 and 1.50 are the same number written at two scales, and == would
 // call them different. Two TaxRate values that compare equal here may therefore
 // still marshal to different text, which is what keeps a stored scale intact.
-func (taxRate TaxRate) Equal(other TaxRate) bool { return taxRate.value.Cmp(other.value) == 0 }
+func (taxRate TaxRate) Equal(other TaxRate) bool {
+	return taxRate.set == other.set && taxRate.value.Cmp(other.value) == 0
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so TaxRate crosses a JSON boundary as a
@@ -4068,8 +4758,17 @@ func (taxRate *TaxRate) UnmarshalText(data []byte) error {
 
 // Value implements driver.Valuer, storing the canonical representation as
 // text. A PostgreSQL `numeric` column accepts it and keeps every digit, which
-// a float parameter would not.
-func (taxRate TaxRate) Value() (driver.Value, error) { return taxRate.value.String(), nil }
+// a float parameter would not. The zero TaxRate is stored as NULL.
+func (taxRate TaxRate) Value() (driver.Value, error) {
+	if !taxRate.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return taxRate.value.String(), nil
+}
 
 // Scan implements sql.Scanner for text and integer columns, re-running
 // validation so a row that no longer satisfies the rules surfaces as a
@@ -4125,7 +4824,10 @@ func (taxRate *TaxRate) scanInt64(number int64) error {
 // reads back as the value someone typed.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type PreciseWeight struct{ value decimal.Decimal }
+type PreciseWeight struct {
+	value decimal.Decimal
+	set   bool
+}
 
 // NewPreciseWeight validates raw and returns the PreciseWeight it describes.
 //
@@ -4157,7 +4859,7 @@ func NewPreciseWeight(raw decimal.Decimal) (PreciseWeight, error) {
 		return zero, &failed
 	}
 
-	return PreciseWeight{value: value}, nil
+	return PreciseWeight{value: value, set: true}, nil
 }
 
 // NewPreciseWeightFromString reads a decimal representation and validates it. A
@@ -4192,9 +4894,10 @@ func (preciseWeight PreciseWeight) Decimal() decimal.Decimal { return preciseWei
 // scale it was created with: 1.50 reads back as "1.50", not as "1.5".
 func (preciseWeight PreciseWeight) String() string { return preciseWeight.value.String() }
 
-// IsZero reports whether the receiver holds zero, which is also the zero
-// PreciseWeight: the only PreciseWeight that never passed validation.
-func (preciseWeight PreciseWeight) IsZero() bool { return preciseWeight.value.IsZero() }
+// IsZero reports whether the receiver is the zero PreciseWeight: one that was never
+// constructed, as opposed to one constructed from 0. It is what
+// `json:",omitzero"` asks, and what Value stores as NULL.
+func (preciseWeight PreciseWeight) IsZero() bool { return !preciseWeight.set }
 
 // Equal reports whether both value objects hold the same number.
 //
@@ -4203,7 +4906,7 @@ func (preciseWeight PreciseWeight) IsZero() bool { return preciseWeight.value.Is
 // call them different. Two PreciseWeight values that compare equal here may therefore
 // still marshal to different text, which is what keeps a stored scale intact.
 func (preciseWeight PreciseWeight) Equal(other PreciseWeight) bool {
-	return preciseWeight.value.Cmp(other.value) == 0
+	return preciseWeight.set == other.set && preciseWeight.value.Cmp(other.value) == 0
 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
@@ -4228,8 +4931,15 @@ func (preciseWeight *PreciseWeight) UnmarshalText(data []byte) error {
 
 // Value implements driver.Valuer, storing the canonical representation as
 // text. A PostgreSQL `numeric` column accepts it and keeps every digit, which
-// a float parameter would not.
+// a float parameter would not. The zero PreciseWeight is stored as NULL.
 func (preciseWeight PreciseWeight) Value() (driver.Value, error) {
+	if !preciseWeight.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
 	return preciseWeight.value.String(), nil
 }
 
@@ -4287,7 +4997,10 @@ func (preciseWeight *PreciseWeight) scanInt64(number int64) error {
 // reads back as the value someone typed.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-type Adjustment struct{ value decimal.Decimal }
+type Adjustment struct {
+	value decimal.Decimal
+	set   bool
+}
 
 // NewAdjustment validates raw and returns the Adjustment it describes.
 //
@@ -4317,7 +5030,7 @@ func NewAdjustment(raw decimal.Decimal) (Adjustment, error) {
 		return zero, &failed
 	}
 
-	return Adjustment{value: value}, nil
+	return Adjustment{value: value, set: true}, nil
 }
 
 // NewAdjustmentFromString reads a decimal representation and validates it. A
@@ -4352,9 +5065,10 @@ func (adjustment Adjustment) Decimal() decimal.Decimal { return adjustment.value
 // scale it was created with: 1.50 reads back as "1.50", not as "1.5".
 func (adjustment Adjustment) String() string { return adjustment.value.String() }
 
-// IsZero reports whether the receiver holds zero, which is also the zero
-// Adjustment: the only Adjustment that never passed validation.
-func (adjustment Adjustment) IsZero() bool { return adjustment.value.IsZero() }
+// IsZero reports whether the receiver is the zero Adjustment: one that was never
+// constructed, as opposed to one constructed from 0. It is what
+// `json:",omitzero"` asks, and what Value stores as NULL.
+func (adjustment Adjustment) IsZero() bool { return !adjustment.set }
 
 // Equal reports whether both value objects hold the same number.
 //
@@ -4363,7 +5077,7 @@ func (adjustment Adjustment) IsZero() bool { return adjustment.value.IsZero() }
 // call them different. Two Adjustment values that compare equal here may therefore
 // still marshal to different text, which is what keeps a stored scale intact.
 func (adjustment Adjustment) Equal(other Adjustment) bool {
-	return adjustment.value.Cmp(other.value) == 0
+	return adjustment.set == other.set && adjustment.value.Cmp(other.value) == 0
 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
@@ -4388,8 +5102,17 @@ func (adjustment *Adjustment) UnmarshalText(data []byte) error {
 
 // Value implements driver.Valuer, storing the canonical representation as
 // text. A PostgreSQL `numeric` column accepts it and keeps every digit, which
-// a float parameter would not.
-func (adjustment Adjustment) Value() (driver.Value, error) { return adjustment.value.String(), nil }
+// a float parameter would not. The zero Adjustment is stored as NULL.
+func (adjustment Adjustment) Value() (driver.Value, error) {
+	if !adjustment.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return adjustment.value.String(), nil
+}
 
 // Scan implements sql.Scanner for text and integer columns, re-running
 // validation so a row that no longer satisfies the rules surfaces as a

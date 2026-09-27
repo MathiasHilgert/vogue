@@ -38,7 +38,8 @@
   go test ./gen/testdata/strict/...
   golangci-lint run --config gen/testdata/strict/golangci.yml \
     ./gen/testdata/strict/domain/ ./gen/testdata/strict/persistence/ \
-    ./rules/internal/catalogue/ ./examples/customrule/domain/
+    ./rules/internal/catalogue/ ./examples/customrule/domain/ \
+    ./examples/composite/geo/
   ```
 
 ## Commit messages

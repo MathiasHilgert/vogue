@@ -63,6 +63,7 @@ func (suite Enum[Object, Reference]) Run(t *testing.T) {
 
 		for _, member := range suite.All {
 			roundTrips[Object, Reference](t, member)
+			describes(t, member)
 		}
 	})
 
@@ -86,11 +87,10 @@ func (suite Enum[Object, Reference]) Run(t *testing.T) {
 
 		var zero Object
 
-		assert.True(t, zero.IsZero())
 		assert.Empty(t, zero.String())
 
 		for _, member := range suite.All {
-			assert.False(t, zero.Equal(member), "the zero value must not equal %s", member.String())
+			separatesZero(t, member)
 		}
 	})
 }

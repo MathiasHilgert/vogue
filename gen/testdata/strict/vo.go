@@ -9,6 +9,9 @@ package place
 // PlaceName is the display name of a place.
 //vogue:string PlaceName squish required min=1 max=200
 
+// TimeZoneID is the IANA time zone of a place.
+//vogue:string TimeZoneID trim required timezone
+
 // GeoNamesID identifies a GeoNames record.
 //vogue:int GeoNamesID positive
 

@@ -33,7 +33,7 @@ func TestAll(t *testing.T) {
 			"alpha", "alphanum", "ascii", "contains", "email", "excludes", "len",
 			"lower", "max", "min", "multipleof", "nonneg", "nonzero", "nospace",
 			"numeric", "oneof", "positive", "prefix", "printable", "regex",
-			"required", "scale", "squish", "suffix", "trim", "upper", "url", "uuid",
+			"required", "scale", "squish", "suffix", "timezone", "trim", "upper", "url", "uuid",
 		}
 
 		// Act
@@ -286,7 +286,13 @@ func TestLocal(t *testing.T) {
 			name: "a decimal bound is its coefficient and its scale",
 			rule: rules.Min,
 			ctx:  vogue.EmitContext{Param: "-90.5", Kind: vogue.Decimal, Ident: "minParam"},
-			want: "const (\n\tminParamCoef  = -905\n\tminParamScale = 1\n)",
+			want: "const minParamCoef = -905\nconst minParamScale = 1",
+		},
+		{
+			name: "a whole decimal bound is its coefficient alone",
+			rule: rules.Max,
+			ctx:  vogue.EmitContext{Param: "90", Kind: vogue.Decimal, Ident: "maxParam"},
+			want: "const maxParam = 90",
 		},
 		{
 			name: "a scale is a named constant",
@@ -318,6 +324,14 @@ func TestLocal(t *testing.T) {
 
 		// Assert
 		assert.Equal(t, "v.Cmp(decimal.MustNew(minParamCoef, minParamScale)) >= 0", got)
+	})
+
+	t.Run("a whole decimal bound is built at scale zero", func(t *testing.T) {
+		// Act
+		got := rules.Max.Emit(vogue.EmitContext{Var: "v", Param: "90", Kind: vogue.Decimal, Ident: "maxParam"})
+
+		// Assert
+		assert.Equal(t, "v.Cmp(decimal.MustNew(maxParam, 0)) <= 0", got)
 	})
 }
 

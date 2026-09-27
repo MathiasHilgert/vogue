@@ -80,8 +80,18 @@ func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 	return nil
 }
 {{if .SQL}}
-// Value implements driver.Valuer.
-func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.value, nil }
+// Value implements driver.Valuer. The zero {{$n}}, which is no member, is
+// stored as NULL.
+func ({{$r}} {{$n}}) Value() (driver.Value, error) {
+	if {{$r}}.value == "" {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return {{$r}}.value, nil
+}
 
 // Scan implements sql.Scanner for text columns, rejecting a stored value that
 // is no longer a member.
@@ -102,3 +112,4 @@ func ({{$r}} *{{$n}}) Scan(src any) error {
 	}
 }
 {{end}}
+{{template "schema" .}}

@@ -43,10 +43,15 @@ func compare(c vogue.EmitContext, op string) string {
 	case vogue.Int:
 		return c.Var + " " + op + " " + c.Ident
 	case vogue.Decimal:
-		if _, _, ok := decimalParts(c.Param); !ok {
+		_, scale, ok := decimalParts(c.Param)
+		switch {
+		case !ok:
 			return c.Var + ".Cmp(decimal.MustParse(" + c.Ident + ")) " + op + " 0"
+		case scale == 0:
+			return c.Var + ".Cmp(decimal.MustNew(" + c.Ident + ", 0)) " + op + " 0"
+		default:
+			return c.Var + ".Cmp(decimal.MustNew(" + c.Ident + "Coef, " + c.Ident + "Scale)) " + op + " 0"
 		}
-		return c.Var + ".Cmp(decimal.MustNew(" + c.Ident + "Coef, " + c.Ident + "Scale)) " + op + " 0"
 	default:
 		return runeCount(c) + " " + op + " " + c.Ident
 	}
@@ -56,8 +61,9 @@ func compare(c vogue.EmitContext, op string) string {
 // compares against.
 //
 // A decimal bound is declared as the coefficient and scale
-// decimal.MustNew takes, so the constructor builds the bound without parsing
-// text; both were validated at generate time, so MustNew cannot panic. A
+// decimal.MustNew takes — the coefficient alone when the bound is a whole
+// number — so the constructor builds the bound without parsing text; both were
+// validated at generate time, so MustNew cannot panic. A
 // bound whose coefficient does not fit an int64 is declared as its text and
 // parsed instead, which is correct if slower and never happens for a bound a
 // person writes.
@@ -66,13 +72,15 @@ func boundConst(c vogue.EmitContext) string {
 		return "const " + c.Ident + " = " + c.Param
 	}
 	coef, scale, ok := decimalParts(c.Param)
-	if !ok {
+	switch {
+	case !ok:
 		return "const " + c.Ident + " = " + strconv.Quote(c.Param)
+	case scale == 0:
+		return "const " + c.Ident + " = " + strconv.FormatInt(coef, 10)
+	default:
+		return "const " + c.Ident + "Coef = " + strconv.FormatInt(coef, 10) + "\n" +
+			"const " + c.Ident + "Scale = " + strconv.Itoa(scale)
 	}
-	return "const (\n" +
-		"\t" + c.Ident + "Coef  = " + strconv.FormatInt(coef, 10) + "\n" +
-		"\t" + c.Ident + "Scale = " + strconv.Itoa(scale) + "\n" +
-		")"
 }
 
 // decimalParts returns the signed coefficient and the scale of a decimal

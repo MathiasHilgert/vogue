@@ -24,6 +24,7 @@ const (
 	exampleEmail                 = "email"
 	exampleUrl                   = "url"
 	exampleUuid                  = "uuid"
+	exampleTimezone              = "timezone"
 	exampleSku0042               = "sku-0042"
 	exampleRegex                 = "regex"
 	exampleOneof                 = "oneof"
@@ -578,6 +579,41 @@ func TestExternalRef(t *testing.T) {
 				Name:  exampleRejectsTheEmptyString,
 				Input: "",
 				Rules: []string{exampleUuid},
+			},
+		},
+		Normalized:   nil,
+		RefusesFloat: false,
+	}.Run(t)
+}
+
+// TestZoneName runs the value-object suite against the examples the directive
+// and its rules declare.
+func TestZoneName(t *testing.T) {
+	t.Parallel()
+
+	voguetest.Scalar[ZoneName, *ZoneName, string]{
+		Field:      "zoneName",
+		New:        NewZoneName,
+		Get:        ZoneName.String,
+		FromString: nil,
+		ParseRule:  "",
+		Examples:   nil,
+		Candidates: []string{"America/Argentina/Buenos_Aires", "UTC"},
+		Rejected: []voguetest.Rejection[string]{
+			{
+				Name:  "rejects a zone the database does not hold",
+				Input: "Mars/Olympus_Mons",
+				Rules: []string{exampleTimezone},
+			},
+			{
+				Name:  "rejects the process-local zone, which names no place",
+				Input: "Local",
+				Rules: []string{exampleTimezone},
+			},
+			{
+				Name:  exampleRejectsTheEmptyString,
+				Input: "",
+				Rules: []string{exampleTimezone},
 			},
 		},
 		Normalized:   nil,

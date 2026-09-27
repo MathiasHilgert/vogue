@@ -8,7 +8,10 @@
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 {{- end}}
-type {{$n}} struct{ value decimal.Decimal }
+type {{$n}} struct {
+	value decimal.Decimal
+	set   bool
+}
 
 // New{{$n}} validates raw and returns the {{$n}} it describes.
 //
@@ -16,7 +19,7 @@ type {{$n}} struct{ value decimal.Decimal }
 // collected into one error rather than the first one aborting the rest.
 func New{{$n}}(raw decimal.Decimal) ({{$n}}, error) {
 {{template "validate" .}}
-	return {{$n}}{value: value}, nil
+	return {{$n}}{value: value, set: true}, nil
 }
 
 // New{{$n}}FromString reads a decimal representation and validates it. A
@@ -51,9 +54,10 @@ func ({{$r}} {{$n}}) Decimal() decimal.Decimal { return {{$r}}.value }
 // scale it was created with: 1.50 reads back as "1.50", not as "1.5".
 func ({{$r}} {{$n}}) String() string { return {{$r}}.value.String() }
 
-// IsZero reports whether the receiver holds zero, which is also the zero
-// {{$n}}: the only {{$n}} that never passed validation.
-func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.value.IsZero() }
+// IsZero reports whether the receiver is the zero {{$n}}: one that was never
+// constructed, as opposed to one constructed from 0. It is what
+// `json:",omitzero"` asks, and what Value stores as NULL.
+func ({{$r}} {{$n}}) IsZero() bool { return !{{$r}}.set }
 
 // Equal reports whether both value objects hold the same number.
 //
@@ -61,7 +65,9 @@ func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.value.IsZero() }
 // scale: 1.5 and 1.50 are the same number written at two scales, and == would
 // call them different. Two {{$n}} values that compare equal here may therefore
 // still marshal to different text, which is what keeps a stored scale intact.
-func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.value.Cmp(other.value) == 0 }
+func ({{$r}} {{$n}}) Equal(other {{$n}}) bool {
+	return {{$r}}.set == other.set && {{$r}}.value.Cmp(other.value) == 0
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so {{$n}} crosses a JSON boundary as a
@@ -83,8 +89,17 @@ func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 {{if .SQL}}
 // Value implements driver.Valuer, storing the canonical representation as
 // text. A PostgreSQL `numeric` column accepts it and keeps every digit, which
-// a float parameter would not.
-func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.value.String(), nil }
+// a float parameter would not. The zero {{$n}} is stored as NULL.
+func ({{$r}} {{$n}}) Value() (driver.Value, error) {
+	if !{{$r}}.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return {{$r}}.value.String(), nil
+}
 
 // Scan implements sql.Scanner for text and integer columns, re-running
 // validation so a row that no longer satisfies the rules surfaces as a
@@ -133,3 +148,4 @@ func ({{$r}} *{{$n}}) scanInt64(number int64) error {
 	return nil
 }
 {{end}}
+{{template "schema" .}}

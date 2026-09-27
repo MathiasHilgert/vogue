@@ -98,3 +98,15 @@ func TestFieldError_As(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, want, got)
 }
+
+func TestFailure(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	err := validation.FieldError{Field: "title", Rule: "min", Param: "1", Value: "", Message: "too short"}
+
+	// Act & Assert
+	require.ErrorIs(t, err, validation.Failure("title", "min"))
+	require.ErrorIs(t, err, validation.Failure("", "min"), "an empty field matches any field")
+	assert.NotErrorIs(t, err, validation.Failure("title", "max"))
+}

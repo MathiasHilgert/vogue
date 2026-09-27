@@ -39,7 +39,7 @@ func TestGenerateDecimal(t *testing.T) {
 
 		// Assert
 		assert.Contains(t, code, `"github.com/govalues/decimal"`)
-		assert.Contains(t, code, "type Weight struct{ value decimal.Decimal }")
+		assert.Contains(t, code, "type Weight struct {\n\tvalue decimal.Decimal\n\tset   bool\n}")
 		assert.Contains(t, code, "func NewWeight(raw decimal.Decimal) (Weight, error)")
 		assert.Contains(t, code, "func NewWeightFromString(raw string) (Weight, error)")
 		assert.Contains(t, code, "func (weight Weight) Decimal() decimal.Decimal")
@@ -56,7 +56,7 @@ func TestGenerateDecimal(t *testing.T) {
 		code, _ := generateDecimal(t, "//vogue:decimal Weight min=0\n")
 
 		// Assert
-		assert.Contains(t, code, "func (weight Weight) Equal(other Weight) bool { return weight.value.Cmp(other.value) == 0 }")
+		assert.Contains(t, code, "return weight.set == other.set && weight.value.Cmp(other.value) == 0")
 	})
 
 	t.Run("Value stores the canonical text and Scan refuses binary floats", func(t *testing.T) {
@@ -66,7 +66,8 @@ func TestGenerateDecimal(t *testing.T) {
 		code, _ := generateDecimal(t, "//vogue:decimal Weight min=0\n")
 
 		// Assert
-		assert.Contains(t, code, "func (weight Weight) Value() (driver.Value, error) { return weight.value.String(), nil }")
+		assert.Contains(t, code, "func (weight Weight) Value() (driver.Value, error) {")
+		assert.Contains(t, code, "return weight.value.String(), nil")
 		assert.Contains(t, code, "case float64, float32:")
 		assert.Contains(t, code, "cannot scan the binary float %T into Weight")
 	})
@@ -90,7 +91,7 @@ func TestGenerateDecimal(t *testing.T) {
 		code, _ := generateDecimal(t, "//vogue:decimal Weight min=0\n")
 
 		// Assert
-		assert.Regexp(t, `notification\.Reject\(\s*"weight",\s*"decimal",\s*"",\s*raw,\s*"weight\ must\ be\ an\ exact\ decimal\ number",\s*\)`, code)
+		assert.Regexp(t, `notification\.Reject\(\s*"weight",\s*"decimal",\s*"",\s*raw,\s*"weight must be an exact decimal number",\s*\)`, code)
 		assert.Contains(t, code, "weight must be an exact decimal number")
 	})
 

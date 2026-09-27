@@ -10,10 +10,13 @@ import (
 
 // The strings below are shared by several rows of the tables in this file.
 const (
-	exampleTortilla          = "Tortilla"
-	exampleEUR               = "EUR"
-	exampleTortillaDePatatas = "Tortilla de patatas"
-	exampleInt               = "int"
+	exampleTortilla              = "Tortilla"
+	exampleRejectsTheEmptyString = "rejects the empty string"
+	exampleRequired              = "required"
+	exampleEUR                   = "EUR"
+	exampleTortillaDePatatas     = "Tortilla de patatas"
+	exampleTimezone              = "timezone"
+	exampleInt                   = "int"
 )
 
 // TestPlaceKind pins the members of PlaceKind and runs the enum suite over them.
@@ -47,9 +50,9 @@ func TestCountryCode(t *testing.T) {
 		Candidates: []string{exampleTortilla, " "},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects the empty string",
+				Name:  exampleRejectsTheEmptyString,
 				Input: "",
-				Rules: []string{"required"},
+				Rules: []string{exampleRequired},
 			},
 		},
 		Normalized: []voguetest.Normalization[string]{
@@ -103,9 +106,9 @@ func TestPlaceName(t *testing.T) {
 		Candidates: []string{exampleTortilla, " ", "a"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects the empty string",
+				Name:  exampleRejectsTheEmptyString,
 				Input: "",
-				Rules: []string{"required", "min"},
+				Rules: []string{exampleRequired, "min"},
 			},
 		},
 		Normalized: []voguetest.Normalization[string]{
@@ -123,6 +126,57 @@ func TestPlaceName(t *testing.T) {
 				Name:  "a tab and a newline become plain spaces",
 				Input: "Tortilla\tde\npatatas",
 				Out:   exampleTortillaDePatatas,
+			},
+		},
+		RefusesFloat: false,
+	}.Run(t)
+}
+
+// TestTimeZoneID runs the value-object suite against the examples the directive
+// and its rules declare.
+func TestTimeZoneID(t *testing.T) {
+	t.Parallel()
+
+	voguetest.Scalar[TimeZoneID, *TimeZoneID, string]{
+		Field:      "timeZoneId",
+		New:        NewTimeZoneID,
+		Get:        nil,
+		FromString: nil,
+		ParseRule:  "",
+		Examples:   nil,
+		Candidates: []string{exampleTortilla, " ", "America/Argentina/Buenos_Aires", "UTC"},
+		Rejected: []voguetest.Rejection[string]{
+			{
+				Name:  exampleRejectsTheEmptyString,
+				Input: "",
+				Rules: []string{exampleRequired, exampleTimezone},
+			},
+			{
+				Name:  "rejects a zone the database does not hold",
+				Input: "Mars/Olympus_Mons",
+				Rules: []string{exampleTimezone},
+			},
+			{
+				Name:  "rejects the process-local zone, which names no place",
+				Input: "Local",
+				Rules: []string{exampleTimezone},
+			},
+		},
+		Normalized: []voguetest.Normalization[string]{
+			{
+				Name:  "the blanks around a pasted value are dropped",
+				Input: "  Tortilla  ",
+				Out:   exampleTortilla,
+			},
+			{
+				Name:  "tabs and newlines count as whitespace too",
+				Input: "\tTortilla\n",
+				Out:   exampleTortilla,
+			},
+			{
+				Name:  "an already clean value is left alone",
+				Input: exampleTortilla,
+				Out:   exampleTortilla,
 			},
 		},
 		RefusesFloat: false,

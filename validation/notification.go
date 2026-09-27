@@ -1,6 +1,7 @@
 package validation
 
 import (
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -61,6 +62,37 @@ func (notification *Notification) Merge(other *Notification) {
 		return
 	}
 	notification.failures = append(notification.failures, other.failures...)
+}
+
+// Collect folds the failures an error carries into the notification. It is
+// how a composite value object validates its parts and reports every failure
+// of all of them at once:
+//
+//	var n validation.Notification
+//	latitude, err := NewLatitude(lat)
+//	if err := n.Collect(err); err != nil {
+//		return Coordinates{}, err
+//	}
+//
+// A nil error is ignored. A [Notification] or a [FieldError], however deeply
+// wrapped, is merged and Collect returns nil. Any other error is not a
+// validation failure — a driver or a minting error — and is returned
+// unchanged for the caller to handle.
+func (notification2 *Notification) Collect(err error) error {
+	if err == nil {
+		return nil
+	}
+	var notification *Notification
+	if errors.As(err, &notification) {
+		notification2.Merge(notification)
+		return nil
+	}
+	var field FieldError
+	if errors.As(err, &field) {
+		notification2.Add(field)
+		return nil
+	}
+	return err
 }
 
 // Len returns the number of collected failures.

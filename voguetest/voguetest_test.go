@@ -18,29 +18,35 @@ import (
 type Code struct{ v string }
 
 func NewCode(raw string) (Code, error) {
-	var n validation.Notification
+	var notification validation.Notification
 
 	value := strings.TrimSpace(raw)
 	if value == "" {
-		n.Reject("code", "required", "", value, "code is required")
+		notification.Reject("code", "required", "", value, "code is required")
 	}
 
 	if len([]rune(value)) != 2 {
-		n.Reject("code", "len", "2", value, "code must be exactly 2 characters long")
+		notification.Reject("code", "len", "2", value, "code must be exactly 2 characters long")
 	}
 
-	if n.HasErrors() {
-		return Code{}, &n
+	if notification.HasErrors() {
+		return Code{}, &notification
 	}
 
 	return Code{v: value}, nil
 }
 
-func (c Code) String() string                   { return c.v }
-func (c Code) IsZero() bool                     { return c.v == "" }
-func (c Code) Equal(other Code) bool            { return c.v == other.v }
-func (c Code) MarshalText() ([]byte, error)     { return []byte(c.v), nil }
-func (c Code) Value() (driver.Value, error)     { return c.v, nil }
+func (c Code) String() string               { return c.v }
+func (c Code) IsZero() bool                 { return c.v == "" }
+func (c Code) Equal(other Code) bool        { return c.v == other.v }
+func (c Code) MarshalText() ([]byte, error) { return []byte(c.v), nil }
+func (c Code) Value() (driver.Value, error) {
+	if c.v == "" {
+		return nil, nil //nolint:nilnil // a nil driver.Value is SQL NULL.
+	}
+
+	return c.v, nil
+}
 func (c *Code) UnmarshalText(data []byte) error { return c.set(NewCode(string(data))) }
 
 func (c *Code) Scan(src any) error {
@@ -94,11 +100,11 @@ type Seq struct{ v int64 }
 
 func NewSeqFromInt64(raw int64) (Seq, error) {
 	if raw <= 0 {
-		var n validation.Notification
+		var notification validation.Notification
 
-		n.Reject("seq", "positive", "", strconv.FormatInt(raw, 10), "seq must be a positive identifier")
+		notification.Reject("seq", "positive", "", strconv.FormatInt(raw, 10), "seq must be a positive identifier")
 
-		return Seq{}, &n
+		return Seq{}, &notification
 	}
 
 	return Seq{v: raw}, nil
@@ -107,11 +113,11 @@ func NewSeqFromInt64(raw int64) (Seq, error) {
 func NewSeqFromString(raw string) (Seq, error) {
 	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n validation.Notification
+		var notification validation.Notification
 
-		n.Reject("seq", "int", "", raw, "seq must be a whole number")
+		notification.Reject("seq", "int", "", raw, "seq must be a whole number")
 
-		return Seq{}, &n
+		return Seq{}, &notification
 	}
 
 	return NewSeqFromInt64(value)

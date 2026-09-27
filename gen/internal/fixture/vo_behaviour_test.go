@@ -150,6 +150,10 @@ func TestTitle_SQL(t *testing.T) {
 
 			value, err := got.Value()
 			require.NoError(t, err)
+			if tc.src == nil {
+				assert.Nil(t, value, "a NULL column must be written back as NULL")
+				return
+			}
 			assert.Equal(t, tc.want, value)
 		})
 	}
@@ -265,7 +269,7 @@ func TestTabID(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.False(t, got.IsZero())
-		assert.Equal(t, uuid.Version(7), got.Version(), "the uuid7 strategy must mint time-ordered identifiers")
+		assert.Equal(t, uuid.Version(7), got.UUID().Version(), "the uuid7 strategy must mint time-ordered identifiers")
 	})
 
 	t.Run("parses and compares", func(t *testing.T) {
