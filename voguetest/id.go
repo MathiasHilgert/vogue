@@ -79,6 +79,7 @@ func (suite UUID[Object, Reference]) Run(t *testing.T) {
 		minted, err := suite.New()
 		require.NoError(t, err)
 		roundTrips[Object, Reference](t, minted)
+		describes(t, minted)
 	})
 
 	t.Run("separates an unassigned identifier from a minted one", func(t *testing.T) {
@@ -152,6 +153,7 @@ func (suite Int64ID[Object, Reference]) Run(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "9007199254740993", string(text))
 		roundTrips[Object, Reference](t, want)
+		describes(t, want)
 	})
 
 	if hasScan[Object, Reference]() {

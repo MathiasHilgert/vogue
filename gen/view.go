@@ -73,6 +73,8 @@ type voView struct {
 	Locals []string
 	// SQL marks a value object that implements driver.Valuer and sql.Scanner.
 	SQL bool
+	// Schema is the JSONSchema method, nil when it is not generated.
+	Schema *schemaView
 	// Catalogue, Members, MemberList and MemberParam describe an enum.
 	Catalogue string
 	// CatalogueRecv is the receiver of the catalogue's methods.
@@ -126,6 +128,11 @@ func (g *Generator) newView(d parse.Directive, imports *importSet, decls *declSe
 
 	default:
 		return voView{}, "", fmt.Errorf("gen: %s: unsupported kind %s", d.Pos, d.Kind)
+	}
+
+	if g.opts.Schema {
+		v.Schema = newSchemaView(d)
+		paths = append(paths, importSchema)
 	}
 
 	if err := addAll(imports, paths...); err != nil {

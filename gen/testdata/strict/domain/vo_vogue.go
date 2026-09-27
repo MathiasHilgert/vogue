@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/MathiasHilgert/vogue/rules/rulecheck"
+	"github.com/MathiasHilgert/vogue/schema"
 	"github.com/MathiasHilgert/vogue/validation"
 	"github.com/google/uuid"
 	"github.com/govalues/decimal"
@@ -97,6 +98,24 @@ func (placeKind *PlaceKind) UnmarshalText(data []byte) error {
 	*placeKind = parsed
 
 	return nil
+}
+
+// JSONSchema implements schema.Provider: it describes how PlaceKind crosses a
+// JSON boundary, derived from its directive, so an HTTP adapter can publish it
+// in an OpenAPI document without the domain importing an HTTP framework. It
+// describes the canonical text String returns.
+func (PlaceKind) JSONSchema() schema.Schema {
+	return schema.Schema{
+		Type:             schema.String,
+		Format:           "",
+		Pattern:          "",
+		Enum:             []string{"country", "subdivision", "city"},
+		MinLength:        schema.Length{Set: false, Value: 0},
+		MaxLength:        schema.Length{Set: false, Value: 0},
+		Minimum:          schema.Number{Set: false, Value: 0},
+		Maximum:          schema.Number{Set: false, Value: 0},
+		ExclusiveMinimum: schema.Number{Set: false, Value: 0},
+	}
 }
 
 // CountryCode is an ISO 3166-1 alpha-2 country code.
@@ -190,6 +209,29 @@ func (countryCode *CountryCode) UnmarshalText(data []byte) error {
 	*countryCode = parsed
 
 	return nil
+}
+
+// JSONSchema implements schema.Provider: it describes how CountryCode crosses a
+// JSON boundary, derived from its directive, so an HTTP adapter can publish it
+// in an OpenAPI document without the domain importing an HTTP framework. It
+// describes the canonical text String returns.
+func (CountryCode) JSONSchema() schema.Schema {
+	const (
+		minimumLength = 2
+		maximumLength = 2
+	)
+
+	return schema.Schema{
+		Type:             schema.String,
+		Format:           "",
+		Pattern:          "^[A-Z]{2}$",
+		Enum:             nil,
+		MinLength:        schema.Length{Set: true, Value: minimumLength},
+		MaxLength:        schema.Length{Set: true, Value: maximumLength},
+		Minimum:          schema.Number{Set: false, Value: 0},
+		Maximum:          schema.Number{Set: false, Value: 0},
+		ExclusiveMinimum: schema.Number{Set: false, Value: 0},
+	}
 }
 
 // PlaceName is the display name of a place.
@@ -287,6 +329,29 @@ func (placeName *PlaceName) UnmarshalText(data []byte) error {
 	return nil
 }
 
+// JSONSchema implements schema.Provider: it describes how PlaceName crosses a
+// JSON boundary, derived from its directive, so an HTTP adapter can publish it
+// in an OpenAPI document without the domain importing an HTTP framework. It
+// describes the canonical text String returns.
+func (PlaceName) JSONSchema() schema.Schema {
+	const (
+		minimumLength = 1
+		maximumLength = 200
+	)
+
+	return schema.Schema{
+		Type:             schema.String,
+		Format:           "",
+		Pattern:          "",
+		Enum:             nil,
+		MinLength:        schema.Length{Set: true, Value: minimumLength},
+		MaxLength:        schema.Length{Set: true, Value: maximumLength},
+		Minimum:          schema.Number{Set: false, Value: 0},
+		Maximum:          schema.Number{Set: false, Value: 0},
+		ExclusiveMinimum: schema.Number{Set: false, Value: 0},
+	}
+}
+
 // TimeZoneID is the IANA time zone of a place.
 type TimeZoneID struct {
 	value string
@@ -366,6 +431,28 @@ func (timeZoneId *TimeZoneID) UnmarshalText(data []byte) error {
 	*timeZoneId = parsed
 
 	return nil
+}
+
+// JSONSchema implements schema.Provider: it describes how TimeZoneID crosses a
+// JSON boundary, derived from its directive, so an HTTP adapter can publish it
+// in an OpenAPI document without the domain importing an HTTP framework. It
+// describes the canonical text String returns.
+func (TimeZoneID) JSONSchema() schema.Schema {
+	const (
+		minimumLength = 1
+	)
+
+	return schema.Schema{
+		Type:             schema.String,
+		Format:           "",
+		Pattern:          "",
+		Enum:             nil,
+		MinLength:        schema.Length{Set: true, Value: minimumLength},
+		MaxLength:        schema.Length{Set: false, Value: 0},
+		Minimum:          schema.Number{Set: false, Value: 0},
+		Maximum:          schema.Number{Set: false, Value: 0},
+		ExclusiveMinimum: schema.Number{Set: false, Value: 0},
+	}
 }
 
 // GeoNamesID identifies a GeoNames record.
@@ -467,6 +554,28 @@ func (geoNamesId *GeoNamesID) UnmarshalText(data []byte) error {
 	return nil
 }
 
+// JSONSchema implements schema.Provider: it describes how GeoNamesID crosses a
+// JSON boundary, derived from its directive, so an HTTP adapter can publish it
+// in an OpenAPI document without the domain importing an HTTP framework. It
+// describes the canonical text String returns.
+func (GeoNamesID) JSONSchema() schema.Schema {
+	const (
+		exclusiveMinimum = 0
+	)
+
+	return schema.Schema{
+		Type:             schema.String,
+		Format:           schema.FormatInt64,
+		Pattern:          schema.IntegerPattern,
+		Enum:             nil,
+		MinLength:        schema.Length{Set: false, Value: 0},
+		MaxLength:        schema.Length{Set: false, Value: 0},
+		Minimum:          schema.Number{Set: false, Value: 0},
+		Maximum:          schema.Number{Set: false, Value: 0},
+		ExclusiveMinimum: schema.Number{Set: true, Value: exclusiveMinimum},
+	}
+}
+
 // Population is the number of inhabitants of a place.
 //
 // The value is held as an int64 so it survives every database driver and JSON
@@ -564,6 +673,28 @@ func (population *Population) UnmarshalText(data []byte) error {
 	*population = parsed
 
 	return nil
+}
+
+// JSONSchema implements schema.Provider: it describes how Population crosses a
+// JSON boundary, derived from its directive, so an HTTP adapter can publish it
+// in an OpenAPI document without the domain importing an HTTP framework. It
+// describes the canonical text String returns.
+func (Population) JSONSchema() schema.Schema {
+	const (
+		minimum = 0
+	)
+
+	return schema.Schema{
+		Type:             schema.String,
+		Format:           schema.FormatInt64,
+		Pattern:          schema.IntegerPattern,
+		Enum:             nil,
+		MinLength:        schema.Length{Set: false, Value: 0},
+		MaxLength:        schema.Length{Set: false, Value: 0},
+		Minimum:          schema.Number{Set: true, Value: minimum},
+		Maximum:          schema.Number{Set: false, Value: 0},
+		ExclusiveMinimum: schema.Number{Set: false, Value: 0},
+	}
 }
 
 // Elevation is the height of a place above sea level, in metres.
@@ -677,6 +808,29 @@ func (elevation *Elevation) UnmarshalText(data []byte) error {
 	*elevation = parsed
 
 	return nil
+}
+
+// JSONSchema implements schema.Provider: it describes how Elevation crosses a
+// JSON boundary, derived from its directive, so an HTTP adapter can publish it
+// in an OpenAPI document without the domain importing an HTTP framework. It
+// describes the canonical text String returns.
+func (Elevation) JSONSchema() schema.Schema {
+	const (
+		minimum = -500
+		maximum = 9000
+	)
+
+	return schema.Schema{
+		Type:             schema.String,
+		Format:           schema.FormatInt64,
+		Pattern:          schema.IntegerPattern,
+		Enum:             nil,
+		MinLength:        schema.Length{Set: false, Value: 0},
+		MaxLength:        schema.Length{Set: false, Value: 0},
+		Minimum:          schema.Number{Set: true, Value: minimum},
+		Maximum:          schema.Number{Set: true, Value: maximum},
+		ExclusiveMinimum: schema.Number{Set: false, Value: 0},
+	}
 }
 
 // Latitude is a WGS 84 latitude in decimal degrees.
@@ -807,6 +961,29 @@ func (latitude *Latitude) UnmarshalText(data []byte) error {
 	*latitude = parsed
 
 	return nil
+}
+
+// JSONSchema implements schema.Provider: it describes how Latitude crosses a
+// JSON boundary, derived from its directive, so an HTTP adapter can publish it
+// in an OpenAPI document without the domain importing an HTTP framework. It
+// describes the canonical text String returns.
+func (Latitude) JSONSchema() schema.Schema {
+	const (
+		minimum = -90
+		maximum = 90
+	)
+
+	return schema.Schema{
+		Type:             schema.String,
+		Format:           schema.FormatDecimal,
+		Pattern:          "",
+		Enum:             nil,
+		MinLength:        schema.Length{Set: false, Value: 0},
+		MaxLength:        schema.Length{Set: false, Value: 0},
+		Minimum:          schema.Number{Set: true, Value: minimum},
+		Maximum:          schema.Number{Set: true, Value: maximum},
+		ExclusiveMinimum: schema.Number{Set: false, Value: 0},
+	}
 }
 
 // Longitude is a WGS 84 longitude in decimal degrees.
@@ -941,6 +1118,29 @@ func (longitude *Longitude) UnmarshalText(data []byte) error {
 	return nil
 }
 
+// JSONSchema implements schema.Provider: it describes how Longitude crosses a
+// JSON boundary, derived from its directive, so an HTTP adapter can publish it
+// in an OpenAPI document without the domain importing an HTTP framework. It
+// describes the canonical text String returns.
+func (Longitude) JSONSchema() schema.Schema {
+	const (
+		minimum = -180
+		maximum = 180
+	)
+
+	return schema.Schema{
+		Type:             schema.String,
+		Format:           schema.FormatDecimal,
+		Pattern:          "",
+		Enum:             nil,
+		MinLength:        schema.Length{Set: false, Value: 0},
+		MaxLength:        schema.Length{Set: false, Value: 0},
+		Minimum:          schema.Number{Set: true, Value: minimum},
+		Maximum:          schema.Number{Set: true, Value: maximum},
+		ExclusiveMinimum: schema.Number{Set: false, Value: 0},
+	}
+}
+
 // PlaceID identifies a place across services.
 //
 // It holds a uuid.UUID it does not expose for writing, so an identifier is
@@ -1013,6 +1213,24 @@ func (placeId *PlaceID) UnmarshalText(data []byte) error {
 	*placeId = parsed
 
 	return nil
+}
+
+// JSONSchema implements schema.Provider: it describes how PlaceID crosses a
+// JSON boundary, derived from its directive, so an HTTP adapter can publish it
+// in an OpenAPI document without the domain importing an HTTP framework. It
+// describes the canonical text String returns.
+func (PlaceID) JSONSchema() schema.Schema {
+	return schema.Schema{
+		Type:             schema.String,
+		Format:           schema.FormatUUID,
+		Pattern:          "",
+		Enum:             nil,
+		MinLength:        schema.Length{Set: false, Value: 0},
+		MaxLength:        schema.Length{Set: false, Value: 0},
+		Minimum:          schema.Number{Set: false, Value: 0},
+		Maximum:          schema.Number{Set: false, Value: 0},
+		ExclusiveMinimum: schema.Number{Set: false, Value: 0},
+	}
 }
 
 // ImportRunID is the sequence number of a GeoNames import run.
@@ -1099,4 +1317,26 @@ func (importRunId *ImportRunID) UnmarshalText(data []byte) error {
 	*importRunId = parsed
 
 	return nil
+}
+
+// JSONSchema implements schema.Provider: it describes how ImportRunID crosses a
+// JSON boundary, derived from its directive, so an HTTP adapter can publish it
+// in an OpenAPI document without the domain importing an HTTP framework. It
+// describes the canonical text String returns.
+func (ImportRunID) JSONSchema() schema.Schema {
+	const (
+		exclusiveMinimum = 0
+	)
+
+	return schema.Schema{
+		Type:             schema.String,
+		Format:           schema.FormatInt64,
+		Pattern:          schema.IntegerPattern,
+		Enum:             nil,
+		MinLength:        schema.Length{Set: false, Value: 0},
+		MaxLength:        schema.Length{Set: false, Value: 0},
+		Minimum:          schema.Number{Set: false, Value: 0},
+		Maximum:          schema.Number{Set: false, Value: 0},
+		ExclusiveMinimum: schema.Number{Set: true, Value: exclusiveMinimum},
+	}
 }

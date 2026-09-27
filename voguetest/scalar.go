@@ -126,6 +126,7 @@ func (suite Scalar[Object, Reference, Raw]) Run(t *testing.T) {
 	t.Run("round trips", func(t *testing.T) {
 		t.Parallel()
 		roundTrips[Object, Reference](t, sample)
+		describes(t, sample)
 	})
 
 	if suite.FromString != nil {

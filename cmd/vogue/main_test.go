@@ -64,6 +64,21 @@ func TestRun(t *testing.T) {
 		assert.NotContains(t, string(generated), "database/sql/driver")
 	})
 
+	t.Run("adds the JSONSchema method when asked to", func(t *testing.T) {
+		// Arrange
+		dir := fixture(t)
+		var stdout, stderr bytes.Buffer
+
+		// Act
+		code := run([]string{"-dir", dir, "-schema"}, &stdout, &stderr)
+
+		// Assert
+		assert.Equal(t, 0, code)
+		generated, err := os.ReadFile(filepath.Join(dir, "vo_vogue.go"))
+		require.NoError(t, err)
+		assert.Contains(t, string(generated), "JSONSchema() schema.Schema")
+	})
+
 	t.Run("a dry run reports the files and writes none", func(t *testing.T) {
 		// Arrange
 		dir := fixture(t)

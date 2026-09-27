@@ -69,6 +69,10 @@ type Options struct {
 	// database/sql/driver sets it and converts at the persistence adapter
 	// through the text codec or the accessors instead.
 	OmitSQL bool
+	// Schema adds a JSONSchema method to every value object, returning the
+	// neutral github.com/MathiasHilgert/vogue/schema description an HTTP
+	// adapter publishes in its OpenAPI document.
+	Schema bool
 }
 
 // OutFile is one generated file: the path it belongs at and its formatted

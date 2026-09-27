@@ -63,6 +63,7 @@ func (suite Enum[Object, Reference]) Run(t *testing.T) {
 
 		for _, member := range suite.All {
 			roundTrips[Object, Reference](t, member)
+			describes(t, member)
 		}
 	})
 

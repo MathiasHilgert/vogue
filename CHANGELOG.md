@@ -47,6 +47,11 @@ is zero, a minor release may break the API; every break is listed under
 - `Notification.Collect(err)`, which folds the failures of a part's error into
   a notification, for composite value objects; `validation.Failure(field,
   rule)`, an exhaustruct-clean `errors.Is` target.
+- `-schema` / `generator.WithSchema(true)` / `gen.Options.Schema` add a
+  `JSONSchema() schema.Schema` method to every value object. Package `schema`
+  (standard library only) describes type, format, pattern, enum members and
+  limits, for an HTTP adapter to translate into its OpenAPI schema type; the
+  generated test checks that accepted values satisfy it.
 - `examples/composite`: a hand-written `Coordinates` composed from generated
   `Latitude` and `Longitude`, with every failure reported at once.
 
@@ -102,6 +107,9 @@ is zero, a minor release may break the API; every break is listed under
   `Scan` handed a binary float wraps `validation.ErrLossySource`) instead of
   returning an unwrapped `fmt.Errorf` error. The messages still contain
   "cannot scan".
+
+Proposed version for this release: `v0.2.0-beta.1` (breaking changes to the
+generated API while the major version is zero).
 
 ## [0.1.0-beta.1]
 

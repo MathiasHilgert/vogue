@@ -27,6 +27,11 @@ import (
 	"database/sql"
 	"database/sql/driver"
 	"encoding"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+
+	"github.com/MathiasHilgert/vogue/schema"
 )
 
 // ValueObject is the method set every generated value object has.
@@ -64,4 +69,19 @@ func hasScan[Object any, Reference Pointer[Object]]() bool {
 	_, ok := scanner[Object, Reference](&probe)
 
 	return ok
+}
+
+// describes proves that a value object generated with a JSONSchema method
+// describes its own valid values: the text of every accepted value must
+// satisfy the schema. A value object without the method is not asked.
+func describes[Object ValueObject[Object]](t *testing.T, accepted Object) {
+	t.Helper()
+
+	provider, ok := any(accepted).(schema.Provider)
+	if !ok {
+		return
+	}
+
+	assert.True(t, provider.JSONSchema().Accepts(accepted.String()),
+		"%s was accepted by its constructor but not by its JSONSchema", accepted.String())
 }
