@@ -6,9 +6,11 @@ import (
 )
 
 // FieldName derives the JSON and error field name of a value object from its Go
-// type name. The result is the lower-camel spelling of the name, with
-// initialisms folded so they read as one word: Title becomes "title", TabID
-// becomes "tabId" and CUITNumber becomes "cuitNumber".
+// type name. The result is the lower-camel spelling Go itself uses: the first
+// word is lower-cased whole, and every later word keeps its case, so an
+// initialism stays an initialism. Title becomes "title", TabID becomes
+// "tabID", SubdivisionISOCode becomes "subdivisionISOCode" and CUITNumber
+// becomes "cuitNumber", the way golint spells the same names.
 //
 // The generator uses it for [FieldError.Field] and for the JSON representation,
 // so a value object never has to restate its own name.
@@ -20,7 +22,7 @@ func FieldName(name string) string {
 			b.WriteString(strings.ToLower(w))
 			continue
 		}
-		b.WriteString(title(w))
+		b.WriteString(w)
 	}
 	return b.String()
 }
@@ -53,7 +55,7 @@ func splitWords(name string) []string {
 }
 
 // title upper-cases the first rune of a word and lower-cases the rest, which is
-// what turns the initialism "ID" into the camel-case segment "Id".
+// what turns the lower-snake enum value "in" into the method segment "In".
 func title(w string) string {
 	runes := []rune(strings.ToLower(w))
 	if len(runes) == 0 {

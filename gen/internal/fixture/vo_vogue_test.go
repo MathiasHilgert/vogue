@@ -101,7 +101,7 @@ func TestTabID(t *testing.T) {
 	t.Parallel()
 
 	voguetest.UUID[TabID, *TabID]{
-		Field:      "tabId",
+		Field:      "tabID",
 		New:        NewTabID,
 		FromString: NewTabIDFromString,
 		Version:    7,

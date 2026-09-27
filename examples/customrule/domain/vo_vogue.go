@@ -35,11 +35,11 @@ func NewTaxID(raw string) (TaxID, error) {
 	value = strings.TrimSpace(value)
 	if !cuit.Valid(value) {
 		notification.Reject(
-			"taxId",
+			"taxID",
 			"cuit",
 			"",
 			value,
-			"taxId must be a valid CUIT",
+			"taxID must be a valid CUIT",
 		)
 	}
 
@@ -57,65 +57,65 @@ func NewTaxID(raw string) (TaxID, error) {
 }
 
 // String returns the validated value.
-func (taxId TaxID) String() string { return taxId.value }
+func (taxID TaxID) String() string { return taxID.value }
 
 // IsZero reports whether the receiver is the zero TaxID: one that was never
 // constructed, as opposed to one constructed from an empty string the rules
 // accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
-func (taxId TaxID) IsZero() bool { return !taxId.set }
+func (taxID TaxID) IsZero() bool { return !taxID.set }
 
 // Equal reports whether both value objects hold the same value.
-func (taxId TaxID) Equal(other TaxID) bool {
-	return taxId.value == other.value && taxId.set == other.set
+func (taxID TaxID) Equal(other TaxID) bool {
+	return taxID.value == other.value && taxID.set == other.set
 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so TaxID marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (taxId TaxID) MarshalText() ([]byte, error) { return []byte(taxId.value), nil }
+func (taxID TaxID) MarshalText() ([]byte, error) { return []byte(taxID.value), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a TaxID the constructor would have rejected.
-func (taxId *TaxID) UnmarshalText(data []byte) error {
+func (taxID *TaxID) UnmarshalText(data []byte) error {
 	parsed, err := NewTaxID(string(data))
 	if err != nil {
 		return err
 	}
 
-	*taxId = parsed
+	*taxID = parsed
 
 	return nil
 }
 
 // Value implements driver.Valuer. The zero TaxID is stored as NULL, which
 // Scan reads back as the zero TaxID.
-func (taxId TaxID) Value() (driver.Value, error) {
-	if !taxId.set {
+func (taxID TaxID) Value() (driver.Value, error) {
+	if !taxID.set {
 		// A nil driver.Value is SQL NULL.
 		var null driver.Value
 
 		return null, nil
 	}
 
-	return taxId.value, nil
+	return taxID.value, nil
 }
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
 // row that no longer satisfies the rules surfaces as a validation error
 // instead of an invalid value object.
-func (taxId *TaxID) Scan(src any) error {
+func (taxID *TaxID) Scan(src any) error {
 	switch source := src.(type) {
 	case nil:
 		var zero TaxID
 
-		*taxId = zero
+		*taxID = zero
 
 		return nil
 	case string:
-		return taxId.UnmarshalText([]byte(source))
+		return taxID.UnmarshalText([]byte(source))
 	case []byte:
-		return taxId.UnmarshalText(source)
+		return taxID.UnmarshalText(source)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into TaxID: %w", src, validation.ErrUnsupportedSource)
 	}

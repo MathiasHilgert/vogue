@@ -16,7 +16,7 @@ func TestTaxID(t *testing.T) {
 	t.Parallel()
 
 	voguetest.Scalar[TaxID, *TaxID, string]{
-		Field:      "taxId",
+		Field:      "taxID",
 		New:        NewTaxID,
 		Get:        nil,
 		FromString: nil,

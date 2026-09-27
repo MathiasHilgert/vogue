@@ -40,7 +40,7 @@ func ExampleFieldName() {
 	fmt.Println(parse.FieldName("CUITNumber"))
 	// Output:
 	// title
-	// tabId
+	// tabID
 	// cuitNumber
 }
 

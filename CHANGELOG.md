@@ -57,6 +57,13 @@ is zero, a minor release may break the API; every break is listed under
 
 ### Changed
 
+- **Breaking: field names keep Go initialisms.** The name a value object
+  reports its failures under is the lower-camel spelling Go uses, so
+  `GeoNamesID` reports `geoNamesID` (was `geoNamesId`) and
+  `SubdivisionISOCode` reports `subdivisionISOCode` (was
+  `subdivisionIsoCode`). A leading initialism is still lower-cased whole:
+  `CUITNumber` reports `cuitNumber`. Receivers follow the same spelling.
+
 - Integer rule parameters are emitted as the base-10 number they parse to, so
   `min=010` compares against 10, not the octal 8; every item of an integer
   `oneof` is validated at generate time.

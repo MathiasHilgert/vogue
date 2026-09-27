@@ -103,7 +103,7 @@ func TestFiles(t *testing.T) {
 
 		assert.Equal(t, vogue.ID, d.Kind)
 		assert.Equal(t, "TabID", d.Name)
-		assert.Equal(t, "tabId", d.Field)
+		assert.Equal(t, "tabID", d.Field)
 		assert.Equal(t, parse.IDUUIDv7, d.Strategy)
 	})
 }

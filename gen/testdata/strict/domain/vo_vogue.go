@@ -374,20 +374,20 @@ func NewTimeZoneID(raw string) (TimeZoneID, error) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		notification.Reject(
-			"timeZoneId",
+			"timeZoneID",
 			"required",
 			"",
 			value,
-			"timeZoneId is required",
+			"timeZoneID is required",
 		)
 	}
 	if !rulecheck.TimeZone(value) {
 		notification.Reject(
-			"timeZoneId",
+			"timeZoneID",
 			"timezone",
 			"",
 			value,
-			"timeZoneId must be an IANA time zone",
+			"timeZoneID must be an IANA time zone",
 		)
 	}
 
@@ -405,33 +405,33 @@ func NewTimeZoneID(raw string) (TimeZoneID, error) {
 }
 
 // String returns the validated value.
-func (timeZoneId TimeZoneID) String() string { return timeZoneId.value }
+func (timeZoneID TimeZoneID) String() string { return timeZoneID.value }
 
 // IsZero reports whether the receiver is the zero TimeZoneID: one that was never
 // constructed, as opposed to one constructed from an empty string the rules
 // accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
-func (timeZoneId TimeZoneID) IsZero() bool { return !timeZoneId.set }
+func (timeZoneID TimeZoneID) IsZero() bool { return !timeZoneID.set }
 
 // Equal reports whether both value objects hold the same value.
-func (timeZoneId TimeZoneID) Equal(other TimeZoneID) bool {
-	return timeZoneId.value == other.value && timeZoneId.set == other.set
+func (timeZoneID TimeZoneID) Equal(other TimeZoneID) bool {
+	return timeZoneID.value == other.value && timeZoneID.set == other.set
 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so TimeZoneID marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (timeZoneId TimeZoneID) MarshalText() ([]byte, error) { return []byte(timeZoneId.value), nil }
+func (timeZoneID TimeZoneID) MarshalText() ([]byte, error) { return []byte(timeZoneID.value), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a TimeZoneID the constructor would have rejected.
-func (timeZoneId *TimeZoneID) UnmarshalText(data []byte) error {
+func (timeZoneID *TimeZoneID) UnmarshalText(data []byte) error {
 	parsed, err := NewTimeZoneID(string(data))
 	if err != nil {
 		return err
 	}
 
-	*timeZoneId = parsed
+	*timeZoneID = parsed
 
 	return nil
 }
@@ -477,11 +477,11 @@ func NewGeoNamesID(raw int64) (GeoNamesID, error) {
 	value := raw
 	if value <= 0 {
 		notification.Reject(
-			"geoNamesId",
+			"geoNamesID",
 			"positive",
 			"",
 			strconv.FormatInt(value, 10),
-			"geoNamesId must be greater than zero",
+			"geoNamesID must be greater than zero",
 		)
 	}
 
@@ -510,11 +510,11 @@ func NewGeoNamesIDFromString(raw string) (GeoNamesID, error) {
 		)
 
 		notification.Reject(
-			"geoNamesId",
+			"geoNamesID",
 			"int",
 			"",
 			raw,
-			"geoNamesId must be a whole number",
+			"geoNamesID must be a whole number",
 		)
 
 		return zero, &notification
@@ -524,35 +524,35 @@ func NewGeoNamesIDFromString(raw string) (GeoNamesID, error) {
 }
 
 // Int64 returns the validated value.
-func (geoNamesId GeoNamesID) Int64() int64 { return geoNamesId.value }
+func (geoNamesID GeoNamesID) Int64() int64 { return geoNamesID.value }
 
 // String returns the base-10 representation of the value.
-func (geoNamesId GeoNamesID) String() string { return strconv.FormatInt(geoNamesId.value, 10) }
+func (geoNamesID GeoNamesID) String() string { return strconv.FormatInt(geoNamesID.value, 10) }
 
 // IsZero reports whether the receiver is the zero GeoNamesID: one that was never
 // constructed, as opposed to one constructed from 0. It is what
 // `json:",omitzero"` asks, and what Value stores as NULL.
-func (geoNamesId GeoNamesID) IsZero() bool { return !geoNamesId.set }
+func (geoNamesID GeoNamesID) IsZero() bool { return !geoNamesID.set }
 
 // Equal reports whether both value objects hold the same value.
-func (geoNamesId GeoNamesID) Equal(other GeoNamesID) bool {
-	return geoNamesId.value == other.value && geoNamesId.set == other.set
+func (geoNamesID GeoNamesID) Equal(other GeoNamesID) bool {
+	return geoNamesID.value == other.value && geoNamesID.set == other.set
 }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so GeoNamesID round-trips through JSON without
 // a MarshalJSON of its own.
-func (geoNamesId GeoNamesID) MarshalText() ([]byte, error) { return []byte(geoNamesId.String()), nil }
+func (geoNamesID GeoNamesID) MarshalText() ([]byte, error) { return []byte(geoNamesID.String()), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a GeoNamesID the constructor would have rejected.
-func (geoNamesId *GeoNamesID) UnmarshalText(data []byte) error {
+func (geoNamesID *GeoNamesID) UnmarshalText(data []byte) error {
 	parsed, err := NewGeoNamesIDFromString(string(data))
 	if err != nil {
 		return err
 	}
 
-	*geoNamesId = parsed
+	*geoNamesID = parsed
 
 	return nil
 }
@@ -1175,11 +1175,11 @@ func NewPlaceIDFromString(raw string) (PlaceID, error) {
 		)
 
 		notification.Reject(
-			"placeId",
+			"placeID",
 			"uuid",
 			"",
 			raw,
-			"placeId must be a valid UUID",
+			"placeID must be a valid UUID",
 		)
 
 		return zero, &notification
@@ -1189,31 +1189,31 @@ func NewPlaceIDFromString(raw string) (PlaceID, error) {
 }
 
 // UUID returns the identifier as a uuid.UUID.
-func (placeId PlaceID) UUID() uuid.UUID { return placeId.value }
+func (placeID PlaceID) UUID() uuid.UUID { return placeID.value }
 
 // String returns the canonical text of the identifier.
-func (placeId PlaceID) String() string { return placeId.value.String() }
+func (placeID PlaceID) String() string { return placeID.value.String() }
 
 // IsZero reports whether the receiver is the nil UUID, which is what an
 // unassigned identifier looks like.
-func (placeId PlaceID) IsZero() bool { return placeId.value == uuid.Nil }
+func (placeID PlaceID) IsZero() bool { return placeID.value == uuid.Nil }
 
 // Equal reports whether both identifiers refer to the same entity.
-func (placeId PlaceID) Equal(other PlaceID) bool { return placeId.value == other.value }
+func (placeID PlaceID) Equal(other PlaceID) bool { return placeID.value == other.value }
 
 // MarshalText implements encoding.TextMarshaler, which encoding/json also
 // uses, so the identifier crosses a JSON boundary as its canonical string.
-func (placeId PlaceID) MarshalText() ([]byte, error) { return []byte(placeId.value.String()), nil }
+func (placeID PlaceID) MarshalText() ([]byte, error) { return []byte(placeID.value.String()), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler through
 // NewPlaceIDFromString.
-func (placeId *PlaceID) UnmarshalText(data []byte) error {
+func (placeID *PlaceID) UnmarshalText(data []byte) error {
 	parsed, err := NewPlaceIDFromString(string(data))
 	if err != nil {
 		return err
 	}
 
-	*placeId = parsed
+	*placeID = parsed
 
 	return nil
 }
@@ -1254,11 +1254,11 @@ func NewImportRunIDFromInt64(raw int64) (ImportRunID, error) {
 		)
 
 		notification.Reject(
-			"importRunId",
+			"importRunID",
 			"positive",
 			"",
 			strconv.FormatInt(raw, 10),
-			"importRunId must be a positive identifier",
+			"importRunID must be a positive identifier",
 		)
 
 		return zero, &notification
@@ -1277,11 +1277,11 @@ func NewImportRunIDFromString(raw string) (ImportRunID, error) {
 		)
 
 		notification.Reject(
-			"importRunId",
+			"importRunID",
 			"int",
 			"",
 			raw,
-			"importRunId must be a whole number",
+			"importRunID must be a whole number",
 		)
 
 		return zero, &notification
@@ -1291,33 +1291,33 @@ func NewImportRunIDFromString(raw string) (ImportRunID, error) {
 }
 
 // Int64 returns the identifier as the database holds it.
-func (importRunId ImportRunID) Int64() int64 { return importRunId.value }
+func (importRunID ImportRunID) Int64() int64 { return importRunID.value }
 
 // String returns the base-10 representation of the identifier.
-func (importRunId ImportRunID) String() string { return strconv.FormatInt(importRunId.value, 10) }
+func (importRunID ImportRunID) String() string { return strconv.FormatInt(importRunID.value, 10) }
 
 // IsZero reports whether the receiver is an unassigned identifier.
-func (importRunId ImportRunID) IsZero() bool { return importRunId.value == 0 }
+func (importRunID ImportRunID) IsZero() bool { return importRunID.value == 0 }
 
 // Equal reports whether both identifiers refer to the same entity.
-func (importRunId ImportRunID) Equal(other ImportRunID) bool { return importRunId.value == other.value }
+func (importRunID ImportRunID) Equal(other ImportRunID) bool { return importRunID.value == other.value }
 
 // MarshalText implements encoding.TextMarshaler, which encoding/json also
 // uses, so the identifier crosses a JSON boundary as a string and keeps its
 // full precision in a JavaScript client.
-func (importRunId ImportRunID) MarshalText() ([]byte, error) {
-	return []byte(importRunId.String()), nil
+func (importRunID ImportRunID) MarshalText() ([]byte, error) {
+	return []byte(importRunID.String()), nil
 }
 
 // UnmarshalText implements encoding.TextUnmarshaler through
 // NewImportRunIDFromString.
-func (importRunId *ImportRunID) UnmarshalText(data []byte) error {
+func (importRunID *ImportRunID) UnmarshalText(data []byte) error {
 	parsed, err := NewImportRunIDFromString(string(data))
 	if err != nil {
 		return err
 	}
 
-	*importRunId = parsed
+	*importRunID = parsed
 
 	return nil
 }

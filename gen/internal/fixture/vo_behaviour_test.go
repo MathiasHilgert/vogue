@@ -292,7 +292,7 @@ func TestTabID(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.True(t, got.IsZero())
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "tabId", Rule: "uuid"})
+		assert.ErrorIs(t, err, vogue.FieldError{Field: "tabID", Rule: "uuid"})
 	})
 
 	t.Run("the zero value is the nil UUID", func(t *testing.T) {

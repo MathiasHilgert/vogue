@@ -467,11 +467,11 @@ func NewTabIDFromString(raw string) (TabID, error) {
 		)
 
 		notification.Reject(
-			"tabId",
+			"tabID",
 			"uuid",
 			"",
 			raw,
-			"tabId must be a valid UUID",
+			"tabID must be a valid UUID",
 		)
 
 		return zero, &notification
@@ -481,61 +481,61 @@ func NewTabIDFromString(raw string) (TabID, error) {
 }
 
 // UUID returns the identifier as a uuid.UUID.
-func (tabId TabID) UUID() uuid.UUID { return tabId.value }
+func (tabID TabID) UUID() uuid.UUID { return tabID.value }
 
 // String returns the canonical text of the identifier.
-func (tabId TabID) String() string { return tabId.value.String() }
+func (tabID TabID) String() string { return tabID.value.String() }
 
 // IsZero reports whether the receiver is the nil UUID, which is what an
 // unassigned identifier looks like.
-func (tabId TabID) IsZero() bool { return tabId.value == uuid.Nil }
+func (tabID TabID) IsZero() bool { return tabID.value == uuid.Nil }
 
 // Equal reports whether both identifiers refer to the same entity.
-func (tabId TabID) Equal(other TabID) bool { return tabId.value == other.value }
+func (tabID TabID) Equal(other TabID) bool { return tabID.value == other.value }
 
 // MarshalText implements encoding.TextMarshaler, which encoding/json also
 // uses, so the identifier crosses a JSON boundary as its canonical string.
-func (tabId TabID) MarshalText() ([]byte, error) { return []byte(tabId.value.String()), nil }
+func (tabID TabID) MarshalText() ([]byte, error) { return []byte(tabID.value.String()), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler through
 // NewTabIDFromString.
-func (tabId *TabID) UnmarshalText(data []byte) error {
+func (tabID *TabID) UnmarshalText(data []byte) error {
 	parsed, err := NewTabIDFromString(string(data))
 	if err != nil {
 		return err
 	}
 
-	*tabId = parsed
+	*tabID = parsed
 
 	return nil
 }
 
 // Value implements driver.Valuer, storing the canonical text. An unassigned
 // identifier is stored as NULL.
-func (tabId TabID) Value() (driver.Value, error) {
-	if tabId.value == uuid.Nil {
+func (tabID TabID) Value() (driver.Value, error) {
+	if tabID.value == uuid.Nil {
 		// A nil driver.Value is SQL NULL.
 		var null driver.Value
 
 		return null, nil
 	}
 
-	return tabId.value.String(), nil
+	return tabID.value.String(), nil
 }
 
 // Scan implements sql.Scanner for uuid and text columns.
-func (tabId *TabID) Scan(src any) error {
+func (tabID *TabID) Scan(src any) error {
 	switch source := src.(type) {
 	case nil:
 		var zero TabID
 
-		*tabId = zero
+		*tabID = zero
 
 		return nil
 	case string:
-		return tabId.UnmarshalText([]byte(source))
+		return tabID.UnmarshalText([]byte(source))
 	case []byte:
-		return tabId.scanBytes(source)
+		return tabID.scanBytes(source)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into TabID: %w", src, validation.ErrUnsupportedSource)
 	}
@@ -543,11 +543,11 @@ func (tabId *TabID) Scan(src any) error {
 
 // scanBytes reads a uuid column, which a driver hands back either as its text
 // or as its 16 raw bytes.
-func (tabId *TabID) scanBytes(raw []byte) error {
+func (tabID *TabID) scanBytes(raw []byte) error {
 	const rawLength = 16
 
 	if len(raw) != rawLength {
-		return tabId.UnmarshalText(raw)
+		return tabID.UnmarshalText(raw)
 	}
 
 	id, err := uuid.FromBytes(raw)
@@ -555,7 +555,7 @@ func (tabId *TabID) scanBytes(raw []byte) error {
 		return fmt.Errorf("vogue: cannot scan %d bytes into TabID: %w", len(raw), err)
 	}
 
-	*tabId = TabID{value: id}
+	*tabID = TabID{value: id}
 
 	return nil
 }

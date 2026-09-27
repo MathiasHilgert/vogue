@@ -144,7 +144,7 @@ func TestTimeZoneID(t *testing.T) {
 	t.Parallel()
 
 	voguetest.Scalar[TimeZoneID, *TimeZoneID, string]{
-		Field:      "timeZoneId",
+		Field:      "timeZoneID",
 		New:        NewTimeZoneID,
 		Get:        nil,
 		FromString: nil,
@@ -181,7 +181,7 @@ func TestGeoNamesID(t *testing.T) {
 	t.Parallel()
 
 	voguetest.Scalar[GeoNamesID, *GeoNamesID, int64]{
-		Field:      "geoNamesId",
+		Field:      "geoNamesID",
 		New:        NewGeoNamesID,
 		Get:        GeoNamesID.Int64,
 		FromString: NewGeoNamesIDFromString,
@@ -302,7 +302,7 @@ func TestPlaceID(t *testing.T) {
 	t.Parallel()
 
 	voguetest.UUID[PlaceID, *PlaceID]{
-		Field:      "placeId",
+		Field:      "placeID",
 		New:        NewPlaceID,
 		FromString: NewPlaceIDFromString,
 		Version:    7,
@@ -314,7 +314,7 @@ func TestImportRunID(t *testing.T) {
 	t.Parallel()
 
 	voguetest.Int64ID[ImportRunID, *ImportRunID]{
-		Field:      "importRunId",
+		Field:      "importRunID",
 		FromInt64:  NewImportRunIDFromInt64,
 		FromString: NewImportRunIDFromString,
 	}.Run(t)
