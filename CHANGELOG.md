@@ -41,9 +41,10 @@ is zero, a minor release may break the API; every break is listed under
   constant inside the constructor, named after the identifier reserved for it,
   instead of writing a magic number or a package-level variable.
 - `rulecheck.Regexp`, which compiles a pattern once and caches it.
-- The `timezone` rule: an IANA time zone name, resolved with
-  `time.LoadLocation` (`rulecheck.TimeZone`). "Local" and the empty string are
-  rejected.
+- The `timezone` rule: a canonical IANA time zone name (`rulecheck.TimeZone`),
+  compared case-exactly against the zones of the Go toolchain's database, so
+  `europe/madrid`, `Factory`, `localtime` and `posixrules` are rejected on
+  every platform, without reading a zone database at run time.
 - Package `textjson`, the JSON string codec the generated JSON methods use.
 - `validation.ErrZeroValue`.
 - `Notification.Collect(err)`, which folds the failures of a part's error into

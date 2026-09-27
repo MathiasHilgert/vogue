@@ -187,7 +187,7 @@ name.
 | `email` | string | none | Requires a single email address in the RFC 5322 grammar, parsed by net/mail rather than matched against a regular expression. |
 | `url` | string | none | Requires an absolute http or https URL, parsed by net/url as a request URI. |
 | `uuid` | string | none | Requires a UUID written in the canonical RFC 4122 form, 8-4-4-4-12 hexadecimal digits separated by hyphens, in either case. |
-| `timezone` | string | none | Requires the name of a zone in the IANA time zone database, such as "America/Argentina/Buenos_Aires" or "UTC", resolved with time.LoadLocation. |
+| `timezone` | string | none | Requires the canonical name of a zone in the IANA time zone database, such as "America/Argentina/Buenos_Aires" or "UTC", compared case-exactly against the zones of the database the Go toolchain ships. |
 | `regex` | string | required regex | Requires the value to match the given RE2 pattern. |
 | `oneof` | string, int | required list | Restricts the value to one of the comma-separated items of the parameter, compared for exact equality: on a string it is case-sensitive, so pair it with `lower` or `upper` when the input is typed by a human, and on an integer every item must itself be an integer. |
 | `alpha` | string | none | Requires every rune of the value to be a letter, in the Unicode sense: "Muñoz" passes and so does a name in Greek or Cyrillic, while a digit, a space, a hyphen or an apostrophe does not. |
@@ -419,10 +419,13 @@ func NewCoordinates(latitude, longitude string) (Coordinates, error) {
 text codec and test, written to the same strict lint profile as the generated
 code.
 
-**Time zones.** The `timezone` rule resolves a name with `time.LoadLocation`,
-so it is as current as the zone database the process can read. A binary that
-runs in a minimal container image has none of its own and should import
-`time/tzdata` to embed one.
+**Time zones.** The `timezone` rule accepts the canonical, case-exact names of
+the zone database the Go toolchain ships (listed in `rules/rulecheck/zones.go`,
+refreshed with `go run ./rules/rulecheck/internal/zonelist`), and rejects the
+database's own files — `Factory`, `localtime`, `posixrules` — `Local` and the
+empty string. The check itself reads no zone database; converting the value
+with `time.LoadLocation` does, so a binary in a minimal container image should
+import `time/tzdata`.
 
 **Identifiers.** `uuid7` is the default because time-ordered identifiers keep
 an index from fragmenting; `uuid4` is there for values that must not leak a

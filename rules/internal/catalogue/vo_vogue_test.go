@@ -678,6 +678,11 @@ func TestZoneName(t *testing.T) {
 				Rules: []string{exampleTimezone},
 			},
 			{
+				Name:  "rejects a zone in the wrong case",
+				Input: "europe/madrid",
+				Rules: []string{exampleTimezone},
+			},
+			{
 				Name:  exampleRejectsTheEmptyString,
 				Input: "",
 				Rules: []string{exampleTimezone},

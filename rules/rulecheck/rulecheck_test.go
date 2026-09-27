@@ -148,6 +148,14 @@ func TestTimeZone(t *testing.T) {
 		{name: "the process-local zone, which names no place", in: "Local", want: false},
 		{name: "the empty string, which LoadLocation reads as UTC", in: "", want: false},
 		{name: "a path escaping the zone database", in: "../etc/passwd", want: false},
+		{name: "a zone in the wrong case, which a case-insensitive file system would load", in: "europe/madrid", want: false},
+		{name: "a zone shouted", in: "EUROPE/MADRID", want: false},
+		{name: "utc in lower case", in: "utc", want: false},
+		{name: "the placeholder zone of the database", in: "Factory", want: false},
+		{name: "the system's local zone file", in: "localtime", want: false},
+		{name: "the database's rules file", in: "posixrules", want: false},
+		{name: "a directory of the database", in: "America", want: false},
+		{name: "a link the database keeps for compatibility", in: "US/Eastern", want: true},
 	}
 
 	for _, testCase := range cases {
