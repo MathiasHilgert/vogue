@@ -65,6 +65,8 @@ type config struct {
 	withoutBuiltin bool
 	tests          bool
 	sql            bool
+	suffix         string
+	perValueObject bool
 	schema         bool
 	dryRun         bool
 	stdout, stderr io.Writer
@@ -109,6 +111,15 @@ func WithTests(on bool) Option {
 	return func(c *config) { c.tests = on }
 }
 
+// WithSuffix sets what is appended to the base name of a source file to name
+// the files generated from it; it defaults to "_vogue", so vo.go generates
+// vo_vogue.go and vo_vogue_test.go. The empty suffix writes one file and one
+// test per value object instead, named after it in snake case: CountryCode is
+// written to country_code.go and country_code_test.go.
+func WithSuffix(suffix string) Option {
+	return func(c *config) { c.suffix, c.perValueObject = suffix, suffix == "" }
+}
+
 // WithSQL turns the database/sql/driver codec — Value and Scan — on or off.
 // It is on by default. A hexagonal domain package whose linter forbids
 // importing database/sql/driver turns it off and converts at the persistence
@@ -143,7 +154,7 @@ func WithStderr(w io.Writer) Option {
 
 // newConfig resolves the defaults and applies the options.
 func newConfig(opts []Option) *config {
-	c := &config{tests: true, sql: true, stdout: os.Stdout, stderr: os.Stderr}
+	c := &config{tests: true, sql: true, suffix: gen.DefaultSuffix, stdout: os.Stdout, stderr: os.Stderr}
 	for _, opt := range opts {
 		opt(c)
 	}
@@ -174,7 +185,11 @@ func defaultDir() string {
 // run over the same directory produces the same result.
 //
 // Every directive problem is reported on the configured standard error before
-// Run returns, and nothing is written when there is one.
+// Run returns, and nothing is written when there is one. A destination that
+// exists without vogue's generated-code header is never overwritten: Run
+// fails with [gen.ErrNotGenerated] and writes nothing. Generated files a
+// previous run wrote and this one does not — a removed directive, a changed
+// suffix — are removed, but only when they carry that header.
 func Run(opts ...Option) error {
 	c := newConfig(opts)
 
@@ -187,29 +202,63 @@ func Run(opts ...Option) error {
 	if err != nil {
 		return c.report(err)
 	}
-	if len(pkg.Directives()) == 0 {
-		return nil
-	}
-
-	importPath := c.resolveImportPath()
-
-	g, err := gen.New(gen.Options{Package: pkg, Rules: set, ImportPath: importPath, OmitSQL: !c.sql, Schema: c.schema})
-	if err != nil {
-		return err
-	}
-	files, err := g.Files()
+	files, err := c.render(pkg, set)
 	if err != nil {
 		return err
 	}
 
-	files = c.selected(files)
+	stale, err := gen.Stale(c.dir, files)
+	if err != nil {
+		return err
+	}
 	if c.dryRun {
 		for _, file := range files {
 			fmt.Fprintf(c.stdout, "%s (%d bytes)\n", file.Path, len(file.Content))
 		}
+		for _, path := range stale {
+			fmt.Fprintf(c.stdout, "remove %s\n", path)
+		}
 		return nil
 	}
-	return gen.Write(files)
+	if err := gen.Write(files); err != nil {
+		return err
+	}
+	return removeAll(stale)
+}
+
+// render generates the files of the package, none when it has no directive.
+func (c *config) render(pkg *parse.Package, set *vogue.RuleSet) ([]gen.OutFile, error) {
+	if len(pkg.Directives()) == 0 {
+		return nil, nil
+	}
+	g, err := gen.New(gen.Options{
+		Package:        pkg,
+		Rules:          set,
+		ImportPath:     c.resolveImportPath(),
+		Suffix:         c.suffix,
+		PerValueObject: c.perValueObject,
+		OmitSQL:        !c.sql,
+		Schema:         c.schema,
+	})
+	if err != nil {
+		return nil, err
+	}
+	files, err := g.Files()
+	if err != nil {
+		return nil, err
+	}
+	return c.selected(files), nil
+}
+
+// removeAll removes the generated files a run no longer writes. They carry
+// vogue's header, which is what makes removing them safe.
+func removeAll(paths []string) error {
+	for _, path := range paths {
+		if err := os.Remove(path); err != nil {
+			return fmt.Errorf("vogue: removing the stale generated file %s: %w", path, err)
+		}
+	}
+	return nil
 }
 
 // ruleSet builds the catalogue the directives are resolved against.

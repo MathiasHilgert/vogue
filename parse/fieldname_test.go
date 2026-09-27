@@ -42,3 +42,16 @@ func TestFieldName(t *testing.T) {
 		})
 	}
 }
+
+func TestSnakeName(t *testing.T) {
+	t.Parallel()
+
+	cases := map[string]string{
+		"Title": "title", "CountryCode": "country_code", "GeoNamesID": "geo_names_id",
+		"SubdivisionISOCode": "subdivision_iso_code", "HTTPStatus": "http_status",
+	}
+	for in, want := range cases {
+		// Act & Assert
+		assert.Equal(t, want, parse.SnakeName(in), in)
+	}
+}

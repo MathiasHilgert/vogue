@@ -188,6 +188,6 @@ func TestWrite_Rename(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.Contains(t, err.Error(), "renaming into")
+		assert.Contains(t, err.Error(), occupied, "a destination that cannot be read is reported before anything is written")
 	})
 }

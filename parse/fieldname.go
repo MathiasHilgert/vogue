@@ -27,6 +27,17 @@ func FieldName(name string) string {
 	return b.String()
 }
 
+// SnakeName returns a Go type name in lower snake case, keeping an initialism
+// one word: CountryCode becomes "country_code" and GeoNamesID "geo_names_id".
+// It names the files generated for one value object.
+func SnakeName(name string) string {
+	words := splitWords(name)
+	for i, word := range words {
+		words[i] = strings.ToLower(word)
+	}
+	return strings.Join(words, "_")
+}
+
 // splitWords cuts a Go identifier into words at case boundaries, keeping a run
 // of capitals that ends in a lowercase letter as two words: the initialism and
 // the word it precedes.
