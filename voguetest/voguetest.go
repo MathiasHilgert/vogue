@@ -85,3 +85,18 @@ func describes[Object ValueObject[Object]](t *testing.T, accepted Object) {
 	assert.True(t, provider.JSONSchema().Accepts(accepted.String()),
 		"%s was accepted by its constructor but not by its JSONSchema", accepted.String())
 }
+
+// rejectedBySchema proves that a value object generated with a JSONSchema
+// method describes a rejected input as invalid too. The value object is only
+// asked for its schema; the zero value it was rejected into is enough.
+func rejectedBySchema[Object ValueObject[Object]](t *testing.T, rejected Object, input string) {
+	t.Helper()
+
+	provider, ok := any(rejected).(schema.Provider)
+	if !ok {
+		return
+	}
+
+	assert.False(t, provider.JSONSchema().Accepts(input),
+		"%q was rejected by the constructor but accepted by the JSONSchema", input)
+}

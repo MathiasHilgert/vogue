@@ -66,6 +66,15 @@ is zero, a minor release may break the API; every break is listed under
   `SubdivisionISOCode` reports `subdivisionISOCode` (was
   `subdivisionIsoCode`). A leading initialism is still lower-cased whole:
   `CUITNumber` reports `cuitNumber`. Receivers follow the same spelling.
+- The JSON schema is tighter and truthful: the tightest of several bounds
+  wins, `required` makes a minimum length of at least 1, `nonneg` combines
+  with `min` into the higher minimum, checks written before a normalizer are
+  left out (they constrain the input, not the canonical text), integer `oneof`
+  items are published in canonical base-10 form, and a `regex` using an
+  RE2-only construct is left out instead of being published in the wrong
+  dialect. The generated test checks every accepted example against the
+  schema and, via the new `voguetest.Rejection.Described`, that rejected rows
+  of modeled rules fail it.
 
 - Integer rule parameters are emitted as the base-10 number they parse to, so
   `min=010` compares against 10, not the octal 8; every item of an integer
