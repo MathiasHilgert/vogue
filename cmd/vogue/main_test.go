@@ -79,6 +79,34 @@ func TestRun(t *testing.T) {
 		assert.Contains(t, string(generated), "JSONSchema() schema.Schema")
 	})
 
+	t.Run("an empty suffix names the files after the value objects", func(t *testing.T) {
+		// Arrange
+		dir := fixture(t)
+		var stdout, stderr bytes.Buffer
+
+		// Act
+		code := run([]string{"-dir", dir, "-suffix="}, &stdout, &stderr)
+
+		// Assert
+		assert.Equal(t, 0, code)
+		assert.FileExists(t, filepath.Join(dir, "title.go"))
+		assert.FileExists(t, filepath.Join(dir, "title_test.go"))
+	})
+
+	t.Run("exits non-zero rather than overwrite a hand-written file", func(t *testing.T) {
+		// Arrange
+		dir := fixture(t)
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "title.go"), []byte("package tab\n"), 0o600))
+		var stdout, stderr bytes.Buffer
+
+		// Act
+		code := run([]string{"-dir", dir, "-suffix="}, &stdout, &stderr)
+
+		// Assert
+		assert.Equal(t, 1, code)
+		assert.Contains(t, stderr.String(), "refusing to overwrite")
+	})
+
 	t.Run("a dry run reports the files and writes none", func(t *testing.T) {
 		// Arrange
 		dir := fixture(t)
