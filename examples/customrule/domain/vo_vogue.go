@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/MathiasHilgert/vogue/examples/customrule/cuit"
+	"github.com/MathiasHilgert/vogue/textjson"
 	"github.com/MathiasHilgert/vogue/validation"
 )
 
@@ -73,7 +74,13 @@ func (taxID TaxID) Equal(other TaxID) bool {
 // the text codec for types that implement it, so TaxID marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (taxID TaxID) MarshalText() ([]byte, error) { return []byte(taxID.value), nil }
+func (taxID TaxID) MarshalText() ([]byte, error) {
+	if taxID.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero TaxID: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(taxID.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a TaxID the constructor would have rejected.
@@ -86,6 +93,41 @@ func (taxID *TaxID) UnmarshalText(data []byte) error {
 	*taxID = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero TaxID is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (taxID TaxID) MarshalJSON() ([]byte, error) {
+	if taxID.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := taxID.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// TaxID; a JSON string goes through UnmarshalText, so it is validated.
+func (taxID *TaxID) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode TaxID: %w", err)
+	}
+
+	if isNull {
+		var zero TaxID
+
+		*taxID = zero
+
+		return nil
+	}
+
+	return taxID.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero TaxID is stored as NULL, which
@@ -205,7 +247,13 @@ func (legalName LegalName) Equal(other LegalName) bool {
 // the text codec for types that implement it, so LegalName marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (legalName LegalName) MarshalText() ([]byte, error) { return []byte(legalName.value), nil }
+func (legalName LegalName) MarshalText() ([]byte, error) {
+	if legalName.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero LegalName: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(legalName.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a LegalName the constructor would have rejected.
@@ -218,6 +266,41 @@ func (legalName *LegalName) UnmarshalText(data []byte) error {
 	*legalName = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero LegalName is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (legalName LegalName) MarshalJSON() ([]byte, error) {
+	if legalName.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := legalName.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// LegalName; a JSON string goes through UnmarshalText, so it is validated.
+func (legalName *LegalName) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode LegalName: %w", err)
+	}
+
+	if isNull {
+		var zero LegalName
+
+		*legalName = zero
+
+		return nil
+	}
+
+	return legalName.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero LegalName is stored as NULL, which

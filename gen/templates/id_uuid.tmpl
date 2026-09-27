@@ -24,7 +24,9 @@ func New{{$n}}() ({{$n}}, error) {
 }
 
 // New{{$n}}FromString reads any RFC 4122 UUID, not only the version this type
-// mints, so identifiers written by an earlier schema stay readable.
+// mints, so identifiers written by an earlier schema stay readable. The nil
+// UUID is refused as a failure of the "required" rule: it is what an
+// unassigned identifier looks like, as zero is for an int64 one.
 func New{{$n}}FromString(raw string) ({{$n}}, error) {
 	id, err := uuid.Parse(raw)
 	if err != nil {
@@ -39,6 +41,23 @@ func New{{$n}}FromString(raw string) ({{$n}}, error) {
 			"",
 			raw,
 			"{{.Field}} must be a valid UUID",
+		)
+
+		return zero, &notification
+	}
+
+	if id == uuid.Nil {
+		var (
+			zero {{$n}}
+			notification validation.Notification
+		)
+
+		notification.Reject(
+			{{q .Field}},
+			"required",
+			"",
+			raw,
+			"{{.Field}} must not be the nil UUID",
 		)
 
 		return zero, &notification
@@ -62,7 +81,13 @@ func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.value == other.val
 
 // MarshalText implements encoding.TextMarshaler, which encoding/json also
 // uses, so the identifier crosses a JSON boundary as its canonical string.
-func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.value.String()), nil }
+func ({{$r}} {{$n}}) MarshalText() ([]byte, error) {
+	if {{$r}}.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero {{$n}}: %w", validation.ErrZeroValue)
+	}
+
+	return []byte({{$r}}.value.String()), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler through
 // New{{$n}}FromString.
@@ -76,6 +101,7 @@ func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 
 	return nil
 }
+{{template "json" .}}
 {{if .SQL}}
 // Value implements driver.Valuer, storing the canonical text. An unassigned
 // identifier is stored as NULL.
@@ -122,9 +148,9 @@ func ({{$r}} *{{$n}}) scanBytes(raw []byte) error {
 		return fmt.Errorf("vogue: cannot scan %d bytes into {{$n}}: %w", len(raw), err)
 	}
 
-	*{{$r}} = {{$n}}{value: id}
-
-	return nil
+	// Through the text form, so the nil UUID is refused here as it is
+	// everywhere else.
+	return {{$r}}.UnmarshalText([]byte(id.String()))
 }
 {{end}}
 {{template "schema" .}}

@@ -1,6 +1,8 @@
 package voguetest
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -18,6 +20,11 @@ type Rejection[Raw any] struct {
 	Input Raw
 	// Rules are the rules that must each report a failure.
 	Rules []string
+	// Described marks a row every one of whose rules the generated JSON
+	// schema models, so the input must fail the schema too. It is false when
+	// a rule has no schema counterpart, or a normalizer changes the text the
+	// schema describes.
+	Described bool
 }
 
 // Normalization is a rewrite a normalizer declares: Raw is handed to the
@@ -80,9 +87,16 @@ func (suite Scalar[Object, Reference, Raw]) Run(t *testing.T) {
 	t.Run("accepts every example the directive declares", func(t *testing.T) {
 		t.Parallel()
 
+		for _, input := range suite.Candidates {
+			if candidate, err := suite.New(input); err == nil {
+				describes(t, candidate)
+			}
+		}
+
 		for _, input := range suite.Examples {
 			got, err := suite.New(input)
 			require.NoError(t, err, "the directive declares %v valid", input)
+			describes(t, got)
 			assert.False(t, got.IsZero(), "a constructed value object is never the zero value, even for %v", input)
 
 			if suite.Get != nil {
@@ -99,6 +113,10 @@ func (suite Scalar[Object, Reference, Raw]) Run(t *testing.T) {
 
 			require.ErrorIs(t, err, validation.ErrInvalid)
 			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
+
+			if row.Described {
+				rejectedBySchema(t, got, fmt.Sprint(row.Input))
+			}
 
 			for _, rule := range row.Rules {
 				assert.ErrorIs(t, err, validation.FieldError{Field: suite.Field, Rule: rule},
@@ -145,7 +163,7 @@ func (suite Scalar[Object, Reference, Raw]) Run(t *testing.T) {
 
 	t.Run("separates the zero value", func(t *testing.T) {
 		t.Parallel()
-		separatesZero(t, sample)
+		separatesZero[Object, Reference](t, sample)
 	})
 }
 
@@ -221,10 +239,11 @@ func (suite Scalar[Object, Reference, Raw]) scans(t *testing.T) {
 	}
 }
 
-// separatesZero proves the zero value is told apart from a constructed one,
-// and that it is what a NULL column stores: Value reports nil for it, and a
-// value for anything constructed.
-func separatesZero[Object ValueObject[Object]](t *testing.T, constructed Object) {
+// separatesZero proves the zero value is told apart from a constructed one at
+// every boundary: it is IsZero, has no text form, is null in JSON and NULL in
+// SQL, and null and NULL read back as it; a constructed value is none of
+// those and survives JSON unchanged.
+func separatesZero[Object ValueObject[Object], Reference Pointer[Object]](t *testing.T, constructed Object) {
 	t.Helper()
 
 	var zero Object
@@ -232,6 +251,43 @@ func separatesZero[Object ValueObject[Object]](t *testing.T, constructed Object)
 	assert.True(t, zero.IsZero())
 	assert.False(t, constructed.IsZero())
 	assert.False(t, zero.Equal(constructed))
+
+	_, err := zero.MarshalText()
+	require.ErrorIs(t, err, validation.ErrZeroValue, "the zero value must have no text form")
+
+	separatesZeroInJSON[Object, Reference](t, constructed)
+	separatesZeroInSQL[Object, Reference](t, constructed)
+}
+
+// separatesZeroInJSON proves the zero value is null in JSON and back.
+func separatesZeroInJSON[Object ValueObject[Object], Reference Pointer[Object]](t *testing.T, constructed Object) {
+	t.Helper()
+
+	var zero Object
+
+	encoded, err := json.Marshal(zero)
+	require.NoError(t, err)
+	assert.JSONEq(t, "null", string(encoded), "the zero value must be null in JSON")
+
+	decoded := constructed
+	require.NoError(t, json.Unmarshal([]byte("null"), Reference(&decoded)))
+	assert.True(t, decoded.IsZero(), "null must read back as the zero value")
+
+	encoded, err = json.Marshal(constructed)
+	require.NoError(t, err)
+
+	var roundTripped Object
+
+	require.NoError(t, json.Unmarshal(encoded, Reference(&roundTripped)))
+	assert.True(t, constructed.Equal(roundTripped), "%s did not survive JSON", constructed.String())
+}
+
+// separatesZeroInSQL proves the zero value is NULL in SQL and back, when the
+// value object has the SQL codec.
+func separatesZeroInSQL[Object ValueObject[Object], Reference Pointer[Object]](t *testing.T, constructed Object) {
+	t.Helper()
+
+	var zero Object
 
 	value, ok := valuer(zero)
 	if !ok {
@@ -246,6 +302,11 @@ func separatesZero[Object ValueObject[Object]](t *testing.T, constructed Object)
 	stored, err = constructedValue.Value()
 	require.NoError(t, err)
 	assert.NotNil(t, stored)
+
+	scanned := constructed
+	scan, _ := scanner[Object, Reference](&scanned)
+	require.NoError(t, scan.Scan(nil))
+	assert.True(t, scanned.IsZero(), "NULL must read back as the zero value")
 }
 
 // roundTrips proves a value object survives the text codec and, when it has

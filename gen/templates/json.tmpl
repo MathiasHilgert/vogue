@@ -1,0 +1,36 @@
+{{define "json"}}
+// MarshalJSON implements json.Marshaler. The zero {{.Name}} is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func ({{.Recv}} {{.Name}}) MarshalJSON() ([]byte, error) {
+	if {{.Recv}}.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := {{.Recv}}.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// {{.Name}}; a JSON string goes through UnmarshalText, so it is validated.
+func ({{.Recv}} *{{.Name}}) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode {{.Name}}: %w", err)
+	}
+
+	if isNull {
+		var zero {{.Name}}
+
+		*{{.Recv}} = zero
+
+		return nil
+	}
+
+	return {{.Recv}}.UnmarshalText(text)
+}
+{{end}}

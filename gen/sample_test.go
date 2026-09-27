@@ -229,6 +229,6 @@ func TestTestGenerator_RejectionsAfterANormalizer(t *testing.T) {
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, string(files[1].Content), `Name:  "rejects the empty string",`)
+		assert.Regexp(t, `Name:\s+"rejects the empty string",`, string(files[1].Content))
 	})
 }

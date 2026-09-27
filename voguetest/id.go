@@ -12,7 +12,7 @@ import (
 
 // The UUID literals the identifier suites parse: one of each version vogue
 // mints, which proves New<Name>FromString reads any RFC 4122 UUID and not
-// only the version the type produces.
+// only the version the type produces, and the nil UUID it refuses.
 const (
 	sampleUUIDv4 = "3f333df6-90a4-4fda-8dd3-9485d27cee36"
 	sampleUUIDv7 = "018ff1d4-9c2a-7b3e-9f6a-6c1d2e3f4a5b"
@@ -55,11 +55,27 @@ func (suite UUID[Object, Reference]) Run(t *testing.T) {
 	t.Run("reads any RFC 4122 UUID", func(t *testing.T) {
 		t.Parallel()
 
-		for _, raw := range []string{sampleUUIDv7, sampleUUIDv4, nilUUID} {
+		for _, raw := range []string{sampleUUIDv7, sampleUUIDv4} {
 			got, err := suite.FromString(raw)
 			require.NoError(t, err)
 			assert.Equal(t, raw, got.String())
-			assert.Equal(t, raw == nilUUID, got.IsZero())
+			assert.False(t, got.IsZero())
+		}
+	})
+
+	t.Run("rejects the nil UUID, which is the unassigned identifier", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := suite.FromString(nilUUID)
+		require.ErrorIs(t, err, validation.FieldError{Field: suite.Field, Rule: "required"})
+		assert.True(t, got.IsZero())
+
+		if hasScan[Object, Reference]() {
+			var scanned Object
+
+			scan, _ := scanner[Object, Reference](&scanned)
+			require.ErrorIs(t, scan.Scan(make([]byte, 16)), validation.ErrInvalid,
+				"sixteen zero bytes are the nil UUID too")
 		}
 	})
 
@@ -87,7 +103,7 @@ func (suite UUID[Object, Reference]) Run(t *testing.T) {
 
 		minted, err := suite.New()
 		require.NoError(t, err)
-		separatesZero(t, minted)
+		separatesZero[Object, Reference](t, minted)
 	})
 }
 
@@ -179,6 +195,6 @@ func (suite Int64ID[Object, Reference]) Run(t *testing.T) {
 		assigned, err := suite.FromInt64(1)
 		require.NoError(t, err)
 		assert.Equal(t, "0", zero.String())
-		separatesZero(t, assigned)
+		separatesZero[Object, Reference](t, assigned)
 	})
 }

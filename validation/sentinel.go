@@ -14,6 +14,12 @@ var (
 	// source type it does not read, such as a bool for a text column.
 	ErrUnsupportedSource = errors.New("unsupported source type")
 
+	// ErrZeroValue is wrapped by the MarshalText of a value object's zero
+	// value. The zero value was never constructed, and no text reads back as
+	// it: an empty string or a 0 would come back as a constructed value
+	// object. Its JSON form is null instead, and its SQL form NULL.
+	ErrZeroValue = errors.New("the zero value has no text form")
+
 	// ErrLossySource is wrapped by a generated Scan that refuses a source
 	// which has already lost information, such as a binary float handed to an
 	// exact decimal: converting it would silently store a different number.

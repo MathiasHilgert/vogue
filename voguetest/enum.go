@@ -89,7 +89,7 @@ func (suite Enum[Object, Reference]) Run(t *testing.T) {
 		assert.Empty(t, zero.String())
 
 		for _, member := range suite.All {
-			separatesZero(t, member)
+			separatesZero[Object, Reference](t, member)
 		}
 	})
 }

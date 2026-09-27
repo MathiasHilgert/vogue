@@ -23,9 +23,10 @@ func TestTitle(t *testing.T) {
 		Candidates: []string{"a", "a tab name", "abc"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects the empty string",
-				Input: "",
-				Rules: []string{"required"},
+				Name:      "rejects the empty string",
+				Input:     "",
+				Rules:     []string{"required"},
+				Described: false,
 			},
 		},
 		Normalized: []voguetest.Normalization[string]{
@@ -59,14 +60,16 @@ func TestCovers(t *testing.T) {
 		Candidates: []int64{1, 200},
 		Rejected: []voguetest.Rejection[int64]{
 			{
-				Name:  "rejects a table with nobody at it",
-				Input: 0,
-				Rules: []string{"min"},
+				Name:      "rejects a table with nobody at it",
+				Input:     0,
+				Rules:     []string{"min"},
+				Described: true,
 			},
 			{
-				Name:  "rejects one guest more than the house holds",
-				Input: 201,
-				Rules: []string{"max"},
+				Name:      "rejects one guest more than the house holds",
+				Input:     201,
+				Rules:     []string{"max"},
+				Described: true,
 			},
 		},
 		Normalized:   nil,
@@ -159,14 +162,16 @@ func TestWeight(t *testing.T) {
 		Candidates: []string{"1.5", "1.25"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects a weight below zero",
-				Input: "-0.25",
-				Rules: []string{"min"},
+				Name:      "rejects a weight below zero",
+				Input:     "-0.25",
+				Rules:     []string{"min"},
+				Described: true,
 			},
 			{
-				Name:  "rejects four decimal places do not",
-				Input: "0.1234",
-				Rules: []string{"scale"},
+				Name:      "rejects four decimal places do not",
+				Input:     "0.1234",
+				Rules:     []string{"scale"},
+				Described: false,
 			},
 		},
 		Normalized:   nil,

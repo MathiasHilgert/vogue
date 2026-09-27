@@ -116,7 +116,6 @@ func TestGenerator_Files_Kinds(t *testing.T) {
 		assert.NotContains(t, code, "Scan(")
 		assert.NotContains(t, code, "Value()")
 		assert.NotContains(t, code, "nolint:recvcheck", "without Scan every method has a value receiver but UnmarshalText")
-		assert.NotContains(t, code, `"fmt"`)
 	})
 
 	t.Run("generates nothing for a file without directives", func(t *testing.T) {

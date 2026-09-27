@@ -7,15 +7,17 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MathiasHilgert/vogue/schema"
+	"github.com/MathiasHilgert/vogue/textjson"
 	"github.com/MathiasHilgert/vogue/validation"
 	"github.com/MathiasHilgert/vogue/voguetest"
 )
 
 // Code is a hand-written value object shaped the way vogue generates one: a
-// trimmed, required, two-letter code with the text and SQL codecs. It stands in
-// for generated code so the suite is proven against a value object that
-// honours every promise the suite checks.
-type Code struct{ v string }
+// trimmed, required, two-letter code with the text, JSON and SQL codecs. It
+// stands in for generated code so the suite is proven against a value object
+// that honours every promise the suite checks.
+type Code struct{ value string }
 
 func NewCode(raw string) (Code, error) {
 	var notification validation.Notification
@@ -33,43 +35,89 @@ func NewCode(raw string) (Code, error) {
 		return Code{}, &notification
 	}
 
-	return Code{v: value}, nil
+	return Code{value: value}, nil
 }
 
-func (c Code) String() string               { return c.v }
-func (c Code) IsZero() bool                 { return c.v == "" }
-func (c Code) Equal(other Code) bool        { return c.v == other.v }
-func (c Code) MarshalText() ([]byte, error) { return []byte(c.v), nil }
-func (c Code) Value() (driver.Value, error) {
-	if c.v == "" {
-		return nil, nil //nolint:nilnil // a nil driver.Value is SQL NULL.
+func (code Code) String() string        { return code.value }
+func (code Code) IsZero() bool          { return code.value == "" }
+func (code Code) Equal(other Code) bool { return code.value == other.value }
+
+func (code Code) MarshalText() ([]byte, error) {
+	if code.IsZero() {
+		return nil, fmt.Errorf("cannot marshal the zero Code: %w", validation.ErrZeroValue)
 	}
 
-	return c.v, nil
-}
-func (c *Code) UnmarshalText(data []byte) error { return c.set(NewCode(string(data))) }
-
-func (c *Code) Scan(src any) error {
-	switch value := src.(type) {
-	case nil:
-		*c = Code{}
-
-		return nil
-	case string:
-		return c.UnmarshalText([]byte(value))
-	default:
-		return fmt.Errorf("cannot scan %T into Code: %w", src, validation.ErrUnsupportedSource)
-	}
+	return []byte(code.value), nil
 }
 
-func (c *Code) set(parsed Code, err error) error {
+func (code *Code) UnmarshalText(data []byte) error {
+	parsed, err := NewCode(string(data))
 	if err != nil {
 		return err
 	}
 
-	*c = parsed
+	*code = parsed
 
 	return nil
+}
+
+func (code Code) MarshalJSON() ([]byte, error) {
+	if code.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	return textjson.Quote([]byte(code.value)), nil
+}
+
+func (code *Code) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return err
+	}
+
+	if isNull {
+		*code = Code{}
+
+		return nil
+	}
+
+	return code.UnmarshalText(text)
+}
+
+// JSONSchema describes Code the way -schema would: two characters, required.
+func (Code) JSONSchema() schema.Schema {
+	return schema.Schema{
+		Type:             schema.String,
+		Format:           "",
+		Pattern:          "",
+		Enum:             nil,
+		MinLength:        schema.Length{Set: true, Value: 2},
+		MaxLength:        schema.Length{Set: true, Value: 2},
+		Minimum:          schema.Number{Set: false, Value: 0},
+		Maximum:          schema.Number{Set: false, Value: 0},
+		ExclusiveMinimum: schema.Number{Set: false, Value: 0},
+	}
+}
+
+func (code Code) Value() (driver.Value, error) {
+	if code.IsZero() {
+		return nil, nil //nolint:nilnil // a nil driver.Value is SQL NULL.
+	}
+
+	return code.value, nil
+}
+
+func (code *Code) Scan(source any) error {
+	switch value := source.(type) {
+	case nil:
+		*code = Code{}
+
+		return nil
+	case string:
+		return code.UnmarshalText([]byte(value))
+	default:
+		return fmt.Errorf("cannot scan %T into Code: %w", source, validation.ErrUnsupportedSource)
+	}
 }
 
 func TestScalar(t *testing.T) {
@@ -84,8 +132,8 @@ func TestScalar(t *testing.T) {
 		Examples:   []string{"AR"},
 		Candidates: []string{"Tortilla", "DE"},
 		Rejected: []voguetest.Rejection[string]{
-			{Name: "the empty string", Input: "", Rules: []string{"required", "len"}},
-			{Name: "a code too long", Input: "ARG", Rules: []string{"len"}},
+			{Name: "rejects the empty string", Input: "", Rules: []string{"required", "len"}, Described: true},
+			{Name: "rejects a code too long", Input: "ARG", Rules: []string{"len"}, Described: true},
 		},
 		Normalized: []voguetest.Normalization[string]{
 			{Name: "the blanks around it", Input: "  AR ", Out: "AR"},
@@ -95,55 +143,86 @@ func TestScalar(t *testing.T) {
 	}.Run(t)
 }
 
-// Seq is a hand-written database-assigned identifier.
-type Seq struct{ v int64 }
+// Sequence is a hand-written database-assigned identifier.
+type Sequence struct{ value int64 }
 
-func NewSeqFromInt64(raw int64) (Seq, error) {
+func NewSequenceFromInt64(raw int64) (Sequence, error) {
 	if raw <= 0 {
 		var notification validation.Notification
 
-		notification.Reject("seq", "positive", "", strconv.FormatInt(raw, 10), "seq must be a positive identifier")
+		notification.Reject("sequence", "positive", "", strconv.FormatInt(raw, 10), "sequence must be a positive identifier")
 
-		return Seq{}, &notification
+		return Sequence{}, &notification
 	}
 
-	return Seq{v: raw}, nil
+	return Sequence{value: raw}, nil
 }
 
-func NewSeqFromString(raw string) (Seq, error) {
+func NewSequenceFromString(raw string) (Sequence, error) {
 	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
 		var notification validation.Notification
 
-		notification.Reject("seq", "int", "", raw, "seq must be a whole number")
+		notification.Reject("sequence", "int", "", raw, "sequence must be a whole number")
 
-		return Seq{}, &notification
+		return Sequence{}, &notification
 	}
 
-	return NewSeqFromInt64(value)
+	return NewSequenceFromInt64(value)
 }
 
-func (suite Seq) String() string               { return strconv.FormatInt(suite.v, 10) }
-func (suite Seq) IsZero() bool                 { return suite.v == 0 }
-func (suite Seq) Equal(other Seq) bool         { return suite.v == other.v }
-func (suite Seq) MarshalText() ([]byte, error) { return []byte(suite.String()), nil }
-func (suite *Seq) UnmarshalText(data []byte) error {
-	parsed, err := NewSeqFromString(string(data))
+func (sequence Sequence) String() string            { return strconv.FormatInt(sequence.value, 10) }
+func (sequence Sequence) IsZero() bool              { return sequence.value == 0 }
+func (sequence Sequence) Equal(other Sequence) bool { return sequence.value == other.value }
+
+func (sequence Sequence) MarshalText() ([]byte, error) {
+	if sequence.IsZero() {
+		return nil, fmt.Errorf("cannot marshal the zero Sequence: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(sequence.String()), nil
+}
+
+func (sequence *Sequence) UnmarshalText(data []byte) error {
+	parsed, err := NewSequenceFromString(string(data))
 	if err != nil {
 		return err
 	}
 
-	*suite = parsed
+	*sequence = parsed
 
 	return nil
+}
+
+func (sequence Sequence) MarshalJSON() ([]byte, error) {
+	if sequence.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	return textjson.Quote([]byte(sequence.String())), nil
+}
+
+func (sequence *Sequence) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return err
+	}
+
+	if isNull {
+		*sequence = Sequence{}
+
+		return nil
+	}
+
+	return sequence.UnmarshalText(text)
 }
 
 func TestInt64ID(t *testing.T) {
 	t.Parallel()
 
-	voguetest.Int64ID[Seq, *Seq]{
-		Field:      "seq",
-		FromInt64:  NewSeqFromInt64,
-		FromString: NewSeqFromString,
+	voguetest.Int64ID[Sequence, *Sequence]{
+		Field:      "sequence",
+		FromInt64:  NewSequenceFromInt64,
+		FromString: NewSequenceFromString,
 	}.Run(t)
 }

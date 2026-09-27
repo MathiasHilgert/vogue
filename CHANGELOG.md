@@ -41,9 +41,12 @@ is zero, a minor release may break the API; every break is listed under
   constant inside the constructor, named after the identifier reserved for it,
   instead of writing a magic number or a package-level variable.
 - `rulecheck.Regexp`, which compiles a pattern once and caches it.
-- The `timezone` rule: an IANA time zone name, resolved with
-  `time.LoadLocation` (`rulecheck.TimeZone`). "Local" and the empty string are
-  rejected.
+- The `timezone` rule: a canonical IANA time zone name (`rulecheck.TimeZone`),
+  compared case-exactly against the zones of the Go toolchain's database, so
+  `europe/madrid`, `Factory`, `localtime` and `posixrules` are rejected on
+  every platform, without reading a zone database at run time.
+- Package `textjson`, the JSON string codec the generated JSON methods use.
+- `validation.ErrZeroValue`.
 - `Notification.Collect(err)`, which folds the failures of a part's error into
   a notification, for composite value objects; `validation.Failure(field,
   rule)`, an exhaustruct-clean `errors.Is` target.
@@ -63,6 +66,15 @@ is zero, a minor release may break the API; every break is listed under
   `SubdivisionISOCode` reports `subdivisionISOCode` (was
   `subdivisionIsoCode`). A leading initialism is still lower-cased whole:
   `CUITNumber` reports `cuitNumber`. Receivers follow the same spelling.
+- The JSON schema is tighter and truthful: the tightest of several bounds
+  wins, `required` makes a minimum length of at least 1, `nonneg` combines
+  with `min` into the higher minimum, checks written before a normalizer are
+  left out (they constrain the input, not the canonical text), integer `oneof`
+  items are published in canonical base-10 form, and a `regex` using an
+  RE2-only construct is left out instead of being published in the wrong
+  dialect. The generated test checks every accepted example against the
+  schema and, via the new `voguetest.Rejection.Described`, that rejected rows
+  of modeled rules fail it.
 
 - Integer rule parameters are emitted as the base-10 number they parse to, so
   `min=010` compares against 10, not the octal 8; every item of an integer
@@ -87,6 +99,12 @@ is zero, a minor release may break the API; every break is listed under
   | `<Name><Member>` (enum variable)  | `<Plural>{}.<Member>()`                     |
   | `<Name>Values()`                  | `<Plural>{}.All()`                          |
   | `Parse<Name>(s)` (enum)           | `<Plural>{}.Parse(s)`                       |
+  | `id.UUID` (embedded field, uuid)  | `id.UUID()`                                 |
+  | `MarshalBinary`/`UnmarshalBinary`, `Version`, `URN`, ... promoted from `uuid.UUID` | `id.UUID().MarshalBinary()`, `id.UUID().Version()`, ... |
+  | `IsZero()` of a constructed `0`/`""` was true | false: `IsZero` means never constructed |
+  | `Value()` of the zero value was `""`/`0`/nil UUID text | `nil` (SQL `NULL`) |
+  | `MarshalText()` of the zero value was `""`/`"0"` | error wrapping `validation.ErrZeroValue`; JSON is `null` |
+  | `NewXFromString(nilUUID)` accepted  | rejected (`required`), like int64 id `0` |
 
   `<Plural>` is the regular plural of the enum name: `TabStatus` has
   `TabStatuses`, `PlaceKind` has `PlaceKinds`. `parse.EnumValue.Const` is kept
@@ -104,6 +122,17 @@ is zero, a minor release may break the API; every break is listed under
   every kind returns `nil` (SQL `NULL`) instead of `""`, `0` or the nil UUID,
   and `Scan(nil)` still produces the zero value. `json:",omitzero"` follows
   `IsZero`.
+- **Breaking: the zero value has no text form and is JSON `null`.** Every
+  value object generates `MarshalJSON` (`null` for the zero value) and
+  `UnmarshalJSON` (`null` reads back as it) through package `textjson`, which
+  needs no `encoding/json`; `MarshalText` of the zero value wraps
+  `validation.ErrZeroValue`. Before, an unset value marshaled as `""`/`"0"`
+  and read back as a constructed one.
+- **Breaking: `New<Name>FromString` of a uuid identifier rejects the nil UUID**
+  as a failure of `required`, as the int64 kind rejects 0.
+- `validation.Collect` walks the branches of an `errors.Join`: validation
+  failures are merged and every other branch is returned; an empty
+  notification collects nothing.
 - **Breaking: uuid identifiers no longer embed `uuid.UUID`.** The value is
   private and read with `UUID()`; `String`, `MarshalText`, `UnmarshalText`,
   `Value` and `Scan` are generated (the SQL pair only without `-sql=false`),
