@@ -91,6 +91,10 @@ form). A destination that exists without that header — a hand-written
 nothing. Generated files a previous run wrote and this one does not, because a
 directive was removed or the suffix changed, are deleted, again only when they
 carry the header. `-dry-run` lists them as `remove <path>` and deletes nothing.
+Under `go generate` a stale file is not deleted at once: go generate lists the
+package's files before running and opens each afterwards, so a deleted one
+would fail the run. It is emptied into a `//go:build ignore` stub instead, and
+the next run deletes it.
 
 `-sql=false` (`generator.WithSQL(false)`) leaves the `database/sql/driver`
 codec — `Value` and `Scan` — out of the generated code. That is what a
