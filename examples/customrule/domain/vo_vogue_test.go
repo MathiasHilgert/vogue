@@ -8,53 +8,22 @@ import (
 	"github.com/MathiasHilgert/vogue/voguetest"
 )
 
-// The strings below are shared by several rows of the tables in this file.
-const (
-	exampleCuit              = "cuit"
-	exampleTortilla          = "Tortilla"
-	exampleTortillaDePatatas = "Tortilla de patatas"
-)
-
 // TestTaxID runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestTaxID(t *testing.T) {
+	const exampleTortilla = "Tortilla"
+
 	t.Parallel()
 
 	voguetest.Scalar[TaxID, *TaxID, string]{
-		Field:      "taxId",
+		Field:      "taxID",
 		New:        NewTaxID,
 		Get:        nil,
 		FromString: nil,
 		ParseRule:  "",
 		Examples:   nil,
 		Candidates: []string{"20123456786", "27123456780"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:  "rejects the right shape with the wrong check digit",
-				Input: "20123456789",
-				Rules: []string{exampleCuit},
-			},
-			{
-				Name:  "rejects ten digits, one short",
-				Input: "2012345678",
-				Rules: []string{exampleCuit},
-			},
-			{
-				Name:  "rejects a punctuated CUIT, which is not what is stored",
-				Input: "20-12345678-6",
-				Rules: []string{exampleCuit},
-			},
-			{
-				Name:  "rejects a non-digit in the check position",
-				Input: "2012345678X",
-				Rules: []string{exampleCuit},
-			},
-			{
-				Name:  "rejects the empty string",
-				Input: "",
-				Rules: []string{exampleCuit},
-			},
-		},
+		Rejected:   nil,
 		Normalized: []voguetest.Normalization[string]{
 			{
 				Name:  "the blanks around a pasted value are dropped",
@@ -79,6 +48,11 @@ func TestTaxID(t *testing.T) {
 // TestLegalName runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestLegalName(t *testing.T) {
+	const (
+		exampleTortilla          = "Tortilla"
+		exampleTortillaDePatatas = "Tortilla de patatas"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[LegalName, *LegalName, string]{
@@ -89,13 +63,7 @@ func TestLegalName(t *testing.T) {
 		ParseRule:  "",
 		Examples:   nil,
 		Candidates: []string{exampleTortilla, " "},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:  "rejects the empty string",
-				Input: "",
-				Rules: []string{"required"},
-			},
-		},
+		Rejected:   nil,
 		Normalized: []voguetest.Normalization[string]{
 			{
 				Name:  "the blanks around a pasted value are dropped",

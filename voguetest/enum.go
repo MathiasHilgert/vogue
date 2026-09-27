@@ -17,9 +17,8 @@ type Enum[Object ValueObject[Object], Reference Pointer[Object]] struct {
 	All []Object
 	// Parse is the catalogue's Parse.
 	Parse func(string) (Object, error)
-	// Want are the wire values of the members, in declaration order. Pinning
-	// them here is what makes a member added to or removed from the directive
-	// fail the test first.
+	// Want are the wire values of the members, in declaration order, which the
+	// catalogue must list, parse and nothing else.
 	Want []string
 }
 
@@ -90,7 +89,7 @@ func (suite Enum[Object, Reference]) Run(t *testing.T) {
 		assert.Empty(t, zero.String())
 
 		for _, member := range suite.All {
-			separatesZero(t, member)
+			separatesZero[Object, Reference](t, member)
 		}
 	})
 }

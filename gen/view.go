@@ -99,7 +99,7 @@ func (g *Generator) newView(d parse.Directive, imports *importSet, decls *declSe
 
 	// Every kind reports failures through validation. The SQL codec adds
 	// driver.Value and formats an unsupported Scan source with fmt.
-	paths := []string{importValidation}
+	paths := []string{importValidation, importTextJSON, importFmt}
 	sql := !g.opts.OmitSQL
 	if sql {
 		paths = append(paths, importDriver, importFmt)
@@ -398,6 +398,6 @@ var reservedReceivers = map[string]struct{}{
 	"slices": {}, "strconv": {}, "strings": {}, "unicode": {}, "utf8": {}, "uuid": {},
 	"validation": {},
 	"data":       {}, "err": {}, "failed": {}, "id": {}, "member": {}, "notification": {}, "null": {},
-	"number": {}, "other": {}, "parsed": {}, "raw": {}, "source": {}, "src": {}, "value": {},
-	"zero": {},
+	"number": {}, "other": {}, "parsed": {}, "raw": {}, "rawLength": {}, "source": {}, "src": {},
+	"isNull": {}, "text": {}, "textjson": {}, "value": {}, "whole": {}, "zero": {},
 }

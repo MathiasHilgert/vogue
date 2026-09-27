@@ -41,7 +41,7 @@ func TestGenerator_Tests(t *testing.T) {
 		got := generateTest(t, body, testrules.Set(testrulesPath))
 
 		// Assert
-		assert.Contains(t, got, `Rules: []string{"required", "min"},`)
+		assert.Regexp(t, `Rules:\s+\[\]string\{"required", "min"\},`, got)
 	})
 
 	t.Run("asserts a rejected input against every rule that rejects it", func(t *testing.T) {
@@ -53,7 +53,7 @@ func TestGenerator_Tests(t *testing.T) {
 
 		// Assert
 		assert.Regexp(t, `Field:\s+"title",`, got)
-		assert.Contains(t, got, "Name:  \"rejects a value carrying a digit\",\n\t\t\t\tInput: \"a1\",\n\t\t\t\tRules: []string{\"nodigits\"},")
+		assert.Regexp(t, `Name:\s+"rejects a value carrying a digit",\s+Input:\s+"a1",\s+Rules:\s+\[\]string\{"nodigits"\},`, got)
 	})
 
 	t.Run("hands the suite no candidate when the rules declare no example", func(t *testing.T) {
@@ -156,7 +156,7 @@ func TestGenerator_Tests(t *testing.T) {
 		got := generateTest(t, "//vogue:string Title shouty\n", set)
 
 		// Assert
-		assert.Contains(t, got, `Name:  "rejects \"hi\" (shouty)",`)
+		assert.Regexp(t, `Name:\s+"rejects \\"hi\\" \(shouty\)",`, got)
 	})
 
 	t.Run("names a rewrite after its rule when the normalization carries no note", func(t *testing.T) {
@@ -229,7 +229,7 @@ func TestGenerator_Tests(t *testing.T) {
 
 		// Assert
 		assert.Regexp(t, `Candidates:\s+\[\]string\{"clean"\},`, got)
-		assert.Contains(t, got, `Name:  "rejects \"clash\" (second)",`)
+		assert.Regexp(t, `Name:\s+"rejects \\"clash\\" \(second\)",`, got)
 	})
 
 	t.Run("generates a test file in the package under test", func(t *testing.T) {

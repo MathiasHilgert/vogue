@@ -72,7 +72,13 @@ func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.value == other.val
 // MarshalText implements encoding.TextMarshaler, which encoding/json also
 // uses, so the identifier crosses a JSON boundary as a string and keeps its
 // full precision in a JavaScript client.
-func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.String()), nil }
+func ({{$r}} {{$n}}) MarshalText() ([]byte, error) {
+	if {{$r}}.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero {{$n}}: %w", validation.ErrZeroValue)
+	}
+
+	return []byte({{$r}}.String()), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler through
 // New{{$n}}FromString.
@@ -86,6 +92,7 @@ func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 
 	return nil
 }
+{{template "json" .}}
 {{if .SQL}}
 // Value implements driver.Valuer. An unassigned identifier is stored as
 // NULL.

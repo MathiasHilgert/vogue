@@ -72,7 +72,13 @@ func ({{$r}} {{$n}}) Equal(other {{$n}}) bool {
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so {{$n}} crosses a JSON boundary as a
 // string and never as a float the receiver would have to round.
-func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.value.String()), nil }
+func ({{$r}} {{$n}}) MarshalText() ([]byte, error) {
+	if {{$r}}.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero {{$n}}: %w", validation.ErrZeroValue)
+	}
+
+	return []byte({{$r}}.value.String()), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a {{$n}} the constructor would have rejected.
@@ -86,6 +92,7 @@ func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 
 	return nil
 }
+{{template "json" .}}
 {{if .SQL}}
 // Value implements driver.Valuer, storing the canonical representation as
 // text. A PostgreSQL `numeric` column accepts it and keeps every digit, which

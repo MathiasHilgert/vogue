@@ -19,24 +19,60 @@ const (
 	minHoistCount = 3
 )
 
-// hoistRepeatedStrings names every string literal a generated test writes
-// often enough for goconst to report it, and refers to it by that name.
+// hoistRepeatedStrings names every string literal the generated tests of one
+// package write often enough for goconst to report it, and refers to it by that
+// name.
 //
 // The rows of a generated table are data declared by the rules, and the same
-// example — "Tortilla", "EUR" — legitimately appears in several of them. A
-// consumer linting generated code without exclusions would still be told to
-// make each one a constant, so the generator does: the repeated strings are
-// declared once, in a const block after the imports, named after their
-// content.
-func hoistRepeatedStrings(src []byte) ([]byte, error) {
+// example — "Tortilla", "EUR" — legitimately appears in several of them, and in
+// the tests of several value objects. goconst counts across the whole package,
+// so the literals are counted across every file given; each function that uses
+// a repeated string then declares it as a constant of its own. Declaring the
+// constants inside the functions, rather than once at package level, is what
+// keeps two generated files of the same package from declaring the same name.
+func hoistRepeatedStrings(sources [][]byte) ([][]byte, error) {
 	fset := token.NewFileSet()
-	file, err := parser.ParseFile(fset, "", src, parser.ParseComments)
-	if err != nil {
-		return nil, fmt.Errorf("gen: parsing a generated test to hoist its strings: %w", err)
+	files := make([]*ast.File, len(sources))
+	counts := map[string]int{}
+	var order []string
+	for i, src := range sources {
+		file, err := parser.ParseFile(fset, "", src, parser.ParseComments)
+		if err != nil {
+			return nil, fmt.Errorf("gen: parsing a generated test to hoist its strings: %w", err)
+		}
+		files[i] = file
+		for _, lit := range stringLiterals(file) {
+			value, _ := strconv.Unquote(lit.Value)
+			if counts[value] == 0 {
+				order = append(order, value)
+			}
+			counts[value]++
+		}
 	}
 
-	lits := map[string][]*ast.BasicLit{}
-	var order []string
+	names := map[string]string{}
+	taken := map[string]struct{}{}
+	for _, value := range order {
+		if counts[value] >= minHoistCount {
+			names[value] = hoistName(value, taken)
+		}
+	}
+
+	out := make([][]byte, len(sources))
+	for i, file := range files {
+		hoisted, err := hoistFile(fset, file, sources[i], names)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = hoisted
+	}
+	return out, nil
+}
+
+// stringLiterals returns the string literals of a file long enough for goconst
+// to count, leaving out the import paths.
+func stringLiterals(file *ast.File) []*ast.BasicLit {
+	var out []*ast.BasicLit
 	ast.Inspect(file, func(n ast.Node) bool {
 		if _, isImport := n.(*ast.ImportSpec); isImport {
 			return false
@@ -49,55 +85,38 @@ func hoistRepeatedStrings(src []byte) ([]byte, error) {
 		if err != nil || len(value) < minHoistLen {
 			return true
 		}
-		if _, seen := lits[value]; !seen {
-			order = append(order, value)
-		}
-		lits[value] = append(lits[value], lit)
+		out = append(out, lit)
 		return true
 	})
+	return out
+}
 
-	type replacement struct {
-		start, end int
-		name       string
-	}
-	var (
-		replacements []replacement
-		decls        []string
-	)
-	names := map[string]struct{}{}
-	for _, value := range order {
-		uses := lits[value]
-		if len(uses) < minHoistCount {
+// hoistEdit replaces the bytes from start to end of a source with text.
+type hoistEdit struct {
+	start, end int
+	text       string
+}
+
+// hoistFile rewrites one file: in every function, the literals that have a name
+// are replaced by it, and the names used are declared at the top of the body.
+func hoistFile(fset *token.FileSet, file *ast.File, src []byte, names map[string]string) ([]byte, error) {
+	var edits []hoistEdit
+	for _, decl := range file.Decls {
+		function, ok := decl.(*ast.FuncDecl)
+		if !ok || function.Body == nil {
 			continue
 		}
-		name := hoistName(value, names)
-		decls = append(decls, "\t"+name+" = "+strconv.Quote(value))
-		for _, lit := range uses {
-			replacements = append(replacements, replacement{
-				start: fset.Position(lit.Pos()).Offset,
-				end:   fset.Position(lit.End()).Offset,
-				name:  name,
-			})
-		}
+		edits = append(edits, hoistFunction(fset, function, names)...)
 	}
-	if len(decls) == 0 {
+	if len(edits) == 0 {
 		return src, nil
 	}
 
-	sort.Slice(replacements, func(i, j int) bool { return replacements[i].start > replacements[j].start })
+	sort.SliceStable(edits, func(i, j int) bool { return edits[i].start > edits[j].start })
 	out := append([]byte(nil), src...)
-	for _, r := range replacements {
-		out = append(out[:r.start], append([]byte(r.name), out[r.end:]...)...)
+	for _, e := range edits {
+		out = append(out[:e.start], append([]byte(e.text), out[e.end:]...)...)
 	}
-
-	block := "\n// The strings below are shared by several rows of the tables in this file.\nconst (\n" +
-		strings.Join(decls, "\n") + "\n)\n"
-	at := fset.Position(file.Name.End()).Offset
-	if len(file.Imports) > 0 {
-		at = importsEnd(fset, file)
-	}
-	out = append(out[:at], append([]byte("\n"+block), out[at:]...)...)
-
 	formatted, err := format.Source(out)
 	if err != nil {
 		return nil, fmt.Errorf("gen: formatting a generated test after hoisting its strings: %w", err)
@@ -105,17 +124,55 @@ func hoistRepeatedStrings(src []byte) ([]byte, error) {
 	return formatted, nil
 }
 
-// importsEnd returns the offset just past the last import declaration.
-func importsEnd(fset *token.FileSet, file *ast.File) int {
-	end := 0
-	for _, decl := range file.Decls {
-		gen, ok := decl.(*ast.GenDecl)
-		if !ok || gen.Tok != token.IMPORT {
-			continue
+// hoistFunction returns the edits of one function: every named literal
+// replaced by its name, and the declaration of the names it uses.
+func hoistFunction(fset *token.FileSet, function *ast.FuncDecl, names map[string]string) []hoistEdit {
+	var (
+		edits []hoistEdit
+		used  []string
+	)
+	seen := map[string]struct{}{}
+	ast.Inspect(function.Body, func(n ast.Node) bool {
+		lit, ok := n.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
 		}
-		end = fset.Position(gen.End()).Offset
+		value, err := strconv.Unquote(lit.Value)
+		name, hoisted := names[value]
+		if err != nil || !hoisted {
+			return true
+		}
+		edits = append(edits, hoistEdit{
+			start: fset.Position(lit.Pos()).Offset,
+			end:   fset.Position(lit.End()).Offset,
+			text:  name,
+		})
+		if _, dup := seen[value]; !dup {
+			seen[value] = struct{}{}
+			used = append(used, value)
+		}
+		return true
+	})
+	if len(used) == 0 {
+		return nil
 	}
-	return end
+	at := fset.Position(function.Body.Lbrace).Offset + 1
+	return append(edits, hoistEdit{start: at, end: at, text: constDecl(used, names)})
+}
+
+// constDecl declares the named strings a function uses, followed by the blank
+// line that separates them from the body.
+func constDecl(values []string, names map[string]string) string {
+	if len(values) == 1 {
+		return "\n\tconst " + names[values[0]] + " = " + strconv.Quote(values[0]) + "\n"
+	}
+	var b strings.Builder
+	b.WriteString("\n\tconst (\n")
+	for _, value := range values {
+		b.WriteString("\t\t" + names[value] + " = " + strconv.Quote(value) + "\n")
+	}
+	b.WriteString("\t)\n")
+	return b.String()
 }
 
 // hoistName returns the constant a hoisted string is declared as: "example"

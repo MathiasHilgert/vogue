@@ -23,14 +23,10 @@ func TestTitle(t *testing.T) {
 		Candidates: []string{"a", "a tab name", "abc"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects the empty string",
-				Input: "",
-				Rules: []string{"required", "min"},
-			},
-			{
-				Name:  "rejects a value carrying a digit",
-				Input: "a1",
-				Rules: []string{"nodigits"},
+				Name:      "rejects the empty string",
+				Input:     "",
+				Rules:     []string{"required"},
+				Described: false,
 			},
 		},
 		Normalized: []voguetest.Normalization[string]{
@@ -64,14 +60,16 @@ func TestCovers(t *testing.T) {
 		Candidates: []int64{1, 200},
 		Rejected: []voguetest.Rejection[int64]{
 			{
-				Name:  "rejects a table with nobody at it",
-				Input: 0,
-				Rules: []string{"min"},
+				Name:      "rejects a table with nobody at it",
+				Input:     0,
+				Rules:     []string{"min"},
+				Described: true,
 			},
 			{
-				Name:  "rejects one guest more than the house holds",
-				Input: 201,
-				Rules: []string{"max"},
+				Name:      "rejects one guest more than the house holds",
+				Input:     201,
+				Rules:     []string{"max"},
+				Described: true,
 			},
 		},
 		Normalized:   nil,
@@ -79,7 +77,12 @@ func TestCovers(t *testing.T) {
 	}.Run(t)
 }
 
-// TestTabStatus pins the members of TabStatus and runs the enum suite over them.
+// TestTabStatus runs the enum suite: the catalogue lists the members the
+// directive declares, in order, parses each of them and nothing else, and
+// round-trips them. The expected list is generated from the same directive, so
+// it proves the catalogue is consistent with the directive, not that the
+// directive is right; pin the members in a hand-written test when a change to
+// them must be deliberate.
 func TestTabStatus(t *testing.T) {
 	t.Parallel()
 
@@ -101,7 +104,7 @@ func TestTabID(t *testing.T) {
 	t.Parallel()
 
 	voguetest.UUID[TabID, *TabID]{
-		Field:      "tabId",
+		Field:      "tabID",
 		New:        NewTabID,
 		FromString: NewTabIDFromString,
 		Version:    7,

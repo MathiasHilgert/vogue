@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/MathiasHilgert/vogue/textjson"
 	"github.com/MathiasHilgert/vogue/validation"
 )
 
@@ -82,9 +83,44 @@ func (coordinates Coordinates) String() string {
 	return coordinates.latitude.String() + "," + coordinates.longitude.String()
 }
 
-// MarshalText implements encoding.TextMarshaler as "latitude,longitude".
+// MarshalText implements encoding.TextMarshaler as "latitude,longitude". The
+// zero Coordinates has no text form, like every generated value object: it
+// wraps validation.ErrZeroValue.
 func (coordinates Coordinates) MarshalText() ([]byte, error) {
+	if coordinates.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero Coordinates: %w", validation.ErrZeroValue)
+	}
+
 	return []byte(coordinates.String()), nil
+}
+
+// MarshalJSON implements json.Marshaler: null for the zero Coordinates, the
+// JSON string of its text form otherwise.
+func (coordinates Coordinates) MarshalJSON() ([]byte, error) {
+	if coordinates.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	return textjson.Quote([]byte(coordinates.String())), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler: null reads back as the zero
+// Coordinates, a JSON string through UnmarshalText.
+func (coordinates *Coordinates) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode Coordinates: %w", err)
+	}
+
+	if isNull {
+		var zero Coordinates
+
+		*coordinates = zero
+
+		return nil
+	}
+
+	return coordinates.UnmarshalText(text)
 }
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation.

@@ -179,6 +179,39 @@ func TestNotification_Collect(t *testing.T) {
 		assert.False(t, notification.HasErrors())
 	})
 
+	t.Run("keeps the other errors of a join", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var inner validation.Notification
+		inner.Reject("latitude", "max", "90", "91", "latitude must be at most 90")
+		driverFailure := errors.New("connection reset")
+
+		var notification validation.Notification
+
+		// Act
+		err := notification.Collect(errors.Join(inner.ErrOrNil(), driverFailure))
+
+		// Assert
+		require.ErrorIs(t, err, driverFailure, "a join's non-validation error must not be swallowed")
+		require.NotErrorIs(t, err, validation.ErrInvalid, "the validation failure is merged, not returned")
+		assert.Equal(t, 1, notification.Len())
+	})
+
+	t.Run("treats an empty notification as no error", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var notification validation.Notification
+
+		// Act
+		err := notification.Collect(&validation.Notification{})
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, notification.HasErrors())
+	})
+
 	t.Run("hands back an error that is not a validation failure", func(t *testing.T) {
 		t.Parallel()
 

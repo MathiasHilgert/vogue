@@ -443,6 +443,12 @@ func badParam(kind vogue.Kind, rule vogue.Rule, param string) (string, bool) {
 			if item == "" {
 				return fmt.Sprintf("item %d of %q is empty", i+1, param), true
 			}
+			if kind != vogue.Int {
+				continue
+			}
+			if _, err := strconv.ParseInt(item, 10, 64); err != nil {
+				return fmt.Sprintf("item %d of %q is not an integer", i+1, param), true
+			}
 		}
 	case vogue.ParamRegex:
 		if _, err := regexp.Compile(param); err != nil {

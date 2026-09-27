@@ -1,10 +1,14 @@
 package parse_test
 
 import (
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"testing"
 
 	"github.com/MathiasHilgert/vogue"
 	"github.com/MathiasHilgert/vogue/parse"
+	"github.com/MathiasHilgert/vogue/rules"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -99,7 +103,7 @@ func TestFiles(t *testing.T) {
 
 		assert.Equal(t, vogue.ID, d.Kind)
 		assert.Equal(t, "TabID", d.Name)
-		assert.Equal(t, "tabId", d.Field)
+		assert.Equal(t, "tabID", d.Field)
 		assert.Equal(t, parse.IDUUIDv7, d.Strategy)
 	})
 }
@@ -355,6 +359,22 @@ func TestFilesExamples(t *testing.T) {
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "example requires a value")
 	})
+}
+
+func TestFilesIntegerListParam(t *testing.T) {
+	t.Parallel()
+
+	// Arrange.
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "vo.go", "package tab\n//vogue:int Courses oneof=1,two,4\n", parser.ParseComments)
+	require.NoError(t, err)
+
+	// Act.
+	_, err = parse.Files(fset, []*ast.File{file}, rules.MustSet())
+
+	// Assert.
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), `item 2 of "1,two,4" is not an integer`)
 }
 
 func TestFilesInvalidRegexParam(t *testing.T) {

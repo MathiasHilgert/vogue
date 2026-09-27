@@ -17,6 +17,7 @@ func Test{{$n}}(t *testing.T) {
 				Name:  {{q .Name}},
 				Input: {{.Lit}},
 				Rules: []string{ {{- range $i, $rule := .Rules}}{{if $i}}, {{end}}{{q $rule}}{{end -}} },
+				Described: {{.Described}},
 			},
 {{end}}		}{{else}}nil{{end}},
 		Normalized: {{if .Normalizations}}[]voguetest.Normalization[{{.InType}}]{

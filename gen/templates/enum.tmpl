@@ -18,9 +18,8 @@ type {{$c}} struct{}
 // {{.Method}} returns the {{q .Value}} member of {{$n}}.
 func ({{$c}}) {{.Method}}() {{$n}} { return {{$n}}{value: {{q .Value}}} }
 {{end}}
-// All returns every member in declaration order. Ranging over it is what makes
-// a test exhaustive: a member added to the directive shows up here without the
-// test being touched.
+// All returns every member in declaration order, so code that must handle every
+// member — a test, a lookup table — can range over it instead of listing them.
 func ({{$k}} {{$c}}) All() []{{$n}} {
 	return []{{$n}}{
 {{range .Members}}		{{$k}}.{{.Method}}(),
@@ -28,13 +27,13 @@ func ({{$k}} {{$c}}) All() []{{$n}} {
 }
 
 // Parse resolves the wire representation of a member, rejecting anything else
-// as a failure of the "oneof" rule.
+// as a failure of the "oneof" rule. It compares against the members' own
+// values, so no wire string is written twice and nothing is allocated.
 func ({{$k}} {{$c}}) Parse(raw string) ({{$n}}, error) {
-	for _, member := range {{$k}}.All() {
-		if member.value == raw {
-			return member, nil
-		}
-	}
+	switch raw {
+{{range .Members}}	case {{$k}}.{{.Method}}().value:
+		return {{$k}}.{{.Method}}(), nil
+{{end}}	}
 
 	var (
 		zero {{$n}}
@@ -65,7 +64,13 @@ func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.value == other.val
 
 // MarshalText implements encoding.TextMarshaler, which is also what
 // encoding/json uses, so a member marshals as its wire string.
-func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.value), nil }
+func ({{$r}} {{$n}}) MarshalText() ([]byte, error) {
+	if {{$r}}.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero {{$n}}: %w", validation.ErrZeroValue)
+	}
+
+	return []byte({{$r}}.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler through {{$c}}.Parse, so
 // an unknown member is rejected rather than accepted as a new state.
@@ -79,6 +84,7 @@ func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 
 	return nil
 }
+{{template "json" .}}
 {{if .SQL}}
 // Value implements driver.Valuer. The zero {{$n}}, which is no member, is
 // stored as NULL.

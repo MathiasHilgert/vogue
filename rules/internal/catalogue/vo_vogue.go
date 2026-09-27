@@ -12,6 +12,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/MathiasHilgert/vogue/rules/rulecheck"
+	"github.com/MathiasHilgert/vogue/textjson"
 	"github.com/MathiasHilgert/vogue/validation"
 	"github.com/govalues/decimal"
 )
@@ -77,7 +78,13 @@ func (trimmedName TrimmedName) Equal(other TrimmedName) bool {
 // the text codec for types that implement it, so TrimmedName marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (trimmedName TrimmedName) MarshalText() ([]byte, error) { return []byte(trimmedName.value), nil }
+func (trimmedName TrimmedName) MarshalText() ([]byte, error) {
+	if trimmedName.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero TrimmedName: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(trimmedName.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a TrimmedName the constructor would have rejected.
@@ -90,6 +97,41 @@ func (trimmedName *TrimmedName) UnmarshalText(data []byte) error {
 	*trimmedName = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero TrimmedName is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (trimmedName TrimmedName) MarshalJSON() ([]byte, error) {
+	if trimmedName.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := trimmedName.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// TrimmedName; a JSON string goes through UnmarshalText, so it is validated.
+func (trimmedName *TrimmedName) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode TrimmedName: %w", err)
+	}
+
+	if isNull {
+		var zero TrimmedName
+
+		*trimmedName = zero
+
+		return nil
+	}
+
+	return trimmedName.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero TrimmedName is stored as NULL, which
@@ -185,6 +227,10 @@ func (squishedName SquishedName) Equal(other SquishedName) bool {
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
 func (squishedName SquishedName) MarshalText() ([]byte, error) {
+	if squishedName.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero SquishedName: %w", validation.ErrZeroValue)
+	}
+
 	return []byte(squishedName.value), nil
 }
 
@@ -199,6 +245,41 @@ func (squishedName *SquishedName) UnmarshalText(data []byte) error {
 	*squishedName = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero SquishedName is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (squishedName SquishedName) MarshalJSON() ([]byte, error) {
+	if squishedName.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := squishedName.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// SquishedName; a JSON string goes through UnmarshalText, so it is validated.
+func (squishedName *SquishedName) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode SquishedName: %w", err)
+	}
+
+	if isNull {
+		var zero SquishedName
+
+		*squishedName = zero
+
+		return nil
+	}
+
+	return squishedName.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero SquishedName is stored as NULL, which
@@ -293,7 +374,13 @@ func (loweredName LoweredName) Equal(other LoweredName) bool {
 // the text codec for types that implement it, so LoweredName marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (loweredName LoweredName) MarshalText() ([]byte, error) { return []byte(loweredName.value), nil }
+func (loweredName LoweredName) MarshalText() ([]byte, error) {
+	if loweredName.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero LoweredName: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(loweredName.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a LoweredName the constructor would have rejected.
@@ -306,6 +393,41 @@ func (loweredName *LoweredName) UnmarshalText(data []byte) error {
 	*loweredName = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero LoweredName is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (loweredName LoweredName) MarshalJSON() ([]byte, error) {
+	if loweredName.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := loweredName.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// LoweredName; a JSON string goes through UnmarshalText, so it is validated.
+func (loweredName *LoweredName) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode LoweredName: %w", err)
+	}
+
+	if isNull {
+		var zero LoweredName
+
+		*loweredName = zero
+
+		return nil
+	}
+
+	return loweredName.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero LoweredName is stored as NULL, which
@@ -400,7 +522,13 @@ func (upperedName UpperedName) Equal(other UpperedName) bool {
 // the text codec for types that implement it, so UpperedName marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (upperedName UpperedName) MarshalText() ([]byte, error) { return []byte(upperedName.value), nil }
+func (upperedName UpperedName) MarshalText() ([]byte, error) {
+	if upperedName.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero UpperedName: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(upperedName.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a UpperedName the constructor would have rejected.
@@ -413,6 +541,41 @@ func (upperedName *UpperedName) UnmarshalText(data []byte) error {
 	*upperedName = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero UpperedName is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (upperedName UpperedName) MarshalJSON() ([]byte, error) {
+	if upperedName.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := upperedName.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// UpperedName; a JSON string goes through UnmarshalText, so it is validated.
+func (upperedName *UpperedName) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode UpperedName: %w", err)
+	}
+
+	if isNull {
+		var zero UpperedName
+
+		*upperedName = zero
+
+		return nil
+	}
+
+	return upperedName.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero UpperedName is stored as NULL, which
@@ -498,7 +661,13 @@ func (trimmedOnly TrimmedOnly) Equal(other TrimmedOnly) bool {
 // the text codec for types that implement it, so TrimmedOnly marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (trimmedOnly TrimmedOnly) MarshalText() ([]byte, error) { return []byte(trimmedOnly.value), nil }
+func (trimmedOnly TrimmedOnly) MarshalText() ([]byte, error) {
+	if trimmedOnly.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero TrimmedOnly: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(trimmedOnly.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a TrimmedOnly the constructor would have rejected.
@@ -511,6 +680,41 @@ func (trimmedOnly *TrimmedOnly) UnmarshalText(data []byte) error {
 	*trimmedOnly = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero TrimmedOnly is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (trimmedOnly TrimmedOnly) MarshalJSON() ([]byte, error) {
+	if trimmedOnly.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := trimmedOnly.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// TrimmedOnly; a JSON string goes through UnmarshalText, so it is validated.
+func (trimmedOnly *TrimmedOnly) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode TrimmedOnly: %w", err)
+	}
+
+	if isNull {
+		var zero TrimmedOnly
+
+		*trimmedOnly = zero
+
+		return nil
+	}
+
+	return trimmedOnly.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero TrimmedOnly is stored as NULL, which
@@ -597,6 +801,10 @@ func (squishedOnly SquishedOnly) Equal(other SquishedOnly) bool {
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
 func (squishedOnly SquishedOnly) MarshalText() ([]byte, error) {
+	if squishedOnly.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero SquishedOnly: %w", validation.ErrZeroValue)
+	}
+
 	return []byte(squishedOnly.value), nil
 }
 
@@ -611,6 +819,41 @@ func (squishedOnly *SquishedOnly) UnmarshalText(data []byte) error {
 	*squishedOnly = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero SquishedOnly is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (squishedOnly SquishedOnly) MarshalJSON() ([]byte, error) {
+	if squishedOnly.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := squishedOnly.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// SquishedOnly; a JSON string goes through UnmarshalText, so it is validated.
+func (squishedOnly *SquishedOnly) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode SquishedOnly: %w", err)
+	}
+
+	if isNull {
+		var zero SquishedOnly
+
+		*squishedOnly = zero
+
+		return nil
+	}
+
+	return squishedOnly.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero SquishedOnly is stored as NULL, which
@@ -696,7 +939,13 @@ func (loweredOnly LoweredOnly) Equal(other LoweredOnly) bool {
 // the text codec for types that implement it, so LoweredOnly marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (loweredOnly LoweredOnly) MarshalText() ([]byte, error) { return []byte(loweredOnly.value), nil }
+func (loweredOnly LoweredOnly) MarshalText() ([]byte, error) {
+	if loweredOnly.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero LoweredOnly: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(loweredOnly.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a LoweredOnly the constructor would have rejected.
@@ -709,6 +958,41 @@ func (loweredOnly *LoweredOnly) UnmarshalText(data []byte) error {
 	*loweredOnly = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero LoweredOnly is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (loweredOnly LoweredOnly) MarshalJSON() ([]byte, error) {
+	if loweredOnly.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := loweredOnly.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// LoweredOnly; a JSON string goes through UnmarshalText, so it is validated.
+func (loweredOnly *LoweredOnly) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode LoweredOnly: %w", err)
+	}
+
+	if isNull {
+		var zero LoweredOnly
+
+		*loweredOnly = zero
+
+		return nil
+	}
+
+	return loweredOnly.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero LoweredOnly is stored as NULL, which
@@ -794,7 +1078,13 @@ func (upperedOnly UpperedOnly) Equal(other UpperedOnly) bool {
 // the text codec for types that implement it, so UpperedOnly marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (upperedOnly UpperedOnly) MarshalText() ([]byte, error) { return []byte(upperedOnly.value), nil }
+func (upperedOnly UpperedOnly) MarshalText() ([]byte, error) {
+	if upperedOnly.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero UpperedOnly: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(upperedOnly.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a UpperedOnly the constructor would have rejected.
@@ -807,6 +1097,41 @@ func (upperedOnly *UpperedOnly) UnmarshalText(data []byte) error {
 	*upperedOnly = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero UpperedOnly is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (upperedOnly UpperedOnly) MarshalJSON() ([]byte, error) {
+	if upperedOnly.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := upperedOnly.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// UpperedOnly; a JSON string goes through UnmarshalText, so it is validated.
+func (upperedOnly *UpperedOnly) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode UpperedOnly: %w", err)
+	}
+
+	if isNull {
+		var zero UpperedOnly
+
+		*upperedOnly = zero
+
+		return nil
+	}
+
+	return upperedOnly.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero UpperedOnly is stored as NULL, which
@@ -901,6 +1226,10 @@ func (requiredName RequiredName) Equal(other RequiredName) bool {
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
 func (requiredName RequiredName) MarshalText() ([]byte, error) {
+	if requiredName.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero RequiredName: %w", validation.ErrZeroValue)
+	}
+
 	return []byte(requiredName.value), nil
 }
 
@@ -915,6 +1244,41 @@ func (requiredName *RequiredName) UnmarshalText(data []byte) error {
 	*requiredName = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero RequiredName is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (requiredName RequiredName) MarshalJSON() ([]byte, error) {
+	if requiredName.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := requiredName.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// RequiredName; a JSON string goes through UnmarshalText, so it is validated.
+func (requiredName *RequiredName) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode RequiredName: %w", err)
+	}
+
+	if isNull {
+		var zero RequiredName
+
+		*requiredName = zero
+
+		return nil
+	}
+
+	return requiredName.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero RequiredName is stored as NULL, which
@@ -1010,7 +1374,13 @@ func (shortName ShortName) Equal(other ShortName) bool {
 // the text codec for types that implement it, so ShortName marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (shortName ShortName) MarshalText() ([]byte, error) { return []byte(shortName.value), nil }
+func (shortName ShortName) MarshalText() ([]byte, error) {
+	if shortName.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero ShortName: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(shortName.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a ShortName the constructor would have rejected.
@@ -1023,6 +1393,41 @@ func (shortName *ShortName) UnmarshalText(data []byte) error {
 	*shortName = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero ShortName is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (shortName ShortName) MarshalJSON() ([]byte, error) {
+	if shortName.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := shortName.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// ShortName; a JSON string goes through UnmarshalText, so it is validated.
+func (shortName *ShortName) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode ShortName: %w", err)
+	}
+
+	if isNull {
+		var zero ShortName
+
+		*shortName = zero
+
+		return nil
+	}
+
+	return shortName.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero ShortName is stored as NULL, which
@@ -1118,7 +1523,13 @@ func (longerName LongerName) Equal(other LongerName) bool {
 // the text codec for types that implement it, so LongerName marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (longerName LongerName) MarshalText() ([]byte, error) { return []byte(longerName.value), nil }
+func (longerName LongerName) MarshalText() ([]byte, error) {
+	if longerName.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero LongerName: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(longerName.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a LongerName the constructor would have rejected.
@@ -1131,6 +1542,41 @@ func (longerName *LongerName) UnmarshalText(data []byte) error {
 	*longerName = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero LongerName is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (longerName LongerName) MarshalJSON() ([]byte, error) {
+	if longerName.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := longerName.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// LongerName; a JSON string goes through UnmarshalText, so it is validated.
+func (longerName *LongerName) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode LongerName: %w", err)
+	}
+
+	if isNull {
+		var zero LongerName
+
+		*longerName = zero
+
+		return nil
+	}
+
+	return longerName.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero LongerName is stored as NULL, which
@@ -1226,7 +1672,13 @@ func (boundedName BoundedName) Equal(other BoundedName) bool {
 // the text codec for types that implement it, so BoundedName marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (boundedName BoundedName) MarshalText() ([]byte, error) { return []byte(boundedName.value), nil }
+func (boundedName BoundedName) MarshalText() ([]byte, error) {
+	if boundedName.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero BoundedName: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(boundedName.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a BoundedName the constructor would have rejected.
@@ -1239,6 +1691,41 @@ func (boundedName *BoundedName) UnmarshalText(data []byte) error {
 	*boundedName = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero BoundedName is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (boundedName BoundedName) MarshalJSON() ([]byte, error) {
+	if boundedName.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := boundedName.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// BoundedName; a JSON string goes through UnmarshalText, so it is validated.
+func (boundedName *BoundedName) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode BoundedName: %w", err)
+	}
+
+	if isNull {
+		var zero BoundedName
+
+		*boundedName = zero
+
+		return nil
+	}
+
+	return boundedName.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero BoundedName is stored as NULL, which
@@ -1335,6 +1822,10 @@ func (currencyCode CurrencyCode) Equal(other CurrencyCode) bool {
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
 func (currencyCode CurrencyCode) MarshalText() ([]byte, error) {
+	if currencyCode.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero CurrencyCode: %w", validation.ErrZeroValue)
+	}
+
 	return []byte(currencyCode.value), nil
 }
 
@@ -1349,6 +1840,41 @@ func (currencyCode *CurrencyCode) UnmarshalText(data []byte) error {
 	*currencyCode = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero CurrencyCode is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (currencyCode CurrencyCode) MarshalJSON() ([]byte, error) {
+	if currencyCode.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := currencyCode.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// CurrencyCode; a JSON string goes through UnmarshalText, so it is validated.
+func (currencyCode *CurrencyCode) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode CurrencyCode: %w", err)
+	}
+
+	if isNull {
+		var zero CurrencyCode
+
+		*currencyCode = zero
+
+		return nil
+	}
+
+	return currencyCode.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero CurrencyCode is stored as NULL, which
@@ -1443,6 +1969,10 @@ func (emailAddress EmailAddress) Equal(other EmailAddress) bool {
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
 func (emailAddress EmailAddress) MarshalText() ([]byte, error) {
+	if emailAddress.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero EmailAddress: %w", validation.ErrZeroValue)
+	}
+
 	return []byte(emailAddress.value), nil
 }
 
@@ -1457,6 +1987,41 @@ func (emailAddress *EmailAddress) UnmarshalText(data []byte) error {
 	*emailAddress = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero EmailAddress is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (emailAddress EmailAddress) MarshalJSON() ([]byte, error) {
+	if emailAddress.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := emailAddress.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// EmailAddress; a JSON string goes through UnmarshalText, so it is validated.
+func (emailAddress *EmailAddress) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode EmailAddress: %w", err)
+	}
+
+	if isNull {
+		var zero EmailAddress
+
+		*emailAddress = zero
+
+		return nil
+	}
+
+	return emailAddress.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero EmailAddress is stored as NULL, which
@@ -1550,7 +2115,13 @@ func (menuLink MenuLink) Equal(other MenuLink) bool {
 // the text codec for types that implement it, so MenuLink marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (menuLink MenuLink) MarshalText() ([]byte, error) { return []byte(menuLink.value), nil }
+func (menuLink MenuLink) MarshalText() ([]byte, error) {
+	if menuLink.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero MenuLink: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(menuLink.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a MenuLink the constructor would have rejected.
@@ -1563,6 +2134,41 @@ func (menuLink *MenuLink) UnmarshalText(data []byte) error {
 	*menuLink = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero MenuLink is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (menuLink MenuLink) MarshalJSON() ([]byte, error) {
+	if menuLink.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := menuLink.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// MenuLink; a JSON string goes through UnmarshalText, so it is validated.
+func (menuLink *MenuLink) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode MenuLink: %w", err)
+	}
+
+	if isNull {
+		var zero MenuLink
+
+		*menuLink = zero
+
+		return nil
+	}
+
+	return menuLink.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero MenuLink is stored as NULL, which
@@ -1656,7 +2262,13 @@ func (externalRef ExternalRef) Equal(other ExternalRef) bool {
 // the text codec for types that implement it, so ExternalRef marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (externalRef ExternalRef) MarshalText() ([]byte, error) { return []byte(externalRef.value), nil }
+func (externalRef ExternalRef) MarshalText() ([]byte, error) {
+	if externalRef.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero ExternalRef: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(externalRef.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a ExternalRef the constructor would have rejected.
@@ -1669,6 +2281,41 @@ func (externalRef *ExternalRef) UnmarshalText(data []byte) error {
 	*externalRef = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero ExternalRef is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (externalRef ExternalRef) MarshalJSON() ([]byte, error) {
+	if externalRef.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := externalRef.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// ExternalRef; a JSON string goes through UnmarshalText, so it is validated.
+func (externalRef *ExternalRef) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode ExternalRef: %w", err)
+	}
+
+	if isNull {
+		var zero ExternalRef
+
+		*externalRef = zero
+
+		return nil
+	}
+
+	return externalRef.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero ExternalRef is stored as NULL, which
@@ -1762,7 +2409,13 @@ func (zoneName ZoneName) Equal(other ZoneName) bool {
 // the text codec for types that implement it, so ZoneName marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (zoneName ZoneName) MarshalText() ([]byte, error) { return []byte(zoneName.value), nil }
+func (zoneName ZoneName) MarshalText() ([]byte, error) {
+	if zoneName.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero ZoneName: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(zoneName.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a ZoneName the constructor would have rejected.
@@ -1775,6 +2428,41 @@ func (zoneName *ZoneName) UnmarshalText(data []byte) error {
 	*zoneName = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero ZoneName is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (zoneName ZoneName) MarshalJSON() ([]byte, error) {
+	if zoneName.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := zoneName.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// ZoneName; a JSON string goes through UnmarshalText, so it is validated.
+func (zoneName *ZoneName) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode ZoneName: %w", err)
+	}
+
+	if isNull {
+		var zero ZoneName
+
+		*zoneName = zero
+
+		return nil
+	}
+
+	return zoneName.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero ZoneName is stored as NULL, which
@@ -1868,7 +2556,13 @@ func (stockCode StockCode) Equal(other StockCode) bool {
 // the text codec for types that implement it, so StockCode marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (stockCode StockCode) MarshalText() ([]byte, error) { return []byte(stockCode.value), nil }
+func (stockCode StockCode) MarshalText() ([]byte, error) {
+	if stockCode.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero StockCode: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(stockCode.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a StockCode the constructor would have rejected.
@@ -1881,6 +2575,41 @@ func (stockCode *StockCode) UnmarshalText(data []byte) error {
 	*stockCode = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero StockCode is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (stockCode StockCode) MarshalJSON() ([]byte, error) {
+	if stockCode.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := stockCode.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// StockCode; a JSON string goes through UnmarshalText, so it is validated.
+func (stockCode *StockCode) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode StockCode: %w", err)
+	}
+
+	if isNull {
+		var zero StockCode
+
+		*stockCode = zero
+
+		return nil
+	}
+
+	return stockCode.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero StockCode is stored as NULL, which
@@ -1974,7 +2703,13 @@ func (currency Currency) Equal(other Currency) bool {
 // the text codec for types that implement it, so Currency marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (currency Currency) MarshalText() ([]byte, error) { return []byte(currency.value), nil }
+func (currency Currency) MarshalText() ([]byte, error) {
+	if currency.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero Currency: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(currency.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a Currency the constructor would have rejected.
@@ -1987,6 +2722,41 @@ func (currency *Currency) UnmarshalText(data []byte) error {
 	*currency = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero Currency is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (currency Currency) MarshalJSON() ([]byte, error) {
+	if currency.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := currency.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// Currency; a JSON string goes through UnmarshalText, so it is validated.
+func (currency *Currency) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode Currency: %w", err)
+	}
+
+	if isNull {
+		var zero Currency
+
+		*currency = zero
+
+		return nil
+	}
+
+	return currency.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero Currency is stored as NULL, which
@@ -2082,7 +2852,13 @@ func (letterName LetterName) Equal(other LetterName) bool {
 // the text codec for types that implement it, so LetterName marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (letterName LetterName) MarshalText() ([]byte, error) { return []byte(letterName.value), nil }
+func (letterName LetterName) MarshalText() ([]byte, error) {
+	if letterName.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero LetterName: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(letterName.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a LetterName the constructor would have rejected.
@@ -2095,6 +2871,41 @@ func (letterName *LetterName) UnmarshalText(data []byte) error {
 	*letterName = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero LetterName is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (letterName LetterName) MarshalJSON() ([]byte, error) {
+	if letterName.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := letterName.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// LetterName; a JSON string goes through UnmarshalText, so it is validated.
+func (letterName *LetterName) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode LetterName: %w", err)
+	}
+
+	if isNull {
+		var zero LetterName
+
+		*letterName = zero
+
+		return nil
+	}
+
+	return letterName.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero LetterName is stored as NULL, which
@@ -2190,7 +3001,13 @@ func (handle Handle) Equal(other Handle) bool {
 // the text codec for types that implement it, so Handle marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (handle Handle) MarshalText() ([]byte, error) { return []byte(handle.value), nil }
+func (handle Handle) MarshalText() ([]byte, error) {
+	if handle.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero Handle: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(handle.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a Handle the constructor would have rejected.
@@ -2203,6 +3020,41 @@ func (handle *Handle) UnmarshalText(data []byte) error {
 	*handle = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero Handle is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (handle Handle) MarshalJSON() ([]byte, error) {
+	if handle.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := handle.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// Handle; a JSON string goes through UnmarshalText, so it is validated.
+func (handle *Handle) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode Handle: %w", err)
+	}
+
+	if isNull {
+		var zero Handle
+
+		*handle = zero
+
+		return nil
+	}
+
+	return handle.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero Handle is stored as NULL, which
@@ -2298,7 +3150,13 @@ func (phoneDigits PhoneDigits) Equal(other PhoneDigits) bool {
 // the text codec for types that implement it, so PhoneDigits marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (phoneDigits PhoneDigits) MarshalText() ([]byte, error) { return []byte(phoneDigits.value), nil }
+func (phoneDigits PhoneDigits) MarshalText() ([]byte, error) {
+	if phoneDigits.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero PhoneDigits: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(phoneDigits.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a PhoneDigits the constructor would have rejected.
@@ -2311,6 +3169,41 @@ func (phoneDigits *PhoneDigits) UnmarshalText(data []byte) error {
 	*phoneDigits = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero PhoneDigits is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (phoneDigits PhoneDigits) MarshalJSON() ([]byte, error) {
+	if phoneDigits.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := phoneDigits.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// PhoneDigits; a JSON string goes through UnmarshalText, so it is validated.
+func (phoneDigits *PhoneDigits) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode PhoneDigits: %w", err)
+	}
+
+	if isNull {
+		var zero PhoneDigits
+
+		*phoneDigits = zero
+
+		return nil
+	}
+
+	return phoneDigits.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero PhoneDigits is stored as NULL, which
@@ -2406,7 +3299,13 @@ func (legacyCode LegacyCode) Equal(other LegacyCode) bool {
 // the text codec for types that implement it, so LegacyCode marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (legacyCode LegacyCode) MarshalText() ([]byte, error) { return []byte(legacyCode.value), nil }
+func (legacyCode LegacyCode) MarshalText() ([]byte, error) {
+	if legacyCode.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero LegacyCode: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(legacyCode.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a LegacyCode the constructor would have rejected.
@@ -2419,6 +3318,41 @@ func (legacyCode *LegacyCode) UnmarshalText(data []byte) error {
 	*legacyCode = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero LegacyCode is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (legacyCode LegacyCode) MarshalJSON() ([]byte, error) {
+	if legacyCode.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := legacyCode.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// LegacyCode; a JSON string goes through UnmarshalText, so it is validated.
+func (legacyCode *LegacyCode) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode LegacyCode: %w", err)
+	}
+
+	if isNull {
+		var zero LegacyCode
+
+		*legacyCode = zero
+
+		return nil
+	}
+
+	return legacyCode.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero LegacyCode is stored as NULL, which
@@ -2514,7 +3448,13 @@ func (singleLine SingleLine) Equal(other SingleLine) bool {
 // the text codec for types that implement it, so SingleLine marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (singleLine SingleLine) MarshalText() ([]byte, error) { return []byte(singleLine.value), nil }
+func (singleLine SingleLine) MarshalText() ([]byte, error) {
+	if singleLine.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero SingleLine: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(singleLine.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a SingleLine the constructor would have rejected.
@@ -2527,6 +3467,41 @@ func (singleLine *SingleLine) UnmarshalText(data []byte) error {
 	*singleLine = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero SingleLine is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (singleLine SingleLine) MarshalJSON() ([]byte, error) {
+	if singleLine.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := singleLine.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// SingleLine; a JSON string goes through UnmarshalText, so it is validated.
+func (singleLine *SingleLine) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode SingleLine: %w", err)
+	}
+
+	if isNull {
+		var zero SingleLine
+
+		*singleLine = zero
+
+		return nil
+	}
+
+	return singleLine.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero SingleLine is stored as NULL, which
@@ -2618,7 +3593,13 @@ func (slug Slug) Equal(other Slug) bool { return slug.value == other.value && sl
 // the text codec for types that implement it, so Slug marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (slug Slug) MarshalText() ([]byte, error) { return []byte(slug.value), nil }
+func (slug Slug) MarshalText() ([]byte, error) {
+	if slug.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero Slug: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(slug.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a Slug the constructor would have rejected.
@@ -2631,6 +3612,41 @@ func (slug *Slug) UnmarshalText(data []byte) error {
 	*slug = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero Slug is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (slug Slug) MarshalJSON() ([]byte, error) {
+	if slug.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := slug.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// Slug; a JSON string goes through UnmarshalText, so it is validated.
+func (slug *Slug) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode Slug: %w", err)
+	}
+
+	if isNull {
+		var zero Slug
+
+		*slug = zero
+
+		return nil
+	}
+
+	return slug.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero Slug is stored as NULL, which
@@ -2724,7 +3740,13 @@ func (productCode ProductCode) Equal(other ProductCode) bool {
 // the text codec for types that implement it, so ProductCode marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (productCode ProductCode) MarshalText() ([]byte, error) { return []byte(productCode.value), nil }
+func (productCode ProductCode) MarshalText() ([]byte, error) {
+	if productCode.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero ProductCode: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(productCode.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a ProductCode the constructor would have rejected.
@@ -2737,6 +3759,41 @@ func (productCode *ProductCode) UnmarshalText(data []byte) error {
 	*productCode = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero ProductCode is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (productCode ProductCode) MarshalJSON() ([]byte, error) {
+	if productCode.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := productCode.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// ProductCode; a JSON string goes through UnmarshalText, so it is validated.
+func (productCode *ProductCode) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode ProductCode: %w", err)
+	}
+
+	if isNull {
+		var zero ProductCode
+
+		*productCode = zero
+
+		return nil
+	}
+
+	return productCode.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero ProductCode is stored as NULL, which
@@ -2831,6 +3888,10 @@ func (documentFile DocumentFile) Equal(other DocumentFile) bool {
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
 func (documentFile DocumentFile) MarshalText() ([]byte, error) {
+	if documentFile.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero DocumentFile: %w", validation.ErrZeroValue)
+	}
+
 	return []byte(documentFile.value), nil
 }
 
@@ -2845,6 +3906,41 @@ func (documentFile *DocumentFile) UnmarshalText(data []byte) error {
 	*documentFile = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero DocumentFile is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (documentFile DocumentFile) MarshalJSON() ([]byte, error) {
+	if documentFile.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := documentFile.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// DocumentFile; a JSON string goes through UnmarshalText, so it is validated.
+func (documentFile *DocumentFile) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode DocumentFile: %w", err)
+	}
+
+	if isNull {
+		var zero DocumentFile
+
+		*documentFile = zero
+
+		return nil
+	}
+
+	return documentFile.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero DocumentFile is stored as NULL, which
@@ -2939,6 +4035,10 @@ func (resourcePath ResourcePath) Equal(other ResourcePath) bool {
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
 func (resourcePath ResourcePath) MarshalText() ([]byte, error) {
+	if resourcePath.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero ResourcePath: %w", validation.ErrZeroValue)
+	}
+
 	return []byte(resourcePath.value), nil
 }
 
@@ -2953,6 +4053,41 @@ func (resourcePath *ResourcePath) UnmarshalText(data []byte) error {
 	*resourcePath = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero ResourcePath is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (resourcePath ResourcePath) MarshalJSON() ([]byte, error) {
+	if resourcePath.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := resourcePath.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// ResourcePath; a JSON string goes through UnmarshalText, so it is validated.
+func (resourcePath *ResourcePath) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode ResourcePath: %w", err)
+	}
+
+	if isNull {
+		var zero ResourcePath
+
+		*resourcePath = zero
+
+		return nil
+	}
+
+	return resourcePath.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero ResourcePath is stored as NULL, which
@@ -3046,7 +4181,13 @@ func (flatName FlatName) Equal(other FlatName) bool {
 // the text codec for types that implement it, so FlatName marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (flatName FlatName) MarshalText() ([]byte, error) { return []byte(flatName.value), nil }
+func (flatName FlatName) MarshalText() ([]byte, error) {
+	if flatName.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero FlatName: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(flatName.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a FlatName the constructor would have rejected.
@@ -3059,6 +4200,41 @@ func (flatName *FlatName) UnmarshalText(data []byte) error {
 	*flatName = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero FlatName is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (flatName FlatName) MarshalJSON() ([]byte, error) {
+	if flatName.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := flatName.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// FlatName; a JSON string goes through UnmarshalText, so it is validated.
+func (flatName *FlatName) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode FlatName: %w", err)
+	}
+
+	if isNull {
+		var zero FlatName
+
+		*flatName = zero
+
+		return nil
+	}
+
+	return flatName.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero FlatName is stored as NULL, which
@@ -3182,7 +4358,13 @@ func (covers Covers) Equal(other Covers) bool {
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Covers round-trips through JSON without
 // a MarshalJSON of its own.
-func (covers Covers) MarshalText() ([]byte, error) { return []byte(covers.String()), nil }
+func (covers Covers) MarshalText() ([]byte, error) {
+	if covers.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero Covers: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(covers.String()), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a Covers the constructor would have rejected.
@@ -3195,6 +4377,41 @@ func (covers *Covers) UnmarshalText(data []byte) error {
 	*covers = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero Covers is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (covers Covers) MarshalJSON() ([]byte, error) {
+	if covers.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := covers.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// Covers; a JSON string goes through UnmarshalText, so it is validated.
+func (covers *Covers) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode Covers: %w", err)
+	}
+
+	if isNull {
+		var zero Covers
+
+		*covers = zero
+
+		return nil
+	}
+
+	return covers.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero Covers is stored as NULL, which
@@ -3327,7 +4544,13 @@ func (seats Seats) Equal(other Seats) bool {
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Seats round-trips through JSON without
 // a MarshalJSON of its own.
-func (seats Seats) MarshalText() ([]byte, error) { return []byte(seats.String()), nil }
+func (seats Seats) MarshalText() ([]byte, error) {
+	if seats.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero Seats: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(seats.String()), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a Seats the constructor would have rejected.
@@ -3340,6 +4563,41 @@ func (seats *Seats) UnmarshalText(data []byte) error {
 	*seats = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero Seats is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (seats Seats) MarshalJSON() ([]byte, error) {
+	if seats.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := seats.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// Seats; a JSON string goes through UnmarshalText, so it is validated.
+func (seats *Seats) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode Seats: %w", err)
+	}
+
+	if isNull {
+		var zero Seats
+
+		*seats = zero
+
+		return nil
+	}
+
+	return seats.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero Seats is stored as NULL, which
@@ -3471,6 +4729,10 @@ func (courseCount CourseCount) Equal(other CourseCount) bool {
 // codec when a type implements it, so CourseCount round-trips through JSON without
 // a MarshalJSON of its own.
 func (courseCount CourseCount) MarshalText() ([]byte, error) {
+	if courseCount.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero CourseCount: %w", validation.ErrZeroValue)
+	}
+
 	return []byte(courseCount.String()), nil
 }
 
@@ -3485,6 +4747,41 @@ func (courseCount *CourseCount) UnmarshalText(data []byte) error {
 	*courseCount = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero CourseCount is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (courseCount CourseCount) MarshalJSON() ([]byte, error) {
+	if courseCount.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := courseCount.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// CourseCount; a JSON string goes through UnmarshalText, so it is validated.
+func (courseCount *CourseCount) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode CourseCount: %w", err)
+	}
+
+	if isNull {
+		var zero CourseCount
+
+		*courseCount = zero
+
+		return nil
+	}
+
+	return courseCount.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero CourseCount is stored as NULL, which
@@ -3615,7 +4912,13 @@ func (portions Portions) Equal(other Portions) bool {
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Portions round-trips through JSON without
 // a MarshalJSON of its own.
-func (portions Portions) MarshalText() ([]byte, error) { return []byte(portions.String()), nil }
+func (portions Portions) MarshalText() ([]byte, error) {
+	if portions.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero Portions: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(portions.String()), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a Portions the constructor would have rejected.
@@ -3628,6 +4931,41 @@ func (portions *Portions) UnmarshalText(data []byte) error {
 	*portions = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero Portions is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (portions Portions) MarshalJSON() ([]byte, error) {
+	if portions.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := portions.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// Portions; a JSON string goes through UnmarshalText, so it is validated.
+func (portions *Portions) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode Portions: %w", err)
+	}
+
+	if isNull {
+		var zero Portions
+
+		*portions = zero
+
+		return nil
+	}
+
+	return portions.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero Portions is stored as NULL, which
@@ -3758,7 +5096,13 @@ func (stockLevel StockLevel) Equal(other StockLevel) bool {
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so StockLevel round-trips through JSON without
 // a MarshalJSON of its own.
-func (stockLevel StockLevel) MarshalText() ([]byte, error) { return []byte(stockLevel.String()), nil }
+func (stockLevel StockLevel) MarshalText() ([]byte, error) {
+	if stockLevel.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero StockLevel: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(stockLevel.String()), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a StockLevel the constructor would have rejected.
@@ -3771,6 +5115,41 @@ func (stockLevel *StockLevel) UnmarshalText(data []byte) error {
 	*stockLevel = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero StockLevel is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (stockLevel StockLevel) MarshalJSON() ([]byte, error) {
+	if stockLevel.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := stockLevel.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// StockLevel; a JSON string goes through UnmarshalText, so it is validated.
+func (stockLevel *StockLevel) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode StockLevel: %w", err)
+	}
+
+	if isNull {
+		var zero StockLevel
+
+		*stockLevel = zero
+
+		return nil
+	}
+
+	return stockLevel.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero StockLevel is stored as NULL, which
@@ -3904,6 +5283,10 @@ func (slotMinutes SlotMinutes) Equal(other SlotMinutes) bool {
 // codec when a type implements it, so SlotMinutes round-trips through JSON without
 // a MarshalJSON of its own.
 func (slotMinutes SlotMinutes) MarshalText() ([]byte, error) {
+	if slotMinutes.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero SlotMinutes: %w", validation.ErrZeroValue)
+	}
+
 	return []byte(slotMinutes.String()), nil
 }
 
@@ -3918,6 +5301,41 @@ func (slotMinutes *SlotMinutes) UnmarshalText(data []byte) error {
 	*slotMinutes = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero SlotMinutes is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (slotMinutes SlotMinutes) MarshalJSON() ([]byte, error) {
+	if slotMinutes.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := slotMinutes.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// SlotMinutes; a JSON string goes through UnmarshalText, so it is validated.
+func (slotMinutes *SlotMinutes) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode SlotMinutes: %w", err)
+	}
+
+	if isNull {
+		var zero SlotMinutes
+
+		*slotMinutes = zero
+
+		return nil
+	}
+
+	return slotMinutes.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer. The zero SlotMinutes is stored as NULL, which
@@ -4057,7 +5475,13 @@ func (minRate MinRate) Equal(other MinRate) bool {
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so MinRate crosses a JSON boundary as a
 // string and never as a float the receiver would have to round.
-func (minRate MinRate) MarshalText() ([]byte, error) { return []byte(minRate.value.String()), nil }
+func (minRate MinRate) MarshalText() ([]byte, error) {
+	if minRate.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero MinRate: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(minRate.value.String()), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a MinRate the constructor would have rejected.
@@ -4070,6 +5494,41 @@ func (minRate *MinRate) UnmarshalText(data []byte) error {
 	*minRate = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero MinRate is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (minRate MinRate) MarshalJSON() ([]byte, error) {
+	if minRate.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := minRate.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// MinRate; a JSON string goes through UnmarshalText, so it is validated.
+func (minRate *MinRate) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode MinRate: %w", err)
+	}
+
+	if isNull {
+		var zero MinRate
+
+		*minRate = zero
+
+		return nil
+	}
+
+	return minRate.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer, storing the canonical representation as
@@ -4228,7 +5687,13 @@ func (maxRate MaxRate) Equal(other MaxRate) bool {
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so MaxRate crosses a JSON boundary as a
 // string and never as a float the receiver would have to round.
-func (maxRate MaxRate) MarshalText() ([]byte, error) { return []byte(maxRate.value.String()), nil }
+func (maxRate MaxRate) MarshalText() ([]byte, error) {
+	if maxRate.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero MaxRate: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(maxRate.value.String()), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a MaxRate the constructor would have rejected.
@@ -4241,6 +5706,41 @@ func (maxRate *MaxRate) UnmarshalText(data []byte) error {
 	*maxRate = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero MaxRate is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (maxRate MaxRate) MarshalJSON() ([]byte, error) {
+	if maxRate.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := maxRate.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// MaxRate; a JSON string goes through UnmarshalText, so it is validated.
+func (maxRate *MaxRate) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode MaxRate: %w", err)
+	}
+
+	if isNull {
+		var zero MaxRate
+
+		*maxRate = zero
+
+		return nil
+	}
+
+	return maxRate.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer, storing the canonical representation as
@@ -4398,6 +5898,10 @@ func (unitWeight UnitWeight) Equal(other UnitWeight) bool {
 // codec when a type implements it, so UnitWeight crosses a JSON boundary as a
 // string and never as a float the receiver would have to round.
 func (unitWeight UnitWeight) MarshalText() ([]byte, error) {
+	if unitWeight.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero UnitWeight: %w", validation.ErrZeroValue)
+	}
+
 	return []byte(unitWeight.value.String()), nil
 }
 
@@ -4412,6 +5916,41 @@ func (unitWeight *UnitWeight) UnmarshalText(data []byte) error {
 	*unitWeight = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero UnitWeight is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (unitWeight UnitWeight) MarshalJSON() ([]byte, error) {
+	if unitWeight.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := unitWeight.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// UnitWeight; a JSON string goes through UnmarshalText, so it is validated.
+func (unitWeight *UnitWeight) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode UnitWeight: %w", err)
+	}
+
+	if isNull {
+		var zero UnitWeight
+
+		*unitWeight = zero
+
+		return nil
+	}
+
+	return unitWeight.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer, storing the canonical representation as
@@ -4569,6 +6108,10 @@ func (shelfWeight ShelfWeight) Equal(other ShelfWeight) bool {
 // codec when a type implements it, so ShelfWeight crosses a JSON boundary as a
 // string and never as a float the receiver would have to round.
 func (shelfWeight ShelfWeight) MarshalText() ([]byte, error) {
+	if shelfWeight.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero ShelfWeight: %w", validation.ErrZeroValue)
+	}
+
 	return []byte(shelfWeight.value.String()), nil
 }
 
@@ -4583,6 +6126,41 @@ func (shelfWeight *ShelfWeight) UnmarshalText(data []byte) error {
 	*shelfWeight = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero ShelfWeight is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (shelfWeight ShelfWeight) MarshalJSON() ([]byte, error) {
+	if shelfWeight.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := shelfWeight.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// ShelfWeight; a JSON string goes through UnmarshalText, so it is validated.
+func (shelfWeight *ShelfWeight) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode ShelfWeight: %w", err)
+	}
+
+	if isNull {
+		var zero ShelfWeight
+
+		*shelfWeight = zero
+
+		return nil
+	}
+
+	return shelfWeight.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer, storing the canonical representation as
@@ -4741,7 +6319,13 @@ func (taxRate TaxRate) Equal(other TaxRate) bool {
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so TaxRate crosses a JSON boundary as a
 // string and never as a float the receiver would have to round.
-func (taxRate TaxRate) MarshalText() ([]byte, error) { return []byte(taxRate.value.String()), nil }
+func (taxRate TaxRate) MarshalText() ([]byte, error) {
+	if taxRate.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero TaxRate: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(taxRate.value.String()), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a TaxRate the constructor would have rejected.
@@ -4754,6 +6338,41 @@ func (taxRate *TaxRate) UnmarshalText(data []byte) error {
 	*taxRate = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero TaxRate is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (taxRate TaxRate) MarshalJSON() ([]byte, error) {
+	if taxRate.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := taxRate.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// TaxRate; a JSON string goes through UnmarshalText, so it is validated.
+func (taxRate *TaxRate) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode TaxRate: %w", err)
+	}
+
+	if isNull {
+		var zero TaxRate
+
+		*taxRate = zero
+
+		return nil
+	}
+
+	return taxRate.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer, storing the canonical representation as
@@ -4913,6 +6532,10 @@ func (preciseWeight PreciseWeight) Equal(other PreciseWeight) bool {
 // codec when a type implements it, so PreciseWeight crosses a JSON boundary as a
 // string and never as a float the receiver would have to round.
 func (preciseWeight PreciseWeight) MarshalText() ([]byte, error) {
+	if preciseWeight.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero PreciseWeight: %w", validation.ErrZeroValue)
+	}
+
 	return []byte(preciseWeight.value.String()), nil
 }
 
@@ -4927,6 +6550,41 @@ func (preciseWeight *PreciseWeight) UnmarshalText(data []byte) error {
 	*preciseWeight = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero PreciseWeight is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (preciseWeight PreciseWeight) MarshalJSON() ([]byte, error) {
+	if preciseWeight.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := preciseWeight.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// PreciseWeight; a JSON string goes through UnmarshalText, so it is validated.
+func (preciseWeight *PreciseWeight) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode PreciseWeight: %w", err)
+	}
+
+	if isNull {
+		var zero PreciseWeight
+
+		*preciseWeight = zero
+
+		return nil
+	}
+
+	return preciseWeight.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer, storing the canonical representation as
@@ -5084,6 +6742,10 @@ func (adjustment Adjustment) Equal(other Adjustment) bool {
 // codec when a type implements it, so Adjustment crosses a JSON boundary as a
 // string and never as a float the receiver would have to round.
 func (adjustment Adjustment) MarshalText() ([]byte, error) {
+	if adjustment.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero Adjustment: %w", validation.ErrZeroValue)
+	}
+
 	return []byte(adjustment.value.String()), nil
 }
 
@@ -5098,6 +6760,41 @@ func (adjustment *Adjustment) UnmarshalText(data []byte) error {
 	*adjustment = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero Adjustment is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (adjustment Adjustment) MarshalJSON() ([]byte, error) {
+	if adjustment.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := adjustment.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// Adjustment; a JSON string goes through UnmarshalText, so it is validated.
+func (adjustment *Adjustment) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode Adjustment: %w", err)
+	}
+
+	if isNull {
+		var zero Adjustment
+
+		*adjustment = zero
+
+		return nil
+	}
+
+	return adjustment.UnmarshalText(text)
 }
 
 // Value implements driver.Valuer, storing the canonical representation as
@@ -5159,4 +6856,746 @@ func (adjustment *Adjustment) scanInt64(number int64) error {
 	*adjustment = parsed
 
 	return nil
+}
+
+// LoweredCurrency is a currency code typed in any case.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type LoweredCurrency struct {
+	value string
+	set   bool
+}
+
+// NewLoweredCurrency validates raw and returns the LoweredCurrency it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
+func NewLoweredCurrency(raw string) (LoweredCurrency, error) {
+	var notification validation.Notification
+
+	value := raw
+	value = strings.ToLower(value)
+	if value != "eur" && value != "usd" && value != "gbp" {
+		notification.Reject(
+			"loweredCurrency",
+			"oneof",
+			"eur,usd,gbp",
+			value,
+			"loweredCurrency must be one of: eur,usd,gbp",
+		)
+	}
+
+	if notification.HasErrors() {
+		var zero LoweredCurrency
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := notification
+
+		return zero, &failed
+	}
+
+	return LoweredCurrency{value: value, set: true}, nil
+}
+
+// String returns the validated value.
+func (loweredCurrency LoweredCurrency) String() string { return loweredCurrency.value }
+
+// IsZero reports whether the receiver is the zero LoweredCurrency: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (loweredCurrency LoweredCurrency) IsZero() bool { return !loweredCurrency.set }
+
+// Equal reports whether both value objects hold the same value.
+func (loweredCurrency LoweredCurrency) Equal(other LoweredCurrency) bool {
+	return loweredCurrency.value == other.value && loweredCurrency.set == other.set
+}
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so LoweredCurrency marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func (loweredCurrency LoweredCurrency) MarshalText() ([]byte, error) {
+	if loweredCurrency.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero LoweredCurrency: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(loweredCurrency.value), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a LoweredCurrency the constructor would have rejected.
+func (loweredCurrency *LoweredCurrency) UnmarshalText(data []byte) error {
+	parsed, err := NewLoweredCurrency(string(data))
+	if err != nil {
+		return err
+	}
+
+	*loweredCurrency = parsed
+
+	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero LoweredCurrency is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (loweredCurrency LoweredCurrency) MarshalJSON() ([]byte, error) {
+	if loweredCurrency.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := loweredCurrency.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// LoweredCurrency; a JSON string goes through UnmarshalText, so it is validated.
+func (loweredCurrency *LoweredCurrency) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode LoweredCurrency: %w", err)
+	}
+
+	if isNull {
+		var zero LoweredCurrency
+
+		*loweredCurrency = zero
+
+		return nil
+	}
+
+	return loweredCurrency.UnmarshalText(text)
+}
+
+// Value implements driver.Valuer. The zero LoweredCurrency is stored as NULL, which
+// Scan reads back as the zero LoweredCurrency.
+func (loweredCurrency LoweredCurrency) Value() (driver.Value, error) {
+	if !loweredCurrency.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return loweredCurrency.value, nil
+}
+
+// Scan implements sql.Scanner for text columns. It re-runs validation, so a
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
+func (loweredCurrency *LoweredCurrency) Scan(src any) error {
+	switch source := src.(type) {
+	case nil:
+		var zero LoweredCurrency
+
+		*loweredCurrency = zero
+
+		return nil
+	case string:
+		return loweredCurrency.UnmarshalText([]byte(source))
+	case []byte:
+		return loweredCurrency.UnmarshalText(source)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into LoweredCurrency: %w", src, validation.ErrUnsupportedSource)
+	}
+}
+
+// ShoutedSku is a stock code typed in any case.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type ShoutedSku struct {
+	value string
+	set   bool
+}
+
+// NewShoutedSku validates raw and returns the ShoutedSku it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
+func NewShoutedSku(raw string) (ShoutedSku, error) {
+	var notification validation.Notification
+
+	value := raw
+	value = strings.ToUpper(value)
+	if !strings.HasPrefix(value, "SKU-") {
+		notification.Reject(
+			"shoutedSku",
+			"prefix",
+			"SKU-",
+			value,
+			"shoutedSku must start with \"SKU-\"",
+		)
+	}
+
+	if notification.HasErrors() {
+		var zero ShoutedSku
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := notification
+
+		return zero, &failed
+	}
+
+	return ShoutedSku{value: value, set: true}, nil
+}
+
+// String returns the validated value.
+func (shoutedSku ShoutedSku) String() string { return shoutedSku.value }
+
+// IsZero reports whether the receiver is the zero ShoutedSku: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (shoutedSku ShoutedSku) IsZero() bool { return !shoutedSku.set }
+
+// Equal reports whether both value objects hold the same value.
+func (shoutedSku ShoutedSku) Equal(other ShoutedSku) bool {
+	return shoutedSku.value == other.value && shoutedSku.set == other.set
+}
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so ShoutedSku marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func (shoutedSku ShoutedSku) MarshalText() ([]byte, error) {
+	if shoutedSku.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero ShoutedSku: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(shoutedSku.value), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a ShoutedSku the constructor would have rejected.
+func (shoutedSku *ShoutedSku) UnmarshalText(data []byte) error {
+	parsed, err := NewShoutedSku(string(data))
+	if err != nil {
+		return err
+	}
+
+	*shoutedSku = parsed
+
+	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero ShoutedSku is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (shoutedSku ShoutedSku) MarshalJSON() ([]byte, error) {
+	if shoutedSku.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := shoutedSku.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// ShoutedSku; a JSON string goes through UnmarshalText, so it is validated.
+func (shoutedSku *ShoutedSku) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode ShoutedSku: %w", err)
+	}
+
+	if isNull {
+		var zero ShoutedSku
+
+		*shoutedSku = zero
+
+		return nil
+	}
+
+	return shoutedSku.UnmarshalText(text)
+}
+
+// Value implements driver.Valuer. The zero ShoutedSku is stored as NULL, which
+// Scan reads back as the zero ShoutedSku.
+func (shoutedSku ShoutedSku) Value() (driver.Value, error) {
+	if !shoutedSku.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return shoutedSku.value, nil
+}
+
+// Scan implements sql.Scanner for text columns. It re-runs validation, so a
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
+func (shoutedSku *ShoutedSku) Scan(src any) error {
+	switch source := src.(type) {
+	case nil:
+		var zero ShoutedSku
+
+		*shoutedSku = zero
+
+		return nil
+	case string:
+		return shoutedSku.UnmarshalText([]byte(source))
+	case []byte:
+		return shoutedSku.UnmarshalText(source)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into ShoutedSku: %w", src, validation.ErrUnsupportedSource)
+	}
+}
+
+// TrimmedSlug is a slug pasted with blanks around it.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type TrimmedSlug struct {
+	value string
+	set   bool
+}
+
+// NewTrimmedSlug validates raw and returns the TrimmedSlug it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
+func NewTrimmedSlug(raw string) (TrimmedSlug, error) {
+	var notification validation.Notification
+
+	value := raw
+	value = strings.TrimSpace(value)
+	if strings.IndexFunc(value, unicode.IsSpace) >= 0 {
+		notification.Reject(
+			"trimmedSlug",
+			"nospace",
+			"",
+			value,
+			"trimmedSlug must not contain spaces",
+		)
+	}
+
+	if notification.HasErrors() {
+		var zero TrimmedSlug
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := notification
+
+		return zero, &failed
+	}
+
+	return TrimmedSlug{value: value, set: true}, nil
+}
+
+// String returns the validated value.
+func (trimmedSlug TrimmedSlug) String() string { return trimmedSlug.value }
+
+// IsZero reports whether the receiver is the zero TrimmedSlug: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (trimmedSlug TrimmedSlug) IsZero() bool { return !trimmedSlug.set }
+
+// Equal reports whether both value objects hold the same value.
+func (trimmedSlug TrimmedSlug) Equal(other TrimmedSlug) bool {
+	return trimmedSlug.value == other.value && trimmedSlug.set == other.set
+}
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so TrimmedSlug marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func (trimmedSlug TrimmedSlug) MarshalText() ([]byte, error) {
+	if trimmedSlug.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero TrimmedSlug: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(trimmedSlug.value), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a TrimmedSlug the constructor would have rejected.
+func (trimmedSlug *TrimmedSlug) UnmarshalText(data []byte) error {
+	parsed, err := NewTrimmedSlug(string(data))
+	if err != nil {
+		return err
+	}
+
+	*trimmedSlug = parsed
+
+	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero TrimmedSlug is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (trimmedSlug TrimmedSlug) MarshalJSON() ([]byte, error) {
+	if trimmedSlug.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := trimmedSlug.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// TrimmedSlug; a JSON string goes through UnmarshalText, so it is validated.
+func (trimmedSlug *TrimmedSlug) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode TrimmedSlug: %w", err)
+	}
+
+	if isNull {
+		var zero TrimmedSlug
+
+		*trimmedSlug = zero
+
+		return nil
+	}
+
+	return trimmedSlug.UnmarshalText(text)
+}
+
+// Value implements driver.Valuer. The zero TrimmedSlug is stored as NULL, which
+// Scan reads back as the zero TrimmedSlug.
+func (trimmedSlug TrimmedSlug) Value() (driver.Value, error) {
+	if !trimmedSlug.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return trimmedSlug.value, nil
+}
+
+// Scan implements sql.Scanner for text columns. It re-runs validation, so a
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
+func (trimmedSlug *TrimmedSlug) Scan(src any) error {
+	switch source := src.(type) {
+	case nil:
+		var zero TrimmedSlug
+
+		*trimmedSlug = zero
+
+		return nil
+	case string:
+		return trimmedSlug.UnmarshalText([]byte(source))
+	case []byte:
+		return trimmedSlug.UnmarshalText(source)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into TrimmedSlug: %w", src, validation.ErrUnsupportedSource)
+	}
+}
+
+// SquishedLine is one line of text pasted with extra blanks.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type SquishedLine struct {
+	value string
+	set   bool
+}
+
+// NewSquishedLine validates raw and returns the SquishedLine it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
+func NewSquishedLine(raw string) (SquishedLine, error) {
+	var notification validation.Notification
+
+	value := raw
+	value = strings.Join(strings.Fields(value), " ")
+	if strings.IndexFunc(value, func(character rune) bool {
+		return !unicode.IsPrint(character)
+	}) >= 0 {
+		notification.Reject(
+			"squishedLine",
+			"printable",
+			"",
+			value,
+			"squishedLine must not contain control characters",
+		)
+	}
+
+	if notification.HasErrors() {
+		var zero SquishedLine
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := notification
+
+		return zero, &failed
+	}
+
+	return SquishedLine{value: value, set: true}, nil
+}
+
+// String returns the validated value.
+func (squishedLine SquishedLine) String() string { return squishedLine.value }
+
+// IsZero reports whether the receiver is the zero SquishedLine: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (squishedLine SquishedLine) IsZero() bool { return !squishedLine.set }
+
+// Equal reports whether both value objects hold the same value.
+func (squishedLine SquishedLine) Equal(other SquishedLine) bool {
+	return squishedLine.value == other.value && squishedLine.set == other.set
+}
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so SquishedLine marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func (squishedLine SquishedLine) MarshalText() ([]byte, error) {
+	if squishedLine.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero SquishedLine: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(squishedLine.value), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a SquishedLine the constructor would have rejected.
+func (squishedLine *SquishedLine) UnmarshalText(data []byte) error {
+	parsed, err := NewSquishedLine(string(data))
+	if err != nil {
+		return err
+	}
+
+	*squishedLine = parsed
+
+	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero SquishedLine is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (squishedLine SquishedLine) MarshalJSON() ([]byte, error) {
+	if squishedLine.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := squishedLine.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// SquishedLine; a JSON string goes through UnmarshalText, so it is validated.
+func (squishedLine *SquishedLine) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode SquishedLine: %w", err)
+	}
+
+	if isNull {
+		var zero SquishedLine
+
+		*squishedLine = zero
+
+		return nil
+	}
+
+	return squishedLine.UnmarshalText(text)
+}
+
+// Value implements driver.Valuer. The zero SquishedLine is stored as NULL, which
+// Scan reads back as the zero SquishedLine.
+func (squishedLine SquishedLine) Value() (driver.Value, error) {
+	if !squishedLine.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return squishedLine.value, nil
+}
+
+// Scan implements sql.Scanner for text columns. It re-runs validation, so a
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
+func (squishedLine *SquishedLine) Scan(src any) error {
+	switch source := src.(type) {
+	case nil:
+		var zero SquishedLine
+
+		*squishedLine = zero
+
+		return nil
+	case string:
+		return squishedLine.UnmarshalText([]byte(source))
+	case []byte:
+		return squishedLine.UnmarshalText(source)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into SquishedLine: %w", src, validation.ErrUnsupportedSource)
+	}
+}
+
+// LoweredFile is a file name typed in any case.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type LoweredFile struct {
+	value string
+	set   bool
+}
+
+// NewLoweredFile validates raw and returns the LoweredFile it describes.
+//
+// Rules are applied in the order they were declared: normalizers rewrite the
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
+func NewLoweredFile(raw string) (LoweredFile, error) {
+	var notification validation.Notification
+
+	value := raw
+	value = strings.ToLower(value)
+	if !strings.HasSuffix(value, ".pdf") {
+		notification.Reject(
+			"loweredFile",
+			"suffix",
+			".pdf",
+			value,
+			"loweredFile must end with \".pdf\"",
+		)
+	}
+
+	if notification.HasErrors() {
+		var zero LoweredFile
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := notification
+
+		return zero, &failed
+	}
+
+	return LoweredFile{value: value, set: true}, nil
+}
+
+// String returns the validated value.
+func (loweredFile LoweredFile) String() string { return loweredFile.value }
+
+// IsZero reports whether the receiver is the zero LoweredFile: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (loweredFile LoweredFile) IsZero() bool { return !loweredFile.set }
+
+// Equal reports whether both value objects hold the same value.
+func (loweredFile LoweredFile) Equal(other LoweredFile) bool {
+	return loweredFile.value == other.value && loweredFile.set == other.set
+}
+
+// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
+// the text codec for types that implement it, so LoweredFile marshals and
+// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
+// map key too.
+func (loweredFile LoweredFile) MarshalText() ([]byte, error) {
+	if loweredFile.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero LoweredFile: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(loweredFile.value), nil
+}
+
+// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
+// no payload can produce a LoweredFile the constructor would have rejected.
+func (loweredFile *LoweredFile) UnmarshalText(data []byte) error {
+	parsed, err := NewLoweredFile(string(data))
+	if err != nil {
+		return err
+	}
+
+	*loweredFile = parsed
+
+	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero LoweredFile is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (loweredFile LoweredFile) MarshalJSON() ([]byte, error) {
+	if loweredFile.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := loweredFile.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// LoweredFile; a JSON string goes through UnmarshalText, so it is validated.
+func (loweredFile *LoweredFile) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode LoweredFile: %w", err)
+	}
+
+	if isNull {
+		var zero LoweredFile
+
+		*loweredFile = zero
+
+		return nil
+	}
+
+	return loweredFile.UnmarshalText(text)
+}
+
+// Value implements driver.Valuer. The zero LoweredFile is stored as NULL, which
+// Scan reads back as the zero LoweredFile.
+func (loweredFile LoweredFile) Value() (driver.Value, error) {
+	if !loweredFile.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return loweredFile.value, nil
+}
+
+// Scan implements sql.Scanner for text columns. It re-runs validation, so a
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
+func (loweredFile *LoweredFile) Scan(src any) error {
+	switch source := src.(type) {
+	case nil:
+		var zero LoweredFile
+
+		*loweredFile = zero
+
+		return nil
+	case string:
+		return loweredFile.UnmarshalText([]byte(source))
+	case []byte:
+		return loweredFile.UnmarshalText(source)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into LoweredFile: %w", src, validation.ErrUnsupportedSource)
+	}
 }

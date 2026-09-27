@@ -8,38 +8,18 @@ import (
 	"github.com/MathiasHilgert/vogue/voguetest"
 )
 
-// The strings below are shared by several rows of the tables in this file.
-const (
-	exampleTortilla              = "Tortilla"
-	exampleRejectsTheEmptyString = "rejects the empty string"
-	exampleRequired              = "required"
-	exampleTortillaDePatatas     = "Tortilla de patatas"
-	exampleWaiterExampleCom      = "waiter@example.com"
-	exampleAlready               = "already"
-	exampleEur                   = "eur"
-	exampleEUR                   = "EUR"
-	exampleMin                   = "min"
-	exampleMax                   = "max"
-	exampleLen                   = "len"
-	exampleEmail                 = "email"
-	exampleUrl                   = "url"
-	exampleUuid                  = "uuid"
-	exampleTimezone              = "timezone"
-	exampleSku0042               = "sku-0042"
-	exampleRegex                 = "regex"
-	exampleOneof                 = "oneof"
-	exampleNumeric               = "numeric"
-	examplePrefix                = "prefix"
-	exampleInt                   = "int"
-	examplePositive              = "positive"
-	exampleNonneg                = "nonneg"
-	exampleDecimal               = "decimal"
-	example15                    = "1.5"
-)
-
 // TestTrimmedName runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestTrimmedName(t *testing.T) {
+	const (
+		exampleTortilla                              = "Tortilla"
+		exampleTheBlanksAroundAPastedValueAreDropped = "the blanks around a pasted value are dropped"
+		exampleTortilla2                             = "  Tortilla  "
+		exampleTabsAndNewlinesCountAsWhitespaceToo   = "tabs and newlines count as whitespace too"
+		exampleTortilla3                             = "\tTortilla\n"
+		exampleAnAlreadyCleanValueIsLeftAlone        = "an already clean value is left alone"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[TrimmedName, *TrimmedName, string]{
@@ -50,26 +30,20 @@ func TestTrimmedName(t *testing.T) {
 		ParseRule:  "",
 		Examples:   nil,
 		Candidates: []string{exampleTortilla, " "},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:  exampleRejectsTheEmptyString,
-				Input: "",
-				Rules: []string{exampleRequired},
-			},
-		},
+		Rejected:   nil,
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name:  "the blanks around a pasted value are dropped",
-				Input: "  Tortilla  ",
+				Name:  exampleTheBlanksAroundAPastedValueAreDropped,
+				Input: exampleTortilla2,
 				Out:   exampleTortilla,
 			},
 			{
-				Name:  "tabs and newlines count as whitespace too",
-				Input: "\tTortilla\n",
+				Name:  exampleTabsAndNewlinesCountAsWhitespaceToo,
+				Input: exampleTortilla3,
 				Out:   exampleTortilla,
 			},
 			{
-				Name:  "an already clean value is left alone",
+				Name:  exampleAnAlreadyCleanValueIsLeftAlone,
 				Input: exampleTortilla,
 				Out:   exampleTortilla,
 			},
@@ -81,6 +55,17 @@ func TestTrimmedName(t *testing.T) {
 // TestSquishedName runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestSquishedName(t *testing.T) {
+	const (
+		exampleTortilla                         = "Tortilla"
+		exampleARunOfSpacesBecomesOne           = "a run of spaces becomes one"
+		exampleTortillaDePatatas                = "Tortilla   de  patatas"
+		exampleTortillaDePatatas2               = "Tortilla de patatas"
+		exampleTheEndsAreTrimmedAsWell          = "the ends are trimmed as well"
+		exampleTortillaDePatatas3               = "  Tortilla de patatas  "
+		exampleATabAndANewlineBecomePlainSpaces = "a tab and a newline become plain spaces"
+		exampleTortillaDePatatas4               = "Tortilla\tde\npatatas"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[SquishedName, *SquishedName, string]{
@@ -91,28 +76,22 @@ func TestSquishedName(t *testing.T) {
 		ParseRule:  "",
 		Examples:   nil,
 		Candidates: []string{exampleTortilla, " "},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:  exampleRejectsTheEmptyString,
-				Input: "",
-				Rules: []string{exampleRequired},
-			},
-		},
+		Rejected:   nil,
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name:  "a run of spaces becomes one",
-				Input: "Tortilla   de  patatas",
-				Out:   exampleTortillaDePatatas,
+				Name:  exampleARunOfSpacesBecomesOne,
+				Input: exampleTortillaDePatatas,
+				Out:   exampleTortillaDePatatas2,
 			},
 			{
-				Name:  "the ends are trimmed as well",
-				Input: "  Tortilla de patatas  ",
-				Out:   exampleTortillaDePatatas,
+				Name:  exampleTheEndsAreTrimmedAsWell,
+				Input: exampleTortillaDePatatas3,
+				Out:   exampleTortillaDePatatas2,
 			},
 			{
-				Name:  "a tab and a newline become plain spaces",
-				Input: "Tortilla\tde\npatatas",
-				Out:   exampleTortillaDePatatas,
+				Name:  exampleATabAndANewlineBecomePlainSpaces,
+				Input: exampleTortillaDePatatas4,
+				Out:   exampleTortillaDePatatas2,
 			},
 		},
 		RefusesFloat: false,
@@ -122,6 +101,18 @@ func TestSquishedName(t *testing.T) {
 // TestLoweredName runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestLoweredName(t *testing.T) {
+	const (
+		exampleTortilla                                 = "Tortilla"
+		exampleAnAddressIsFoldedToOneCanonicalSpelling  = "an address is folded to one canonical spelling"
+		exampleWaiterExampleCom                         = "Waiter@Example.Com"
+		exampleWaiterExampleCom2                        = "waiter@example.com"
+		exampleAnAccentedCapitalFoldsLikeAnyOtherLetter = "an accented capital folds like any other letter"
+		exampleRBOL                                     = "ÁRBOL"
+		exampleRbol                                     = "árbol"
+		exampleAValueAlreadyInLowerCaseIsLeftAlone      = "a value already in lower case is left alone"
+		exampleAlready                                  = "already"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[LoweredName, *LoweredName, string]{
@@ -132,26 +123,20 @@ func TestLoweredName(t *testing.T) {
 		ParseRule:  "",
 		Examples:   nil,
 		Candidates: []string{exampleTortilla, " "},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:  exampleRejectsTheEmptyString,
-				Input: "",
-				Rules: []string{exampleRequired},
-			},
-		},
+		Rejected:   nil,
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name:  "an address is folded to one canonical spelling",
-				Input: "Waiter@Example.Com",
-				Out:   exampleWaiterExampleCom,
+				Name:  exampleAnAddressIsFoldedToOneCanonicalSpelling,
+				Input: exampleWaiterExampleCom,
+				Out:   exampleWaiterExampleCom2,
 			},
 			{
-				Name:  "an accented capital folds like any other letter",
-				Input: "ÁRBOL",
-				Out:   "árbol",
+				Name:  exampleAnAccentedCapitalFoldsLikeAnyOtherLetter,
+				Input: exampleRBOL,
+				Out:   exampleRbol,
 			},
 			{
-				Name:  "a value already in lower case is left alone",
+				Name:  exampleAValueAlreadyInLowerCaseIsLeftAlone,
 				Input: exampleAlready,
 				Out:   exampleAlready,
 			},
@@ -163,6 +148,17 @@ func TestLoweredName(t *testing.T) {
 // TestUpperedName runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestUpperedName(t *testing.T) {
+	const (
+		exampleTortilla                                        = "Tortilla"
+		exampleACurrencyCodeIsShoutedTheWayTheStandardWritesIt = "a currency code is shouted the way the standard writes it"
+		exampleEur                                             = "eur"
+		exampleEUR                                             = "EUR"
+		exampleDigitsAndPunctuationAreLeftUntouched            = "digits and punctuation are left untouched"
+		exampleSku12                                           = "sku-12"
+		exampleSKU12                                           = "SKU-12"
+		exampleAValueAlreadyInUpperCaseIsLeftAlone             = "a value already in upper case is left alone"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[UpperedName, *UpperedName, string]{
@@ -173,26 +169,20 @@ func TestUpperedName(t *testing.T) {
 		ParseRule:  "",
 		Examples:   nil,
 		Candidates: []string{exampleTortilla, " "},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:  exampleRejectsTheEmptyString,
-				Input: "",
-				Rules: []string{exampleRequired},
-			},
-		},
+		Rejected:   nil,
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name:  "a currency code is shouted the way the standard writes it",
+				Name:  exampleACurrencyCodeIsShoutedTheWayTheStandardWritesIt,
 				Input: exampleEur,
 				Out:   exampleEUR,
 			},
 			{
-				Name:  "digits and punctuation are left untouched",
-				Input: "sku-12",
-				Out:   "SKU-12",
+				Name:  exampleDigitsAndPunctuationAreLeftUntouched,
+				Input: exampleSku12,
+				Out:   exampleSKU12,
 			},
 			{
-				Name:  "a value already in upper case is left alone",
+				Name:  exampleAValueAlreadyInUpperCaseIsLeftAlone,
 				Input: exampleEUR,
 				Out:   exampleEUR,
 			},
@@ -204,6 +194,15 @@ func TestUpperedName(t *testing.T) {
 // TestTrimmedOnly runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestTrimmedOnly(t *testing.T) {
+	const (
+		exampleTheBlanksAroundAPastedValueAreDropped = "the blanks around a pasted value are dropped"
+		exampleTortilla2                             = "  Tortilla  "
+		exampleTortilla                              = "Tortilla"
+		exampleTabsAndNewlinesCountAsWhitespaceToo   = "tabs and newlines count as whitespace too"
+		exampleTortilla3                             = "\tTortilla\n"
+		exampleAnAlreadyCleanValueIsLeftAlone        = "an already clean value is left alone"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[TrimmedOnly, *TrimmedOnly, string]{
@@ -217,17 +216,17 @@ func TestTrimmedOnly(t *testing.T) {
 		Rejected:   nil,
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name:  "the blanks around a pasted value are dropped",
-				Input: "  Tortilla  ",
+				Name:  exampleTheBlanksAroundAPastedValueAreDropped,
+				Input: exampleTortilla2,
 				Out:   exampleTortilla,
 			},
 			{
-				Name:  "tabs and newlines count as whitespace too",
-				Input: "\tTortilla\n",
+				Name:  exampleTabsAndNewlinesCountAsWhitespaceToo,
+				Input: exampleTortilla3,
 				Out:   exampleTortilla,
 			},
 			{
-				Name:  "an already clean value is left alone",
+				Name:  exampleAnAlreadyCleanValueIsLeftAlone,
 				Input: exampleTortilla,
 				Out:   exampleTortilla,
 			},
@@ -239,6 +238,16 @@ func TestTrimmedOnly(t *testing.T) {
 // TestSquishedOnly runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestSquishedOnly(t *testing.T) {
+	const (
+		exampleARunOfSpacesBecomesOne           = "a run of spaces becomes one"
+		exampleTortillaDePatatas                = "Tortilla   de  patatas"
+		exampleTortillaDePatatas2               = "Tortilla de patatas"
+		exampleTheEndsAreTrimmedAsWell          = "the ends are trimmed as well"
+		exampleTortillaDePatatas3               = "  Tortilla de patatas  "
+		exampleATabAndANewlineBecomePlainSpaces = "a tab and a newline become plain spaces"
+		exampleTortillaDePatatas4               = "Tortilla\tde\npatatas"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[SquishedOnly, *SquishedOnly, string]{
@@ -252,19 +261,19 @@ func TestSquishedOnly(t *testing.T) {
 		Rejected:   nil,
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name:  "a run of spaces becomes one",
-				Input: "Tortilla   de  patatas",
-				Out:   exampleTortillaDePatatas,
+				Name:  exampleARunOfSpacesBecomesOne,
+				Input: exampleTortillaDePatatas,
+				Out:   exampleTortillaDePatatas2,
 			},
 			{
-				Name:  "the ends are trimmed as well",
-				Input: "  Tortilla de patatas  ",
-				Out:   exampleTortillaDePatatas,
+				Name:  exampleTheEndsAreTrimmedAsWell,
+				Input: exampleTortillaDePatatas3,
+				Out:   exampleTortillaDePatatas2,
 			},
 			{
-				Name:  "a tab and a newline become plain spaces",
-				Input: "Tortilla\tde\npatatas",
-				Out:   exampleTortillaDePatatas,
+				Name:  exampleATabAndANewlineBecomePlainSpaces,
+				Input: exampleTortillaDePatatas4,
+				Out:   exampleTortillaDePatatas2,
 			},
 		},
 		RefusesFloat: false,
@@ -274,6 +283,17 @@ func TestSquishedOnly(t *testing.T) {
 // TestLoweredOnly runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestLoweredOnly(t *testing.T) {
+	const (
+		exampleAnAddressIsFoldedToOneCanonicalSpelling  = "an address is folded to one canonical spelling"
+		exampleWaiterExampleCom                         = "Waiter@Example.Com"
+		exampleWaiterExampleCom2                        = "waiter@example.com"
+		exampleAnAccentedCapitalFoldsLikeAnyOtherLetter = "an accented capital folds like any other letter"
+		exampleRBOL                                     = "ÁRBOL"
+		exampleRbol                                     = "árbol"
+		exampleAValueAlreadyInLowerCaseIsLeftAlone      = "a value already in lower case is left alone"
+		exampleAlready                                  = "already"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[LoweredOnly, *LoweredOnly, string]{
@@ -287,17 +307,17 @@ func TestLoweredOnly(t *testing.T) {
 		Rejected:   nil,
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name:  "an address is folded to one canonical spelling",
-				Input: "Waiter@Example.Com",
-				Out:   exampleWaiterExampleCom,
+				Name:  exampleAnAddressIsFoldedToOneCanonicalSpelling,
+				Input: exampleWaiterExampleCom,
+				Out:   exampleWaiterExampleCom2,
 			},
 			{
-				Name:  "an accented capital folds like any other letter",
-				Input: "ÁRBOL",
-				Out:   "árbol",
+				Name:  exampleAnAccentedCapitalFoldsLikeAnyOtherLetter,
+				Input: exampleRBOL,
+				Out:   exampleRbol,
 			},
 			{
-				Name:  "a value already in lower case is left alone",
+				Name:  exampleAValueAlreadyInLowerCaseIsLeftAlone,
 				Input: exampleAlready,
 				Out:   exampleAlready,
 			},
@@ -309,6 +329,16 @@ func TestLoweredOnly(t *testing.T) {
 // TestUpperedOnly runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestUpperedOnly(t *testing.T) {
+	const (
+		exampleACurrencyCodeIsShoutedTheWayTheStandardWritesIt = "a currency code is shouted the way the standard writes it"
+		exampleEur                                             = "eur"
+		exampleEUR                                             = "EUR"
+		exampleDigitsAndPunctuationAreLeftUntouched            = "digits and punctuation are left untouched"
+		exampleSku12                                           = "sku-12"
+		exampleSKU12                                           = "SKU-12"
+		exampleAValueAlreadyInUpperCaseIsLeftAlone             = "a value already in upper case is left alone"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[UpperedOnly, *UpperedOnly, string]{
@@ -322,17 +352,17 @@ func TestUpperedOnly(t *testing.T) {
 		Rejected:   nil,
 		Normalized: []voguetest.Normalization[string]{
 			{
-				Name:  "a currency code is shouted the way the standard writes it",
+				Name:  exampleACurrencyCodeIsShoutedTheWayTheStandardWritesIt,
 				Input: exampleEur,
 				Out:   exampleEUR,
 			},
 			{
-				Name:  "digits and punctuation are left untouched",
-				Input: "sku-12",
-				Out:   "SKU-12",
+				Name:  exampleDigitsAndPunctuationAreLeftUntouched,
+				Input: exampleSku12,
+				Out:   exampleSKU12,
 			},
 			{
-				Name:  "a value already in upper case is left alone",
+				Name:  exampleAValueAlreadyInUpperCaseIsLeftAlone,
 				Input: exampleEUR,
 				Out:   exampleEUR,
 			},
@@ -344,6 +374,11 @@ func TestUpperedOnly(t *testing.T) {
 // TestRequiredName runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestRequiredName(t *testing.T) {
+	const (
+		exampleTortilla              = "Tortilla"
+		exampleRejectsTheEmptyString = "rejects the empty string"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[RequiredName, *RequiredName, string]{
@@ -356,9 +391,10 @@ func TestRequiredName(t *testing.T) {
 		Candidates: []string{exampleTortilla, " "},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  exampleRejectsTheEmptyString,
-				Input: "",
-				Rules: []string{exampleRequired},
+				Name:      exampleRejectsTheEmptyString,
+				Input:     "",
+				Rules:     []string{"required"},
+				Described: true,
 			},
 		},
 		Normalized:   nil,
@@ -369,6 +405,8 @@ func TestRequiredName(t *testing.T) {
 // TestShortName runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestShortName(t *testing.T) {
+	const exampleMin = "min"
+
 	t.Parallel()
 
 	voguetest.Scalar[ShortName, *ShortName, string]{
@@ -381,9 +419,10 @@ func TestShortName(t *testing.T) {
 		Candidates: []string{"a"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects the empty string is shorter than one rune",
-				Input: "",
-				Rules: []string{exampleMin},
+				Name:      "rejects the empty string is shorter than one rune",
+				Input:     "",
+				Rules:     []string{exampleMin},
+				Described: true,
 			},
 		},
 		Normalized:   nil,
@@ -394,6 +433,8 @@ func TestShortName(t *testing.T) {
 // TestLongerName runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestLongerName(t *testing.T) {
+	const exampleMin = "min"
+
 	t.Parallel()
 
 	voguetest.Scalar[LongerName, *LongerName, string]{
@@ -406,9 +447,10 @@ func TestLongerName(t *testing.T) {
 		Candidates: []string{"añó"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects two runes fall short of three",
-				Input: "ab",
-				Rules: []string{exampleMin},
+				Name:      "rejects two runes fall short of three",
+				Input:     "ab",
+				Rules:     []string{exampleMin},
+				Described: true,
 			},
 		},
 		Normalized:   nil,
@@ -419,6 +461,8 @@ func TestLongerName(t *testing.T) {
 // TestBoundedName runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestBoundedName(t *testing.T) {
+	const exampleMax = "max"
+
 	t.Parallel()
 
 	voguetest.Scalar[BoundedName, *BoundedName, string]{
@@ -431,14 +475,16 @@ func TestBoundedName(t *testing.T) {
 		Candidates: []string{"abcd", ""},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects one rune more than the bound holds",
-				Input: "abcde",
-				Rules: []string{exampleMax},
+				Name:      "rejects one rune more than the bound holds",
+				Input:     "abcde",
+				Rules:     []string{exampleMax},
+				Described: true,
 			},
 			{
-				Name:  "rejects five accented runes are five, not ten",
-				Input: "añóra",
-				Rules: []string{exampleMax},
+				Name:      "rejects five accented runes are five, not ten",
+				Input:     "añóra",
+				Rules:     []string{exampleMax},
+				Described: true,
 			},
 		},
 		Normalized:   nil,
@@ -449,6 +495,11 @@ func TestBoundedName(t *testing.T) {
 // TestCurrencyCode runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestCurrencyCode(t *testing.T) {
+	const (
+		exampleEUR = "EUR"
+		exampleLen = "len"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[CurrencyCode, *CurrencyCode, string]{
@@ -461,19 +512,22 @@ func TestCurrencyCode(t *testing.T) {
 		Candidates: []string{exampleEUR, "añó"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects a code one character short",
-				Input: "EU",
-				Rules: []string{exampleLen},
+				Name:      "rejects a code one character short",
+				Input:     "EU",
+				Rules:     []string{exampleLen},
+				Described: true,
 			},
 			{
-				Name:  "rejects a code one character long",
-				Input: "EURO",
-				Rules: []string{exampleLen},
+				Name:      "rejects a code one character long",
+				Input:     "EURO",
+				Rules:     []string{exampleLen},
+				Described: true,
 			},
 			{
-				Name:  "rejects the empty string, which has no characters at all",
-				Input: "",
-				Rules: []string{exampleLen},
+				Name:      "rejects the empty string, which has no characters at all",
+				Input:     "",
+				Rules:     []string{exampleLen},
+				Described: true,
 			},
 		},
 		Normalized:   nil,
@@ -484,6 +538,12 @@ func TestCurrencyCode(t *testing.T) {
 // TestEmailAddress runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestEmailAddress(t *testing.T) {
+	const (
+		exampleWaiterExampleCom2     = "waiter@example.com"
+		exampleEmail                 = "email"
+		exampleRejectsTheEmptyString = "rejects the empty string"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[EmailAddress, *EmailAddress, string]{
@@ -493,22 +553,25 @@ func TestEmailAddress(t *testing.T) {
 		FromString: nil,
 		ParseRule:  "",
 		Examples:   nil,
-		Candidates: []string{exampleWaiterExampleCom, "orders+tab7@example.com"},
+		Candidates: []string{exampleWaiterExampleCom2, "orders+tab7@example.com"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects a local part with no domain",
-				Input: "waiter",
-				Rules: []string{exampleEmail},
+				Name:      "rejects a local part with no domain",
+				Input:     "waiter",
+				Rules:     []string{exampleEmail},
+				Described: false,
 			},
 			{
-				Name:  "rejects a display name, which a stored address must not carry",
-				Input: "Waiter <a@b.test>",
-				Rules: []string{exampleEmail},
+				Name:      "rejects a display name, which a stored address must not carry",
+				Input:     "Waiter <a@b.test>",
+				Rules:     []string{exampleEmail},
+				Described: false,
 			},
 			{
-				Name:  exampleRejectsTheEmptyString,
-				Input: "",
-				Rules: []string{exampleEmail},
+				Name:      exampleRejectsTheEmptyString,
+				Input:     "",
+				Rules:     []string{exampleEmail},
+				Described: false,
 			},
 		},
 		Normalized:   nil,
@@ -519,6 +582,11 @@ func TestEmailAddress(t *testing.T) {
 // TestMenuLink runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestMenuLink(t *testing.T) {
+	const (
+		exampleUrl                   = "url"
+		exampleRejectsTheEmptyString = "rejects the empty string"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[MenuLink, *MenuLink, string]{
@@ -531,19 +599,22 @@ func TestMenuLink(t *testing.T) {
 		Candidates: []string{"https://example.com/menu", "http://example.com:8080/menu?tab=7"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects a bare host with no scheme",
-				Input: "example.com",
-				Rules: []string{exampleUrl},
+				Name:      "rejects a bare host with no scheme",
+				Input:     "example.com",
+				Rules:     []string{exampleUrl},
+				Described: false,
 			},
 			{
-				Name:  "rejects a scheme that is not http or https",
-				Input: "ftp://example.com",
-				Rules: []string{exampleUrl},
+				Name:      "rejects a scheme that is not http or https",
+				Input:     "ftp://example.com",
+				Rules:     []string{exampleUrl},
+				Described: false,
 			},
 			{
-				Name:  exampleRejectsTheEmptyString,
-				Input: "",
-				Rules: []string{exampleUrl},
+				Name:      exampleRejectsTheEmptyString,
+				Input:     "",
+				Rules:     []string{exampleUrl},
+				Described: false,
 			},
 		},
 		Normalized:   nil,
@@ -554,6 +625,11 @@ func TestMenuLink(t *testing.T) {
 // TestExternalRef runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestExternalRef(t *testing.T) {
+	const (
+		exampleUuid                  = "uuid"
+		exampleRejectsTheEmptyString = "rejects the empty string"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[ExternalRef, *ExternalRef, string]{
@@ -566,19 +642,22 @@ func TestExternalRef(t *testing.T) {
 		Candidates: []string{"9b2b4f52-1c2d-4e5a-9f3b-6d7c8e9f0a1b", "018f3a2b-7c4d-7e8f-9a0b-1c2d3e4f5a6b"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects the undashed form, which stored ids never use",
-				Input: "9b2b4f521c2d4e5a9f3b6d7c8e9f0a1b",
-				Rules: []string{exampleUuid},
+				Name:      "rejects the undashed form, which stored ids never use",
+				Input:     "9b2b4f521c2d4e5a9f3b6d7c8e9f0a1b",
+				Rules:     []string{exampleUuid},
+				Described: false,
 			},
 			{
-				Name:  "rejects a value that is not hexadecimal at all",
-				Input: "not-a-uuid",
-				Rules: []string{exampleUuid},
+				Name:      "rejects a value that is not hexadecimal at all",
+				Input:     "not-a-uuid",
+				Rules:     []string{exampleUuid},
+				Described: false,
 			},
 			{
-				Name:  exampleRejectsTheEmptyString,
-				Input: "",
-				Rules: []string{exampleUuid},
+				Name:      exampleRejectsTheEmptyString,
+				Input:     "",
+				Rules:     []string{exampleUuid},
+				Described: false,
 			},
 		},
 		Normalized:   nil,
@@ -589,6 +668,11 @@ func TestExternalRef(t *testing.T) {
 // TestZoneName runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestZoneName(t *testing.T) {
+	const (
+		exampleTimezone              = "timezone"
+		exampleRejectsTheEmptyString = "rejects the empty string"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[ZoneName, *ZoneName, string]{
@@ -601,19 +685,28 @@ func TestZoneName(t *testing.T) {
 		Candidates: []string{"America/Argentina/Buenos_Aires", "UTC"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects a zone the database does not hold",
-				Input: "Mars/Olympus_Mons",
-				Rules: []string{exampleTimezone},
+				Name:      "rejects a zone the database does not hold",
+				Input:     "Mars/Olympus_Mons",
+				Rules:     []string{exampleTimezone},
+				Described: false,
 			},
 			{
-				Name:  "rejects the process-local zone, which names no place",
-				Input: "Local",
-				Rules: []string{exampleTimezone},
+				Name:      "rejects the process-local zone, which names no place",
+				Input:     "Local",
+				Rules:     []string{exampleTimezone},
+				Described: false,
 			},
 			{
-				Name:  exampleRejectsTheEmptyString,
-				Input: "",
-				Rules: []string{exampleTimezone},
+				Name:      "rejects a zone in the wrong case",
+				Input:     "europe/madrid",
+				Rules:     []string{exampleTimezone},
+				Described: false,
+			},
+			{
+				Name:      exampleRejectsTheEmptyString,
+				Input:     "",
+				Rules:     []string{exampleTimezone},
+				Described: false,
 			},
 		},
 		Normalized:   nil,
@@ -624,6 +717,12 @@ func TestZoneName(t *testing.T) {
 // TestStockCode runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestStockCode(t *testing.T) {
+	const (
+		exampleSKU0042 = "SKU-0042"
+		exampleSku0042 = "sku-0042"
+		exampleRegex   = "regex"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[StockCode, *StockCode, string]{
@@ -633,22 +732,25 @@ func TestStockCode(t *testing.T) {
 		FromString: nil,
 		ParseRule:  "",
 		Examples:   nil,
-		Candidates: []string{"SKU-0042", "EUR-1000"},
+		Candidates: []string{exampleSKU0042, "EUR-1000"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects the prefix is not upper case",
-				Input: exampleSku0042,
-				Rules: []string{exampleRegex},
+				Name:      "rejects the prefix is not upper case",
+				Input:     exampleSku0042,
+				Rules:     []string{exampleRegex},
+				Described: true,
 			},
 			{
-				Name:  "rejects the number is too short",
-				Input: "SKU-42",
-				Rules: []string{exampleRegex},
+				Name:      "rejects the number is too short",
+				Input:     "SKU-42",
+				Rules:     []string{exampleRegex},
+				Described: true,
 			},
 			{
-				Name:  "rejects the empty string, which an anchored pattern rejects",
-				Input: "",
-				Rules: []string{exampleRegex},
+				Name:      "rejects the empty string, which an anchored pattern rejects",
+				Input:     "",
+				Rules:     []string{exampleRegex},
+				Described: true,
 			},
 		},
 		Normalized:   nil,
@@ -659,6 +761,12 @@ func TestStockCode(t *testing.T) {
 // TestCurrency runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestCurrency(t *testing.T) {
+	const (
+		exampleEur   = "eur"
+		exampleOneof = "oneof"
+		exampleEUR   = "EUR"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[Currency, *Currency, string]{
@@ -671,14 +779,16 @@ func TestCurrency(t *testing.T) {
 		Candidates: []string{exampleEur, "gbp"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects a currency nobody listed",
-				Input: "chf",
-				Rules: []string{exampleOneof},
+				Name:      "rejects a currency nobody listed",
+				Input:     "chf",
+				Rules:     []string{exampleOneof},
+				Described: true,
 			},
 			{
-				Name:  "rejects the right item in the wrong case",
-				Input: exampleEUR,
-				Rules: []string{exampleOneof},
+				Name:      "rejects the right item in the wrong case",
+				Input:     exampleEUR,
+				Rules:     []string{exampleOneof},
+				Described: true,
 			},
 		},
 		Normalized:   nil,
@@ -689,6 +799,8 @@ func TestCurrency(t *testing.T) {
 // TestLetterName runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestLetterName(t *testing.T) {
+	const exampleTortilla = "Tortilla"
+
 	t.Parallel()
 
 	voguetest.Scalar[LetterName, *LetterName, string]{
@@ -701,14 +813,16 @@ func TestLetterName(t *testing.T) {
 		Candidates: []string{exampleTortilla, "Muñoz"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects a digit among the letters",
-				Input: "Tab7",
-				Rules: []string{"alpha"},
+				Name:      "rejects a digit among the letters",
+				Input:     "Tab7",
+				Rules:     []string{"alpha"},
+				Described: false,
 			},
 			{
-				Name:  "rejects a space, which is not a letter",
-				Input: "de patatas",
-				Rules: []string{"alpha"},
+				Name:      "rejects a space, which is not a letter",
+				Input:     "de patatas",
+				Rules:     []string{"alpha"},
+				Described: false,
 			},
 		},
 		Normalized:   nil,
@@ -719,6 +833,8 @@ func TestLetterName(t *testing.T) {
 // TestHandle runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestHandle(t *testing.T) {
+	const exampleSku0042 = "sku-0042"
+
 	t.Parallel()
 
 	voguetest.Scalar[Handle, *Handle, string]{
@@ -731,14 +847,16 @@ func TestHandle(t *testing.T) {
 		Candidates: []string{"Tab7", "sku0042"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects a hyphen, which is neither a letter nor a digit",
-				Input: exampleSku0042,
-				Rules: []string{"alphanum"},
+				Name:      "rejects a hyphen, which is neither a letter nor a digit",
+				Input:     exampleSku0042,
+				Rules:     []string{"alphanum"},
+				Described: false,
 			},
 			{
-				Name:  "rejects a space",
-				Input: "tab 7",
-				Rules: []string{"alphanum"},
+				Name:      "rejects a space",
+				Input:     "tab 7",
+				Rules:     []string{"alphanum"},
+				Described: false,
 			},
 		},
 		Normalized:   nil,
@@ -749,6 +867,8 @@ func TestHandle(t *testing.T) {
 // TestPhoneDigits runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestPhoneDigits(t *testing.T) {
+	const exampleNumeric = "numeric"
+
 	t.Parallel()
 
 	voguetest.Scalar[PhoneDigits, *PhoneDigits, string]{
@@ -761,19 +881,22 @@ func TestPhoneDigits(t *testing.T) {
 		Candidates: []string{"0042", "600123456"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects a sign, which a digit string does not carry",
-				Input: "-42",
-				Rules: []string{exampleNumeric},
+				Name:      "rejects a sign, which a digit string does not carry",
+				Input:     "-42",
+				Rules:     []string{exampleNumeric},
+				Described: false,
 			},
 			{
-				Name:  "rejects a decimal point",
-				Input: "4.2",
-				Rules: []string{exampleNumeric},
+				Name:      "rejects a decimal point",
+				Input:     "4.2",
+				Rules:     []string{exampleNumeric},
+				Described: false,
 			},
 			{
-				Name:  "rejects Arabic-Indic digits, which no parser here would read",
-				Input: "٤٢",
-				Rules: []string{exampleNumeric},
+				Name:      "rejects Arabic-Indic digits, which no parser here would read",
+				Input:     "٤٢",
+				Rules:     []string{exampleNumeric},
+				Described: false,
 			},
 		},
 		Normalized:   nil,
@@ -796,14 +919,16 @@ func TestLegacyCode(t *testing.T) {
 		Candidates: []string{"tortilla", "SKU-0042!"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects an accented letter above U+007F",
-				Input: "Muñoz",
-				Rules: []string{"ascii"},
+				Name:      "rejects an accented letter above U+007F",
+				Input:     "Muñoz",
+				Rules:     []string{"ascii"},
+				Described: false,
 			},
 			{
-				Name:  "rejects a combining accent, which is not ASCII either",
-				Input: "café",
-				Rules: []string{"ascii"},
+				Name:      "rejects a combining accent, which is not ASCII either",
+				Input:     "café",
+				Rules:     []string{"ascii"},
+				Described: false,
 			},
 		},
 		Normalized:   nil,
@@ -814,6 +939,8 @@ func TestLegacyCode(t *testing.T) {
 // TestSingleLine runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestSingleLine(t *testing.T) {
+	const exampleTortillaDePatatas2 = "Tortilla de patatas"
+
 	t.Parallel()
 
 	voguetest.Scalar[SingleLine, *SingleLine, string]{
@@ -823,17 +950,19 @@ func TestSingleLine(t *testing.T) {
 		FromString: nil,
 		ParseRule:  "",
 		Examples:   nil,
-		Candidates: []string{exampleTortillaDePatatas, "Muñoz — 42 €"},
+		Candidates: []string{exampleTortillaDePatatas2, "Muñoz — 42 €"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects a newline smuggled into a single-line value",
-				Input: "Tortilla\nde patatas",
-				Rules: []string{"printable"},
+				Name:      "rejects a newline smuggled into a single-line value",
+				Input:     "Tortilla\nde patatas",
+				Rules:     []string{"printable"},
+				Described: false,
 			},
 			{
-				Name:  "rejects a tab, which is a control character too",
-				Input: "Tab\t7",
-				Rules: []string{"printable"},
+				Name:      "rejects a tab, which is a control character too",
+				Input:     "Tab\t7",
+				Rules:     []string{"printable"},
+				Described: false,
 			},
 		},
 		Normalized:   nil,
@@ -856,14 +985,16 @@ func TestSlug(t *testing.T) {
 		Candidates: []string{"tortilla-de-patatas", "SKU0042"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects a space in the middle",
-				Input: "tortilla de patatas",
-				Rules: []string{"nospace"},
+				Name:      "rejects a space in the middle",
+				Input:     "tortilla de patatas",
+				Rules:     []string{"nospace"},
+				Described: false,
 			},
 			{
-				Name:  "rejects a trailing space a paste left behind",
-				Input: "sku0042 ",
-				Rules: []string{"nospace"},
+				Name:      "rejects a trailing space a paste left behind",
+				Input:     "sku0042 ",
+				Rules:     []string{"nospace"},
+				Described: false,
 			},
 		},
 		Normalized:   nil,
@@ -874,6 +1005,12 @@ func TestSlug(t *testing.T) {
 // TestProductCode runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestProductCode(t *testing.T) {
+	const (
+		exampleSKU0042 = "SKU-0042"
+		exampleSku0042 = "sku-0042"
+		examplePrefix  = "prefix"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[ProductCode, *ProductCode, string]{
@@ -883,22 +1020,25 @@ func TestProductCode(t *testing.T) {
 		FromString: nil,
 		ParseRule:  "",
 		Examples:   nil,
-		Candidates: []string{"SKU-0042", "SKU-"},
+		Candidates: []string{exampleSKU0042, "SKU-"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects the right prefix in the wrong case",
-				Input: exampleSku0042,
-				Rules: []string{examplePrefix},
+				Name:      "rejects the right prefix in the wrong case",
+				Input:     exampleSku0042,
+				Rules:     []string{examplePrefix},
+				Described: false,
 			},
 			{
-				Name:  "rejects no namespace at all",
-				Input: "0042",
-				Rules: []string{examplePrefix},
+				Name:      "rejects no namespace at all",
+				Input:     "0042",
+				Rules:     []string{examplePrefix},
+				Described: false,
 			},
 			{
-				Name:  "rejects the empty string, which starts with nothing",
-				Input: "",
-				Rules: []string{examplePrefix},
+				Name:      "rejects the empty string, which starts with nothing",
+				Input:     "",
+				Rules:     []string{examplePrefix},
+				Described: false,
 			},
 		},
 		Normalized:   nil,
@@ -921,14 +1061,16 @@ func TestDocumentFile(t *testing.T) {
 		Candidates: []string{"invoice.pdf", ".pdf"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects the right extension in the wrong case",
-				Input: "invoice.PDF",
-				Rules: []string{"suffix"},
+				Name:      "rejects the right extension in the wrong case",
+				Input:     "invoice.PDF",
+				Rules:     []string{"suffix"},
+				Described: false,
 			},
 			{
-				Name:  "rejects a different extension",
-				Input: "invoice.png",
-				Rules: []string{"suffix"},
+				Name:      "rejects a different extension",
+				Input:     "invoice.png",
+				Rules:     []string{"suffix"},
+				Described: false,
 			},
 		},
 		Normalized:   nil,
@@ -951,14 +1093,16 @@ func TestResourcePath(t *testing.T) {
 		Candidates: []string{"tabs/7", "/"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects a different separator",
-				Input: "tabs-7",
-				Rules: []string{"contains"},
+				Name:      "rejects a different separator",
+				Input:     "tabs-7",
+				Rules:     []string{"contains"},
+				Described: false,
 			},
 			{
-				Name:  "rejects the empty string, which contains nothing",
-				Input: "",
-				Rules: []string{"contains"},
+				Name:      "rejects the empty string, which contains nothing",
+				Input:     "",
+				Rules:     []string{"contains"},
+				Described: false,
 			},
 		},
 		Normalized:   nil,
@@ -981,14 +1125,16 @@ func TestFlatName(t *testing.T) {
 		Candidates: []string{"tabs-7", ""},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects the forbidden separator in the middle",
-				Input: "tabs/7",
-				Rules: []string{"excludes"},
+				Name:      "rejects the forbidden separator in the middle",
+				Input:     "tabs/7",
+				Rules:     []string{"excludes"},
+				Described: false,
 			},
 			{
-				Name:  "rejects the forbidden separator at the front",
-				Input: "/tabs",
-				Rules: []string{"excludes"},
+				Name:      "rejects the forbidden separator at the front",
+				Input:     "/tabs",
+				Rules:     []string{"excludes"},
+				Described: false,
 			},
 		},
 		Normalized:   nil,
@@ -999,6 +1145,11 @@ func TestFlatName(t *testing.T) {
 // TestCovers runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestCovers(t *testing.T) {
+	const (
+		exampleInt = "int"
+		exampleMin = "min"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[Covers, *Covers, int64]{
@@ -1011,14 +1162,16 @@ func TestCovers(t *testing.T) {
 		Candidates: []int64{1, 42},
 		Rejected: []voguetest.Rejection[int64]{
 			{
-				Name:  "rejects a table with nobody at it",
-				Input: 0,
-				Rules: []string{exampleMin},
+				Name:      "rejects a table with nobody at it",
+				Input:     0,
+				Rules:     []string{exampleMin},
+				Described: true,
 			},
 			{
-				Name:  "rejects a negative count is below any positive bound",
-				Input: -5,
-				Rules: []string{exampleMin},
+				Name:      "rejects a negative count is below any positive bound",
+				Input:     -5,
+				Rules:     []string{exampleMin},
+				Described: true,
 			},
 		},
 		Normalized:   nil,
@@ -1029,6 +1182,11 @@ func TestCovers(t *testing.T) {
 // TestSeats runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestSeats(t *testing.T) {
+	const (
+		exampleInt = "int"
+		exampleMax = "max"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[Seats, *Seats, int64]{
@@ -1041,14 +1199,16 @@ func TestSeats(t *testing.T) {
 		Candidates: []int64{200, -1},
 		Rejected: []voguetest.Rejection[int64]{
 			{
-				Name:  "rejects one guest more than the room holds",
-				Input: 201,
-				Rules: []string{exampleMax},
+				Name:      "rejects one guest more than the room holds",
+				Input:     201,
+				Rules:     []string{exampleMax},
+				Described: true,
 			},
 			{
-				Name:  "rejects a value far above the bound",
-				Input: 1000,
-				Rules: []string{exampleMax},
+				Name:      "rejects a value far above the bound",
+				Input:     1000,
+				Rules:     []string{exampleMax},
+				Described: true,
 			},
 		},
 		Normalized:   nil,
@@ -1059,6 +1219,11 @@ func TestSeats(t *testing.T) {
 // TestCourseCount runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestCourseCount(t *testing.T) {
+	const (
+		exampleInt   = "int"
+		exampleOneof = "oneof"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[CourseCount, *CourseCount, int64]{
@@ -1071,14 +1236,16 @@ func TestCourseCount(t *testing.T) {
 		Candidates: []int64{1, 4},
 		Rejected: []voguetest.Rejection[int64]{
 			{
-				Name:  "rejects a number between two allowed ones",
-				Input: 3,
-				Rules: []string{exampleOneof},
+				Name:      "rejects a number between two allowed ones",
+				Input:     3,
+				Rules:     []string{exampleOneof},
+				Described: true,
 			},
 			{
-				Name:  "rejects a number below the whole list",
-				Input: 0,
-				Rules: []string{exampleOneof},
+				Name:      "rejects a number below the whole list",
+				Input:     0,
+				Rules:     []string{exampleOneof},
+				Described: true,
 			},
 		},
 		Normalized:   nil,
@@ -1089,6 +1256,11 @@ func TestCourseCount(t *testing.T) {
 // TestPortions runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestPortions(t *testing.T) {
+	const (
+		exampleInt      = "int"
+		examplePositive = "positive"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[Portions, *Portions, int64]{
@@ -1101,14 +1273,16 @@ func TestPortions(t *testing.T) {
 		Candidates: []int64{1, 42},
 		Rejected: []voguetest.Rejection[int64]{
 			{
-				Name:  "rejects zero, which is not positive",
-				Input: 0,
-				Rules: []string{examplePositive},
+				Name:      "rejects zero, which is not positive",
+				Input:     0,
+				Rules:     []string{examplePositive},
+				Described: true,
 			},
 			{
-				Name:  "rejects a negative count",
-				Input: -1,
-				Rules: []string{examplePositive},
+				Name:      "rejects a negative count",
+				Input:     -1,
+				Rules:     []string{examplePositive},
+				Described: true,
 			},
 		},
 		Normalized:   nil,
@@ -1119,6 +1293,11 @@ func TestPortions(t *testing.T) {
 // TestStockLevel runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestStockLevel(t *testing.T) {
+	const (
+		exampleInt    = "int"
+		exampleNonneg = "nonneg"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[StockLevel, *StockLevel, int64]{
@@ -1131,14 +1310,16 @@ func TestStockLevel(t *testing.T) {
 		Candidates: []int64{0, 7},
 		Rejected: []voguetest.Rejection[int64]{
 			{
-				Name:  "rejects one below the floor",
-				Input: -1,
-				Rules: []string{exampleNonneg},
+				Name:      "rejects one below the floor",
+				Input:     -1,
+				Rules:     []string{exampleNonneg},
+				Described: true,
 			},
 			{
-				Name:  "rejects a quantity nobody can have",
-				Input: -100,
-				Rules: []string{exampleNonneg},
+				Name:      "rejects a quantity nobody can have",
+				Input:     -100,
+				Rules:     []string{exampleNonneg},
+				Described: true,
 			},
 		},
 		Normalized:   nil,
@@ -1149,6 +1330,8 @@ func TestStockLevel(t *testing.T) {
 // TestSlotMinutes runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestSlotMinutes(t *testing.T) {
+	const exampleInt = "int"
+
 	t.Parallel()
 
 	voguetest.Scalar[SlotMinutes, *SlotMinutes, int64]{
@@ -1161,14 +1344,16 @@ func TestSlotMinutes(t *testing.T) {
 		Candidates: []int64{30, 0, -15},
 		Rejected: []voguetest.Rejection[int64]{
 			{
-				Name:  "rejects a duration that does not fill whole slots",
-				Input: 20,
-				Rules: []string{"multipleof"},
+				Name:      "rejects a duration that does not fill whole slots",
+				Input:     20,
+				Rules:     []string{"multipleof"},
+				Described: false,
 			},
 			{
-				Name:  "rejects less than one slot",
-				Input: 1,
-				Rules: []string{"multipleof"},
+				Name:      "rejects less than one slot",
+				Input:     1,
+				Rules:     []string{"multipleof"},
+				Described: false,
 			},
 		},
 		Normalized:   nil,
@@ -1179,6 +1364,11 @@ func TestSlotMinutes(t *testing.T) {
 // TestMinRate runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestMinRate(t *testing.T) {
+	const (
+		exampleDecimal = "decimal"
+		exampleMin     = "min"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[MinRate, *MinRate, string]{
@@ -1191,14 +1381,16 @@ func TestMinRate(t *testing.T) {
 		Candidates: []string{"0.5", "0"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects a quarter below a floor of nothing",
-				Input: "-0.25",
-				Rules: []string{exampleMin},
+				Name:      "rejects a quarter below a floor of nothing",
+				Input:     "-0.25",
+				Rules:     []string{exampleMin},
+				Described: true,
 			},
 			{
-				Name:  "rejects a whole unit below the floor",
-				Input: "-1",
-				Rules: []string{exampleMin},
+				Name:      "rejects a whole unit below the floor",
+				Input:     "-1",
+				Rules:     []string{exampleMin},
+				Described: true,
 			},
 		},
 		Normalized:   nil,
@@ -1209,6 +1401,12 @@ func TestMinRate(t *testing.T) {
 // TestMaxRate runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestMaxRate(t *testing.T) {
+	const (
+		exampleDecimal = "decimal"
+		example15      = "1.5"
+		exampleMax     = "max"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[MaxRate, *MaxRate, string]{
@@ -1221,14 +1419,16 @@ func TestMaxRate(t *testing.T) {
 		Candidates: []string{"1", "0.25"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects half again more than the whole",
-				Input: example15,
-				Rules: []string{exampleMax},
+				Name:      "rejects half again more than the whole",
+				Input:     example15,
+				Rules:     []string{exampleMax},
+				Described: true,
 			},
 			{
-				Name:  "rejects twice the whole bill",
-				Input: "2",
-				Rules: []string{exampleMax},
+				Name:      "rejects twice the whole bill",
+				Input:     "2",
+				Rules:     []string{exampleMax},
+				Described: true,
 			},
 		},
 		Normalized:   nil,
@@ -1239,6 +1439,12 @@ func TestMaxRate(t *testing.T) {
 // TestUnitWeight runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestUnitWeight(t *testing.T) {
+	const (
+		exampleDecimal  = "decimal"
+		example15       = "1.5"
+		examplePositive = "positive"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[UnitWeight, *UnitWeight, string]{
@@ -1251,14 +1457,16 @@ func TestUnitWeight(t *testing.T) {
 		Candidates: []string{example15, "0.001"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects zero written at three decimal places is still zero",
-				Input: "0.000",
-				Rules: []string{examplePositive},
+				Name:      "rejects zero written at three decimal places is still zero",
+				Input:     "0.000",
+				Rules:     []string{examplePositive},
+				Described: true,
 			},
 			{
-				Name:  "rejects half a unit less than nothing",
-				Input: "-0.5",
-				Rules: []string{examplePositive},
+				Name:      "rejects half a unit less than nothing",
+				Input:     "-0.5",
+				Rules:     []string{examplePositive},
+				Described: true,
 			},
 		},
 		Normalized:   nil,
@@ -1269,6 +1477,11 @@ func TestUnitWeight(t *testing.T) {
 // TestShelfWeight runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestShelfWeight(t *testing.T) {
+	const (
+		exampleDecimal = "decimal"
+		exampleNonneg  = "nonneg"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[ShelfWeight, *ShelfWeight, string]{
@@ -1281,14 +1494,16 @@ func TestShelfWeight(t *testing.T) {
 		Candidates: []string{"0", "12.750"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects a hundredth below the floor",
-				Input: "-0.01",
-				Rules: []string{exampleNonneg},
+				Name:      "rejects a hundredth below the floor",
+				Input:     "-0.01",
+				Rules:     []string{exampleNonneg},
+				Described: true,
 			},
 			{
-				Name:  "rejects a quantity nobody can have",
-				Input: "-100",
-				Rules: []string{exampleNonneg},
+				Name:      "rejects a quantity nobody can have",
+				Input:     "-100",
+				Rules:     []string{exampleNonneg},
+				Described: true,
 			},
 		},
 		Normalized:   nil,
@@ -1299,6 +1514,8 @@ func TestShelfWeight(t *testing.T) {
 // TestTaxRate runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestTaxRate(t *testing.T) {
+	const exampleDecimal = "decimal"
+
 	t.Parallel()
 
 	voguetest.Scalar[TaxRate, *TaxRate, string]{
@@ -1311,9 +1528,10 @@ func TestTaxRate(t *testing.T) {
 		Candidates: []string{"0.1234", "0.5"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects one decimal place more than the column holds",
-				Input: "0.12345",
-				Rules: []string{"scale"},
+				Name:      "rejects one decimal place more than the column holds",
+				Input:     "0.12345",
+				Rules:     []string{"scale"},
+				Described: false,
 			},
 		},
 		Normalized:   nil,
@@ -1324,6 +1542,11 @@ func TestTaxRate(t *testing.T) {
 // TestPreciseWeight runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestPreciseWeight(t *testing.T) {
+	const (
+		exampleDecimal = "decimal"
+		example15      = "1.5"
+	)
+
 	t.Parallel()
 
 	voguetest.Scalar[PreciseWeight, *PreciseWeight, string]{
@@ -1336,9 +1559,10 @@ func TestPreciseWeight(t *testing.T) {
 		Candidates: []string{example15, "12.750"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects a weight measured finer than the scale reads",
-				Input: "0.1234",
-				Rules: []string{"scale"},
+				Name:      "rejects a weight measured finer than the scale reads",
+				Input:     "0.1234",
+				Rules:     []string{"scale"},
+				Described: false,
 			},
 		},
 		Normalized:   nil,
@@ -1349,6 +1573,8 @@ func TestPreciseWeight(t *testing.T) {
 // TestAdjustment runs the value-object suite against the examples the directive
 // and its rules declare.
 func TestAdjustment(t *testing.T) {
+	const exampleDecimal = "decimal"
+
 	t.Parallel()
 
 	voguetest.Scalar[Adjustment, *Adjustment, string]{
@@ -1361,17 +1587,247 @@ func TestAdjustment(t *testing.T) {
 		Candidates: []string{"1", "-0.5"},
 		Rejected: []voguetest.Rejection[string]{
 			{
-				Name:  "rejects nothing to adjust",
-				Input: "0",
-				Rules: []string{"nonzero"},
+				Name:      "rejects nothing to adjust",
+				Input:     "0",
+				Rules:     []string{"nonzero"},
+				Described: false,
 			},
 			{
-				Name:  "rejects nothing, written to the cent",
-				Input: "0.00",
-				Rules: []string{"nonzero"},
+				Name:      "rejects nothing, written to the cent",
+				Input:     "0.00",
+				Rules:     []string{"nonzero"},
+				Described: false,
 			},
 		},
 		Normalized:   nil,
 		RefusesFloat: true,
+	}.Run(t)
+}
+
+// TestLoweredCurrency runs the value-object suite against the examples the directive
+// and its rules declare.
+func TestLoweredCurrency(t *testing.T) {
+	const (
+		exampleEur                                      = "eur"
+		exampleAnAddressIsFoldedToOneCanonicalSpelling  = "an address is folded to one canonical spelling"
+		exampleWaiterExampleCom                         = "Waiter@Example.Com"
+		exampleWaiterExampleCom2                        = "waiter@example.com"
+		exampleAnAccentedCapitalFoldsLikeAnyOtherLetter = "an accented capital folds like any other letter"
+		exampleRBOL                                     = "ÁRBOL"
+		exampleRbol                                     = "árbol"
+		exampleAValueAlreadyInLowerCaseIsLeftAlone      = "a value already in lower case is left alone"
+		exampleAlready                                  = "already"
+	)
+
+	t.Parallel()
+
+	voguetest.Scalar[LoweredCurrency, *LoweredCurrency, string]{
+		Field:      "loweredCurrency",
+		New:        NewLoweredCurrency,
+		Get:        nil,
+		FromString: nil,
+		ParseRule:  "",
+		Examples:   nil,
+		Candidates: []string{exampleEur, "gbp"},
+		Rejected:   nil,
+		Normalized: []voguetest.Normalization[string]{
+			{
+				Name:  exampleAnAddressIsFoldedToOneCanonicalSpelling,
+				Input: exampleWaiterExampleCom,
+				Out:   exampleWaiterExampleCom2,
+			},
+			{
+				Name:  exampleAnAccentedCapitalFoldsLikeAnyOtherLetter,
+				Input: exampleRBOL,
+				Out:   exampleRbol,
+			},
+			{
+				Name:  exampleAValueAlreadyInLowerCaseIsLeftAlone,
+				Input: exampleAlready,
+				Out:   exampleAlready,
+			},
+		},
+		RefusesFloat: false,
+	}.Run(t)
+}
+
+// TestShoutedSku runs the value-object suite against the examples the directive
+// and its rules declare.
+func TestShoutedSku(t *testing.T) {
+	const (
+		exampleSKU0042                                         = "SKU-0042"
+		exampleACurrencyCodeIsShoutedTheWayTheStandardWritesIt = "a currency code is shouted the way the standard writes it"
+		exampleEur                                             = "eur"
+		exampleEUR                                             = "EUR"
+		exampleDigitsAndPunctuationAreLeftUntouched            = "digits and punctuation are left untouched"
+		exampleSku12                                           = "sku-12"
+		exampleSKU12                                           = "SKU-12"
+		exampleAValueAlreadyInUpperCaseIsLeftAlone             = "a value already in upper case is left alone"
+	)
+
+	t.Parallel()
+
+	voguetest.Scalar[ShoutedSku, *ShoutedSku, string]{
+		Field:      "shoutedSku",
+		New:        NewShoutedSku,
+		Get:        nil,
+		FromString: nil,
+		ParseRule:  "",
+		Examples:   nil,
+		Candidates: []string{exampleSKU0042, "SKU-"},
+		Rejected:   nil,
+		Normalized: []voguetest.Normalization[string]{
+			{
+				Name:  exampleACurrencyCodeIsShoutedTheWayTheStandardWritesIt,
+				Input: exampleEur,
+				Out:   exampleEUR,
+			},
+			{
+				Name:  exampleDigitsAndPunctuationAreLeftUntouched,
+				Input: exampleSku12,
+				Out:   exampleSKU12,
+			},
+			{
+				Name:  exampleAValueAlreadyInUpperCaseIsLeftAlone,
+				Input: exampleEUR,
+				Out:   exampleEUR,
+			},
+		},
+		RefusesFloat: false,
+	}.Run(t)
+}
+
+// TestTrimmedSlug runs the value-object suite against the examples the directive
+// and its rules declare.
+func TestTrimmedSlug(t *testing.T) {
+	const (
+		exampleTheBlanksAroundAPastedValueAreDropped = "the blanks around a pasted value are dropped"
+		exampleTortilla2                             = "  Tortilla  "
+		exampleTortilla                              = "Tortilla"
+		exampleTabsAndNewlinesCountAsWhitespaceToo   = "tabs and newlines count as whitespace too"
+		exampleTortilla3                             = "\tTortilla\n"
+		exampleAnAlreadyCleanValueIsLeftAlone        = "an already clean value is left alone"
+	)
+
+	t.Parallel()
+
+	voguetest.Scalar[TrimmedSlug, *TrimmedSlug, string]{
+		Field:      "trimmedSlug",
+		New:        NewTrimmedSlug,
+		Get:        nil,
+		FromString: nil,
+		ParseRule:  "",
+		Examples:   nil,
+		Candidates: []string{"tortilla-de-patatas", "SKU0042"},
+		Rejected:   nil,
+		Normalized: []voguetest.Normalization[string]{
+			{
+				Name:  exampleTheBlanksAroundAPastedValueAreDropped,
+				Input: exampleTortilla2,
+				Out:   exampleTortilla,
+			},
+			{
+				Name:  exampleTabsAndNewlinesCountAsWhitespaceToo,
+				Input: exampleTortilla3,
+				Out:   exampleTortilla,
+			},
+			{
+				Name:  exampleAnAlreadyCleanValueIsLeftAlone,
+				Input: exampleTortilla,
+				Out:   exampleTortilla,
+			},
+		},
+		RefusesFloat: false,
+	}.Run(t)
+}
+
+// TestSquishedLine runs the value-object suite against the examples the directive
+// and its rules declare.
+func TestSquishedLine(t *testing.T) {
+	const (
+		exampleTortillaDePatatas2               = "Tortilla de patatas"
+		exampleARunOfSpacesBecomesOne           = "a run of spaces becomes one"
+		exampleTortillaDePatatas                = "Tortilla   de  patatas"
+		exampleTheEndsAreTrimmedAsWell          = "the ends are trimmed as well"
+		exampleTortillaDePatatas3               = "  Tortilla de patatas  "
+		exampleATabAndANewlineBecomePlainSpaces = "a tab and a newline become plain spaces"
+		exampleTortillaDePatatas4               = "Tortilla\tde\npatatas"
+	)
+
+	t.Parallel()
+
+	voguetest.Scalar[SquishedLine, *SquishedLine, string]{
+		Field:      "squishedLine",
+		New:        NewSquishedLine,
+		Get:        nil,
+		FromString: nil,
+		ParseRule:  "",
+		Examples:   nil,
+		Candidates: []string{exampleTortillaDePatatas2, "Muñoz — 42 €"},
+		Rejected:   nil,
+		Normalized: []voguetest.Normalization[string]{
+			{
+				Name:  exampleARunOfSpacesBecomesOne,
+				Input: exampleTortillaDePatatas,
+				Out:   exampleTortillaDePatatas2,
+			},
+			{
+				Name:  exampleTheEndsAreTrimmedAsWell,
+				Input: exampleTortillaDePatatas3,
+				Out:   exampleTortillaDePatatas2,
+			},
+			{
+				Name:  exampleATabAndANewlineBecomePlainSpaces,
+				Input: exampleTortillaDePatatas4,
+				Out:   exampleTortillaDePatatas2,
+			},
+		},
+		RefusesFloat: false,
+	}.Run(t)
+}
+
+// TestLoweredFile runs the value-object suite against the examples the directive
+// and its rules declare.
+func TestLoweredFile(t *testing.T) {
+	const (
+		exampleAnAddressIsFoldedToOneCanonicalSpelling  = "an address is folded to one canonical spelling"
+		exampleWaiterExampleCom                         = "Waiter@Example.Com"
+		exampleWaiterExampleCom2                        = "waiter@example.com"
+		exampleAnAccentedCapitalFoldsLikeAnyOtherLetter = "an accented capital folds like any other letter"
+		exampleRBOL                                     = "ÁRBOL"
+		exampleRbol                                     = "árbol"
+		exampleAValueAlreadyInLowerCaseIsLeftAlone      = "a value already in lower case is left alone"
+		exampleAlready                                  = "already"
+	)
+
+	t.Parallel()
+
+	voguetest.Scalar[LoweredFile, *LoweredFile, string]{
+		Field:      "loweredFile",
+		New:        NewLoweredFile,
+		Get:        nil,
+		FromString: nil,
+		ParseRule:  "",
+		Examples:   nil,
+		Candidates: []string{"invoice.pdf", ".pdf"},
+		Rejected:   nil,
+		Normalized: []voguetest.Normalization[string]{
+			{
+				Name:  exampleAnAddressIsFoldedToOneCanonicalSpelling,
+				Input: exampleWaiterExampleCom,
+				Out:   exampleWaiterExampleCom2,
+			},
+			{
+				Name:  exampleAnAccentedCapitalFoldsLikeAnyOtherLetter,
+				Input: exampleRBOL,
+				Out:   exampleRbol,
+			},
+			{
+				Name:  exampleAValueAlreadyInLowerCaseIsLeftAlone,
+				Input: exampleAlready,
+				Out:   exampleAlready,
+			},
+		},
+		RefusesFloat: false,
 	}.Run(t)
 }

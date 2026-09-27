@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"go/format"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -25,6 +26,8 @@ type caseView struct {
 	Name  string
 	Lit   string
 	Rules []string
+	// Described marks a row the JSON schema of the value object rejects too.
+	Described bool
 }
 
 // normCaseView is one rewrite a normalizer performs, as the generated test
@@ -105,7 +108,7 @@ func (g *Generator) testFile(file parse.File) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("gen: formatting the test of %s: %w\n%s", file.Path, err, buf.String())
 	}
-	return hoistRepeatedStrings(formatted)
+	return formatted, nil
 }
 
 // testImports returns the imports the rendered test bodies reference: testing
@@ -202,8 +205,14 @@ func fillScalar(v *testView, d parse.Directive) {
 	}
 	v.Candidates = candidates(d, rejected)
 
+	modeled := newSchemaView(d).modeled
+	normalizes := len(v.Normalizations) > 0 || slices.ContainsFunc(d.Rules, func(use parse.RuleUse) bool { return use.Rule.Normalize })
 	for _, row := range rejected {
-		v.Cases = append(v.Cases, caseView{Name: row.name, Lit: row.lit, Rules: row.rules})
+		described := !normalizes
+		for _, rule := range row.rules {
+			described = described && modeled[rule]
+		}
+		v.Cases = append(v.Cases, caseView{Name: row.name, Lit: row.lit, Rules: row.rules, Described: described})
 	}
 }
 
@@ -218,13 +227,23 @@ type rejection struct {
 }
 
 // rejections collects the rejected examples of a directive in the order the
-// rules are written, merging the rows that share an input.
+// rules are written, merging the rows that share an input. Only the rules no
+// normalizer precedes contribute.
 func rejections(d parse.Directive) []rejection {
 	var rows []rejection
 	index := map[string]int{}
 
+	normalized := false
 	for _, use := range d.Rules {
 		if use.Rule.Normalize {
+			normalized = true
+			continue
+		}
+		// A rule's invalid example is invalid as the rule sees it. A
+		// normalizer written before the rule rewrites the input first — lower
+		// turns "EUR" into an accepted "eur" — so the example says nothing
+		// about what the constructor does with it, and no row is derived.
+		if normalized {
 			continue
 		}
 		for _, example := range use.Rule.Examples.Invalid {

@@ -85,3 +85,64 @@ func TestGenerate_Schema(t *testing.T) {
 		assert.Regexp(t, `ExclusiveMinimum:\s+schema.Number\{Set: true, Value: exclusiveMinimum\},`, code)
 	})
 }
+
+func TestGenerate_SchemaDerivation(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name      string
+		directive string
+		want      []string
+		wantNot   []string
+	}{
+		{
+			name:      "the tightest length wins, whatever order the rules are in",
+			directive: "//vogue:string Code min=3 len=2 max=9 required\n",
+			want:      []string{`minimumLength\s+= 3\n`, `maximumLength\s+= 2\n`},
+		},
+		{
+			name:      "required raises a minimum length of zero to one",
+			directive: "//vogue:string Code min=0 required\n",
+			want:      []string{`minimumLength\s+= 1\n`},
+		},
+		{
+			name:      "nonneg and min combine into the higher of the two minimums",
+			directive: "//vogue:int Floor min=-5 nonneg\n//vogue:int Covers nonneg min=3\n",
+			want:      []string{`minimum\s+= 0\n`, `minimum\s+= 3\n`},
+			wantNot:   []string{`minimum\s+= -5\n`},
+		},
+		{
+			name:      "a check a normalizer runs after says nothing about the canonical text",
+			directive: "//vogue:string Code len=2 regex=^[a-z]+$ upper\n",
+			want:      []string{`Pattern:\s+"",`, `MinLength:\s+schema.Length\{Set: false`},
+		},
+		{
+			name:      "the items of an integer list are normalized",
+			directive: "//vogue:int Courses oneof=01,+2\n",
+			want:      []string{`Enum:\s+\[\]string\{"1", "2"\},`},
+		},
+		{
+			name:      "an RE2-only pattern is left out rather than published in the wrong dialect",
+			directive: "//vogue:string Code regex=\\A[a-z]+\\z\n//vogue:string Other regex=(?i)^abc$\n",
+			want:      []string{`Pattern:\s+"",`},
+			wantNot:   []string{`Pattern:\s+"\\\\A`, `Pattern:\s+"\(\?i\)`},
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			code := generateSchema(t, tc.directive)
+
+			// Assert
+			for _, pattern := range tc.want {
+				assert.Regexp(t, pattern, code)
+			}
+			for _, pattern := range tc.wantNot {
+				assert.NotRegexp(t, pattern, code)
+			}
+		})
+	}
+}
