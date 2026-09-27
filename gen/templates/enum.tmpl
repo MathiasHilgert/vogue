@@ -64,7 +64,13 @@ func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.value == other.val
 
 // MarshalText implements encoding.TextMarshaler, which is also what
 // encoding/json uses, so a member marshals as its wire string.
-func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.value), nil }
+func ({{$r}} {{$n}}) MarshalText() ([]byte, error) {
+	if {{$r}}.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero {{$n}}: %w", validation.ErrZeroValue)
+	}
+
+	return []byte({{$r}}.value), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler through {{$c}}.Parse, so
 // an unknown member is rejected rather than accepted as a new state.
@@ -78,6 +84,7 @@ func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 
 	return nil
 }
+{{template "json" .}}
 {{if .SQL}}
 // Value implements driver.Valuer. The zero {{$n}}, which is no member, is
 // stored as NULL.

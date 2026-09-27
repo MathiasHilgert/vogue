@@ -15,6 +15,7 @@ const (
 	importUUID       = "github.com/google/uuid"
 	importDecimal    = "github.com/govalues/decimal"
 	importValidation = "github.com/MathiasHilgert/vogue/validation"
+	importTextJSON   = "github.com/MathiasHilgert/vogue/textjson"
 )
 
 // importSet collects the import paths of one generated file, keyed by the

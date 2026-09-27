@@ -3,6 +3,9 @@
 package geo
 
 import (
+	"fmt"
+
+	"github.com/MathiasHilgert/vogue/textjson"
 	"github.com/MathiasHilgert/vogue/validation"
 	"github.com/govalues/decimal"
 )
@@ -122,7 +125,13 @@ func (latitude Latitude) Equal(other Latitude) bool {
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Latitude crosses a JSON boundary as a
 // string and never as a float the receiver would have to round.
-func (latitude Latitude) MarshalText() ([]byte, error) { return []byte(latitude.value.String()), nil }
+func (latitude Latitude) MarshalText() ([]byte, error) {
+	if latitude.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero Latitude: %w", validation.ErrZeroValue)
+	}
+
+	return []byte(latitude.value.String()), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a Latitude the constructor would have rejected.
@@ -135,6 +144,41 @@ func (latitude *Latitude) UnmarshalText(data []byte) error {
 	*latitude = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero Latitude is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (latitude Latitude) MarshalJSON() ([]byte, error) {
+	if latitude.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := latitude.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// Latitude; a JSON string goes through UnmarshalText, so it is validated.
+func (latitude *Latitude) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode Latitude: %w", err)
+	}
+
+	if isNull {
+		var zero Latitude
+
+		*latitude = zero
+
+		return nil
+	}
+
+	return latitude.UnmarshalText(text)
 }
 
 // Longitude is a WGS 84 longitude in decimal degrees.
@@ -253,6 +297,10 @@ func (longitude Longitude) Equal(other Longitude) bool {
 // codec when a type implements it, so Longitude crosses a JSON boundary as a
 // string and never as a float the receiver would have to round.
 func (longitude Longitude) MarshalText() ([]byte, error) {
+	if longitude.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero Longitude: %w", validation.ErrZeroValue)
+	}
+
 	return []byte(longitude.value.String()), nil
 }
 
@@ -267,4 +315,39 @@ func (longitude *Longitude) UnmarshalText(data []byte) error {
 	*longitude = parsed
 
 	return nil
+}
+
+// MarshalJSON implements json.Marshaler. The zero Longitude is null, which is
+// what keeps an unset field from being written as a value that would read back
+// as a constructed one; anything else is the JSON string of its text form.
+func (longitude Longitude) MarshalJSON() ([]byte, error) {
+	if longitude.IsZero() {
+		return textjson.Null(), nil
+	}
+
+	text, err := longitude.MarshalText()
+	if err != nil {
+		return nil, err
+	}
+
+	return textjson.Quote(text), nil
+}
+
+// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
+// Longitude; a JSON string goes through UnmarshalText, so it is validated.
+func (longitude *Longitude) UnmarshalJSON(data []byte) error {
+	text, isNull, err := textjson.Unquote(data)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot decode Longitude: %w", err)
+	}
+
+	if isNull {
+		var zero Longitude
+
+		*longitude = zero
+
+		return nil
+	}
+
+	return longitude.UnmarshalText(text)
 }

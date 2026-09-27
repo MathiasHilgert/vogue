@@ -321,6 +321,13 @@ drives every boundary:
   SQL `NULL`; any constructed value, `0` and `""` included, is written as
   itself. An unassigned identifier and the zero enum are `NULL` too.
 - `Scan(nil)` — a `NULL` column — produces the zero value.
+- `MarshalJSON` of the zero value writes `null`, and `UnmarshalJSON(null)`
+  produces the zero value; a constructed value is the JSON string of its text.
+  The JSON methods use package [`textjson`](textjson), not `encoding/json`, so
+  a domain package that may not import `encoding/json` can hold them.
+- `MarshalText` of the zero value fails with `validation.ErrZeroValue`: no
+  text reads back as the zero value, since `""` or `"0"` would come back as a
+  constructed one. A zero value is therefore also not usable as a map key.
 - `json:",omitzero"` asks `IsZero`, so an optional field of a value-object type
   is left out of a payload exactly when it was never set.
 
@@ -331,8 +338,8 @@ one.
 members are returned by the methods of its catalogue, not a defined string type
 with constants, so the zero value is outside the member set. The cost is that
 the `exhaustive` linter cannot check a switch over one; the catalogue's `All()`
-covers that instead, since a test ranging over it grows a case the moment a
-member is added.
+covers that instead: code that ranges over it handles a member the moment it
+is added.
 
 **Strict lint, no exclusions.** Generated code is written to pass a strict
 golangci-lint configuration with nothing excluded for generated files:

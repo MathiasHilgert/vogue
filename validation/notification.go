@@ -68,28 +68,40 @@ func (notification *Notification) Merge(other *Notification) {
 // how a composite value object validates its parts and reports every failure
 // of all of them at once:
 //
-//	var n validation.Notification
-//	latitude, err := NewLatitude(lat)
-//	if err := n.Collect(err); err != nil {
-//		return Coordinates{}, err
+//	var notification validation.Notification
+//	latitude, latitudeErr := NewLatitudeFromString(rawLatitude)
+//	if unexpected := notification.Collect(latitudeErr); unexpected != nil {
+//		return Coordinates{}, unexpected
 //	}
 //
-// A nil error is ignored. A [Notification] or a [FieldError], however deeply
-// wrapped, is merged and Collect returns nil. Any other error is not a
-// validation failure — a driver or a minting error — and is returned
-// unchanged for the caller to handle.
-func (notification2 *Notification) Collect(err error) error {
+// A nil error, and a [Notification] with no failure, collect nothing. A
+// [Notification] or a [FieldError] is merged, however deeply it was wrapped,
+// and a wrapper around one adds no context worth keeping. The branches of an
+// errors.Join are collected one by one: the validation failures among them are
+// merged, and every other branch — a driver or a minting error — is returned,
+// joined, for the caller to handle. Collect returns nil when every failure
+// was a validation failure.
+func (notification *Notification) Collect(err error) error {
 	if err == nil {
 		return nil
 	}
-	var notification *Notification
-	if errors.As(err, &notification) {
-		notification2.Merge(notification)
+	if joined, ok := err.(interface{ Unwrap() []error }); ok { //nolint:errorlint // a join is walked branch by branch.
+		var rest []error
+		for _, branch := range joined.Unwrap() {
+			if unexpected := notification.Collect(branch); unexpected != nil {
+				rest = append(rest, unexpected)
+			}
+		}
+		return errors.Join(rest...)
+	}
+	var other *Notification
+	if errors.As(err, &other) {
+		notification.Merge(other)
 		return nil
 	}
 	var field FieldError
 	if errors.As(err, &field) {
-		notification2.Add(field)
+		notification.Add(field)
 		return nil
 	}
 	return err

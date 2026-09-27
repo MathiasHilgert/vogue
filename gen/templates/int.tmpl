@@ -63,7 +63,13 @@ func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.value == other.val
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so {{$n}} round-trips through JSON without
 // a MarshalJSON of its own.
-func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.String()), nil }
+func ({{$r}} {{$n}}) MarshalText() ([]byte, error) {
+	if {{$r}}.IsZero() {
+		return nil, fmt.Errorf("vogue: cannot marshal the zero {{$n}}: %w", validation.ErrZeroValue)
+	}
+
+	return []byte({{$r}}.String()), nil
+}
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a {{$n}} the constructor would have rejected.
@@ -77,6 +83,7 @@ func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 
 	return nil
 }
+{{template "json" .}}
 {{if .SQL}}
 // Value implements driver.Valuer. The zero {{$n}} is stored as NULL, which
 // Scan reads back as the zero {{$n}}.

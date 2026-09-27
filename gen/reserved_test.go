@@ -19,9 +19,9 @@ import (
 // object named after any of them must still compile: its receiver must not
 // shadow what its methods use.
 var reservedNames = []string{
-	"data", "decimal", "driver", "err", "failed", "fmt", "id", "member", "notification", "null",
+	"data", "decimal", "driver", "err", "failed", "fmt", "id", "isNull", "member", "notification", "null",
 	"number", "other", "parsed", "raw", "rawLength", "regexp", "rulecheck", "schema", "slices",
-	"source", "src", "strconv", "strings", "unicode", "utf8", "uuid", "validation", "value",
+	"source", "src", "strconv", "strings", "text", "textjson", "unicode", "utf8", "uuid", "validation", "value",
 	"whole", "zero",
 }
 

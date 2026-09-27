@@ -1,6 +1,7 @@
 package geo_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -71,4 +72,26 @@ func TestNewCoordinates(t *testing.T) {
 		// Assert
 		require.ErrorIs(t, err, validation.Failure("coordinates", "pair"))
 	})
+}
+
+func TestCoordinates_ZeroValue(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	var zero geo.Coordinates
+	constructed, err := geo.NewCoordinates("40.416775", "-3.70379")
+	require.NoError(t, err)
+
+	// Act
+	_, textErr := zero.MarshalText()
+	encoded, jsonErr := json.Marshal(zero)
+	decoded := constructed
+	nullErr := json.Unmarshal([]byte("null"), &decoded)
+
+	// Assert
+	require.ErrorIs(t, textErr, validation.ErrZeroValue)
+	require.NoError(t, jsonErr)
+	assert.JSONEq(t, "null", string(encoded))
+	require.NoError(t, nullErr)
+	assert.True(t, decoded.IsZero())
 }
