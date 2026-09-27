@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"go/format"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -25,6 +26,8 @@ type caseView struct {
 	Name  string
 	Lit   string
 	Rules []string
+	// Described marks a row the JSON schema of the value object rejects too.
+	Described bool
 }
 
 // normCaseView is one rewrite a normalizer performs, as the generated test
@@ -202,8 +205,14 @@ func fillScalar(v *testView, d parse.Directive) {
 	}
 	v.Candidates = candidates(d, rejected)
 
+	modeled := newSchemaView(d).modeled
+	normalizes := len(v.Normalizations) > 0 || slices.ContainsFunc(d.Rules, func(use parse.RuleUse) bool { return use.Rule.Normalize })
 	for _, row := range rejected {
-		v.Cases = append(v.Cases, caseView{Name: row.name, Lit: row.lit, Rules: row.rules})
+		described := !normalizes
+		for _, rule := range row.rules {
+			described = described && modeled[rule]
+		}
+		v.Cases = append(v.Cases, caseView{Name: row.name, Lit: row.lit, Rules: row.rules, Described: described})
 	}
 }
 

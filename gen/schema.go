@@ -25,6 +25,9 @@ type schemaView struct {
 	Format, Pattern                                          string
 	Enum                                                     []string
 	MinLength, MaxLength, Minimum, Maximum, ExclusiveMinimum limitView
+	// modeled are the rules whose rejections the schema rejects too, so a
+	// generated test may assert that a row they reject fails the schema.
+	modeled map[string]bool
 }
 
 // unset is a limit that does not apply.
@@ -51,10 +54,17 @@ func (v *schemaView) Consts() []string {
 // newSchemaView derives the schema of a directive from its kind and from the
 // built-in rules it uses, which are recognised by name. A custom rule adds
 // nothing: the generator cannot know what it accepts.
+//
+// The schema describes the canonical text String returns, so on a string only
+// the checks written after the last normalizer contribute: a check that runs
+// before `upper` constrains the input, not the stored value. Where several
+// rules bound the same thing, the tightest bound wins, whatever order they
+// are written in.
 func newSchemaView(d parse.Directive) *schemaView {
 	v := &schemaView{
 		Format: `""`, Pattern: `""`,
 		MinLength: unset, MaxLength: unset, Minimum: unset, Maximum: unset, ExclusiveMinimum: unset,
+		modeled: map[string]bool{},
 	}
 
 	switch d.Kind {
@@ -76,55 +86,128 @@ func newSchemaView(d parse.Directive) *schemaView {
 	default:
 	}
 
-	for _, use := range d.Rules {
+	for _, use := range afterLastNormalizer(d.Rules) {
 		v.apply(d.Kind, use)
 	}
 	return v
 }
 
-// apply narrows the schema by one rule of the directive.
+// afterLastNormalizer returns the rules written after the last normalizer of
+// a directive, which are the ones that see the value String returns.
+func afterLastNormalizer(uses []parse.RuleUse) []parse.RuleUse {
+	for i := len(uses) - 1; i >= 0; i-- {
+		if uses[i].Rule.Normalize {
+			return uses[i+1:]
+		}
+	}
+	return uses
+}
+
+// apply narrows the schema by one rule of the directive, and records the rule
+// as modeled when the schema now rejects what the rule rejects.
 func (v *schemaView) apply(kind vogue.Kind, use parse.RuleUse) {
 	text := kind == vogue.String
 	switch use.Rule.Name {
 	case "required":
-		if !v.MinLength.Set {
-			v.MinLength = length("1")
-		}
+		v.MinLength = atLeast(v.MinLength, "1")
 	case "len":
-		v.MinLength, v.MaxLength = length(use.Param), length(use.Param)
+		v.MinLength, v.MaxLength = atLeast(v.MinLength, use.Param), atMost(v.MaxLength, use.Param)
 	case "min":
 		if text {
-			v.MinLength = length(use.Param)
+			v.MinLength = atLeast(v.MinLength, use.Param)
 		} else {
-			v.Minimum = number(use.Param)
+			v.Minimum = atLeast(v.Minimum, use.Param)
 		}
 	case "max":
 		if text {
-			v.MaxLength = length(use.Param)
+			v.MaxLength = atMost(v.MaxLength, use.Param)
 		} else {
-			v.Maximum = number(use.Param)
+			v.Maximum = atMost(v.Maximum, use.Param)
 		}
 	case "positive":
-		v.ExclusiveMinimum = number("0")
+		v.ExclusiveMinimum = atLeast(v.ExclusiveMinimum, "0")
 	case "nonneg":
-		if !v.Minimum.Set {
-			v.Minimum = number("0")
-		}
+		v.Minimum = atLeast(v.Minimum, "0")
 	case "regex":
-		v.Pattern = strconv.Quote(use.Param)
+		if ecmaCompatible(use.Param) {
+			v.Pattern = strconv.Quote(use.Param)
+		} else {
+			return
+		}
 	case "email":
 		v.Format = "schema.FormatEmail"
+		return
 	case "url":
 		v.Format = "schema.FormatURI"
+		return
 	case "uuid":
 		v.Format = "schema.FormatUUID"
+		return
 	case "oneof":
-		v.Enum = strings.Split(use.Param, ",")
+		v.Enum = enumItems(kind, use.Param)
+	default:
+		return
 	}
+	v.modeled[use.Rule.Name] = true
 }
 
-// length renders a length limit.
-func length(param string) limitView { return limitView{Set: true, Value: param} }
+// enumItems returns the items of a oneof parameter as the value object writes
+// them: an integer item in its canonical base-10 form.
+func enumItems(kind vogue.Kind, param string) []string {
+	items := strings.Split(param, ",")
+	if kind != vogue.Int {
+		return items
+	}
+	for i, item := range items {
+		if parsed, err := strconv.ParseInt(item, 10, 64); err == nil {
+			items[i] = strconv.FormatInt(parsed, 10)
+		}
+	}
+	return items
+}
+
+// re2Only are the constructs of Go's RE2 syntax that an ECMA-262 regular
+// expression — the dialect JSON Schema and OpenAPI patterns are written in —
+// does not read the same way.
+var re2Only = []string{`\A`, `\z`, `(?`, `\Q`, `\E`, `[[:`, `\C`, `\pL`, `\pN`, `\PL`, `\PN`, `\p{`, `\P{`}
+
+// ecmaCompatible reports whether an RE2 pattern can be published unchanged as
+// a JSON Schema pattern. One that uses an RE2-only construct — inline flags,
+// \A and \z, POSIX classes, Unicode classes, \Q...\E — is left out of the
+// schema rather than published in a dialect a client would misread.
+func ecmaCompatible(pattern string) bool {
+	for _, construct := range re2Only {
+		if strings.Contains(pattern, construct) {
+			return false
+		}
+	}
+	return true
+}
+
+// atLeast returns the higher of a lower limit and a parameter.
+func atLeast(limit limitView, param string) limitView {
+	candidate := number(param)
+	if !limit.Set || greater(candidate, limit) {
+		return candidate
+	}
+	return limit
+}
+
+// atMost returns the lower of an upper limit and a parameter.
+func atMost(limit limitView, param string) limitView {
+	candidate := number(param)
+	if !limit.Set || greater(limit, candidate) {
+		return candidate
+	}
+	return limit
+}
+
+// greater reports whether a set limit is above another.
+func greater(a, b limitView) bool {
+	x, errX := decimal.Parse(a.Value)
+	y, errY := decimal.Parse(b.Value)
+	return errX == nil && errY == nil && x.Cmp(y) > 0
+}
 
 // number renders a numeric limit as a float literal, which is what the
 // schema holds; a decimal bound is exact in the directive and approximate

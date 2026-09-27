@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/MathiasHilgert/vogue/schema"
 	"github.com/MathiasHilgert/vogue/textjson"
 	"github.com/MathiasHilgert/vogue/validation"
 	"github.com/MathiasHilgert/vogue/voguetest"
@@ -83,6 +84,21 @@ func (code *Code) UnmarshalJSON(data []byte) error {
 	return code.UnmarshalText(text)
 }
 
+// JSONSchema describes Code the way -schema would: two characters, required.
+func (Code) JSONSchema() schema.Schema {
+	return schema.Schema{
+		Type:             schema.String,
+		Format:           "",
+		Pattern:          "",
+		Enum:             nil,
+		MinLength:        schema.Length{Set: true, Value: 2},
+		MaxLength:        schema.Length{Set: true, Value: 2},
+		Minimum:          schema.Number{Set: false, Value: 0},
+		Maximum:          schema.Number{Set: false, Value: 0},
+		ExclusiveMinimum: schema.Number{Set: false, Value: 0},
+	}
+}
+
 func (code Code) Value() (driver.Value, error) {
 	if code.IsZero() {
 		return nil, nil //nolint:nilnil // a nil driver.Value is SQL NULL.
@@ -116,8 +132,8 @@ func TestScalar(t *testing.T) {
 		Examples:   []string{"AR"},
 		Candidates: []string{"Tortilla", "DE"},
 		Rejected: []voguetest.Rejection[string]{
-			{Name: "rejects the empty string", Input: "", Rules: []string{"required", "len"}},
-			{Name: "rejects a code too long", Input: "ARG", Rules: []string{"len"}},
+			{Name: "rejects the empty string", Input: "", Rules: []string{"required", "len"}, Described: true},
+			{Name: "rejects a code too long", Input: "ARG", Rules: []string{"len"}, Described: true},
 		},
 		Normalized: []voguetest.Normalization[string]{
 			{Name: "the blanks around it", Input: "  AR ", Out: "AR"},
