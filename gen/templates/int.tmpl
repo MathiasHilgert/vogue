@@ -3,91 +3,121 @@
 {{end}}//
 // The value is held as an int64 so it survives every database driver and JSON
 // number without a widening conversion at the boundary.
-type {{$n}} struct{ v int64 }
+{{- if .SQL}}
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+{{- end}}
+type {{$n}} struct {
+	value int64
+	set   bool
+}
 
 // New{{$n}} validates raw and returns the {{$n}} it describes.
 //
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func New{{$n}}(raw int64) ({{$n}}, error) {
-	var n validation.Notification
-	v := raw
-{{range .Steps}}{{if .Normalize}}	{{.Code}}
-{{else}}	if !({{.Code}}) {
-		n.Add(validation.FieldError{Field: {{q .Field}}, Rule: {{q .Rule}}, {{if .Param}}Param: {{q .Param}}, {{end}}Value: strconv.FormatInt(v, 10), Message: {{q .Message}}})
-	}
-{{end}}{{end}}
-	if err := n.ErrOrNil(); err != nil {
-		return {{$n}}{}, err
-	}
-	return {{$n}}{v: v}, nil
+{{template "validate" .}}
+	return {{$n}}{value: value, set: true}, nil
 }
 
-// Parse{{$n}} reads a base-10 representation and validates it.
-func Parse{{$n}}(raw string) ({{$n}}, error) {
-	v, err := strconv.ParseInt(raw, 10, 64)
+// New{{$n}}FromString reads a base-10 representation and validates it. A
+// representation that is not a whole number is reported as a failure of the
+// "int" rule, so a caller handles it like every other rule.
+func New{{$n}}FromString(raw string) ({{$n}}, error) {
+	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n validation.Notification
-		n.Add(validation.FieldError{Field: {{q .Field}}, Rule: "int", Value: raw, Message: "{{.Field}} must be a whole number"})
-		return {{$n}}{}, n.ErrOrNil()
+		var (
+			zero {{$n}}
+			notification validation.Notification
+		)
+
+		notification.Reject(
+			{{q .Field}},
+			"int",
+			"",
+			raw,
+			"{{.Field}} must be a whole number",
+		)
+
+		return zero, &notification
 	}
-	return New{{$n}}(v)
+
+	return New{{$n}}(value)
 }
 
 // Int64 returns the validated value.
-func ({{$r}} {{$n}}) Int64() int64 { return {{$r}}.v }
+func ({{$r}} {{$n}}) Int64() int64 { return {{$r}}.value }
 
 // String returns the base-10 representation of the value.
-func ({{$r}} {{$n}}) String() string { return strconv.FormatInt({{$r}}.v, 10) }
+func ({{$r}} {{$n}}) String() string { return strconv.FormatInt({{$r}}.value, 10) }
 
-// IsZero reports whether the receiver is the zero {{$n}}, which is the only
-// {{$n}} that never passed validation.
-func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.v == 0 }
+// IsZero reports whether the receiver is the zero {{$n}}: one that was never
+// constructed, as opposed to one constructed from 0. It is what
+// `json:",omitzero"` asks, and what Value stores as NULL.
+func ({{$r}} {{$n}}) IsZero() bool { return !{{$r}}.set }
 
 // Equal reports whether both value objects hold the same value.
-func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.v == other.v }
+func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.value == other.value && {{$r}}.set == other.set }
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so {{$n}} round-trips through JSON without
 // a MarshalJSON of its own.
-func ({{$r}} {{$n}}) MarshalText() ([]byte, error) {
-	return strconv.AppendInt(nil, {{$r}}.v, 10), nil
-}
+func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.String()), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a {{$n}} the constructor would have rejected.
 func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
-	parsed, err := Parse{{$n}}(string(data))
+	parsed, err := New{{$n}}FromString(string(data))
 	if err != nil {
 		return err
 	}
+
 	*{{$r}} = parsed
+
 	return nil
 }
+{{if .SQL}}
+// Value implements driver.Valuer. The zero {{$n}} is stored as NULL, which
+// Scan reads back as the zero {{$n}}.
+func ({{$r}} {{$n}}) Value() (driver.Value, error) {
+	if !{{$r}}.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
 
-// Value implements driver.Valuer.
-func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.v, nil }
+		return null, nil
+	}
+
+	return {{$r}}.value, nil
+}
 
 // Scan implements sql.Scanner for integer and text columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a vogue
-// error.
+// validation so a row that no longer satisfies the rules surfaces as a
+// validation error.
 func ({{$r}} *{{$n}}) Scan(src any) error {
-	switch value := src.(type) {
+	switch source := src.(type) {
 	case nil:
-		*{{$r}} = {{$n}}{}
+		var zero {{$n}}
+
+		*{{$r}} = zero
+
 		return nil
 	case int64:
-		parsed, err := New{{$n}}(value)
+		parsed, err := New{{$n}}(source)
 		if err != nil {
 			return err
 		}
+
 		*{{$r}} = parsed
+
 		return nil
 	case string:
-		return {{$r}}.UnmarshalText([]byte(value))
+		return {{$r}}.UnmarshalText([]byte(source))
 	case []byte:
-		return {{$r}}.UnmarshalText(value)
+		return {{$r}}.UnmarshalText(source)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into {{$n}}: %w", src, validation.ErrUnsupportedSource)
 	}
 }
+{{end}}
+{{template "schema" .}}

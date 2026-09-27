@@ -1,78 +1,115 @@
-{{$n := .Name}}{{$r := .Recv}}
+{{$n := .Name}}{{$r := .Recv}}{{$c := .Catalogue}}{{$k := .CatalogueRecv}}
 {{range .DocLines}}// {{.}}
 {{end}}//
-// The members are the package-level {{$n}} variables below. The type stays a
-// struct with an unexported field so its zero value is not a member: an
-// uninitialised {{$n}} reports IsZero and can never be mistaken for a
-// meaningful state.
-type {{$n}} struct{ v string }
+// The members are returned by the methods of [{{$c}}]: {{$c}}{}.{{(index .Members 0).Method}}() and
+// its siblings. The type stays a struct with an unexported field so its zero
+// value is not a member: an uninitialised {{$n}} reports IsZero and can never
+// be mistaken for a meaningful state.
+{{- if .SQL}}
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+{{- end}}
+type {{$n}} struct{ value string }
 
-// The members of {{$n}}, in declaration order.
-var (
-{{range .Members}}	// {{.Const}} is the {{q .Value}} member of {{$n}}.
-	{{.Const}} = {{$n}}{v: {{q .Value}}}
-{{end}})
-
-// {{$n}}Values returns every member in declaration order. Ranging over it is
-// what makes a test exhaustive: a member added to the directive shows up here
-// without the test being touched.
-func {{$n}}Values() []{{$n}} {
-	return []{{$n}}{ {{range $i, $m := .Members}}{{if $i}}, {{end}}{{$m.Const}}{{end}} }
+// {{$c}} is the catalogue of the members of {{$n}}. It holds nothing: its zero
+// value is the whole catalogue, so a member is spelled {{$c}}{}.{{(index .Members 0).Method}}().
+type {{$c}} struct{}
+{{range .Members}}
+// {{.Method}} returns the {{q .Value}} member of {{$n}}.
+func ({{$c}}) {{.Method}}() {{$n}} { return {{$n}}{value: {{q .Value}}} }
+{{end}}
+// All returns every member in declaration order. Ranging over it is what makes
+// a test exhaustive: a member added to the directive shows up here without the
+// test being touched.
+func ({{$k}} {{$c}}) All() []{{$n}} {
+	return []{{$n}}{
+{{range .Members}}		{{$k}}.{{.Method}}(),
+{{end}}	}
 }
 
-// Parse{{$n}} resolves the wire representation of a member.
-func Parse{{$n}}(raw string) ({{$n}}, error) {
-	switch raw {
-{{range .Members}}	case {{q .Value}}:
-		return {{.Const}}, nil
-{{end}}	}
+// Parse resolves the wire representation of a member, rejecting anything else
+// as a failure of the "oneof" rule.
+func ({{$k}} {{$c}}) Parse(raw string) ({{$n}}, error) {
+	for _, member := range {{$k}}.All() {
+		if member.value == raw {
+			return member, nil
+		}
+	}
 
-	var n validation.Notification
-	n.Add(validation.FieldError{Field: {{q .Field}}, Rule: "oneof", Param: {{q .MemberParam}}, Value: raw, Message: "{{.Field}} must be one of: {{.MemberList}}"})
-	return {{$n}}{}, n.ErrOrNil()
+	var (
+		zero {{$n}}
+		notification validation.Notification
+	)
+
+	notification.Reject(
+		{{q .Field}},
+		"oneof",
+		{{q .MemberParam}},
+		raw,
+		"{{.Field}} must be one of: {{.MemberList}}",
+	)
+
+	return zero, &notification
 }
 
 // String returns the wire representation of the member, empty for the zero
 // value.
-func ({{$r}} {{$n}}) String() string { return {{$r}}.v }
+func ({{$r}} {{$n}}) String() string { return {{$r}}.value }
 
 // IsZero reports whether the receiver is the zero {{$n}} rather than one of
 // its members.
-func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.v == "" }
+func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.value == "" }
 
 // Equal reports whether both value objects hold the same member.
-func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.v == other.v }
+func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.value == other.value }
 
 // MarshalText implements encoding.TextMarshaler, which is also what
 // encoding/json uses, so a member marshals as its wire string.
-func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.v), nil }
+func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.value), nil }
 
-// UnmarshalText implements encoding.TextUnmarshaler through Parse{{$n}}, so an
-// unknown member is rejected rather than accepted as a new state.
+// UnmarshalText implements encoding.TextUnmarshaler through {{$c}}.Parse, so
+// an unknown member is rejected rather than accepted as a new state.
 func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
-	parsed, err := Parse{{$n}}(string(data))
+	parsed, err := {{$c}}{}.Parse(string(data))
 	if err != nil {
 		return err
 	}
+
 	*{{$r}} = parsed
+
 	return nil
 }
+{{if .SQL}}
+// Value implements driver.Valuer. The zero {{$n}}, which is no member, is
+// stored as NULL.
+func ({{$r}} {{$n}}) Value() (driver.Value, error) {
+	if {{$r}}.value == "" {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
 
-// Value implements driver.Valuer.
-func ({{$r}} {{$n}}) Value() (driver.Value, error) { return {{$r}}.v, nil }
+		return null, nil
+	}
+
+	return {{$r}}.value, nil
+}
 
 // Scan implements sql.Scanner for text columns, rejecting a stored value that
 // is no longer a member.
 func ({{$r}} *{{$n}}) Scan(src any) error {
-	switch value := src.(type) {
+	switch source := src.(type) {
 	case nil:
-		*{{$r}} = {{$n}}{}
+		var zero {{$n}}
+
+		*{{$r}} = zero
+
 		return nil
 	case string:
-		return {{$r}}.UnmarshalText([]byte(value))
+		return {{$r}}.UnmarshalText([]byte(source))
 	case []byte:
-		return {{$r}}.UnmarshalText(value)
+		return {{$r}}.UnmarshalText(source)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into {{$n}}: %w", src, validation.ErrUnsupportedSource)
 	}
 }
+{{end}}
+{{template "schema" .}}

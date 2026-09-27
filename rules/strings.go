@@ -46,7 +46,7 @@ var Min = vogue.Rule{
 	Message: "{{.Field}} must be at least {{.Param}}",
 	Imports: []string{importUTF8, importDecimal},
 	Emit:    func(c vogue.EmitContext) string { return compare(c, ">=") },
-	Declare: declareBound,
+	Local:   boundConst,
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{Kinds: str, Param: "1", In: "a", Note: "a single rune meets a bound of one"},
@@ -81,7 +81,7 @@ var Max = vogue.Rule{
 	Message: "{{.Field}} must be at most {{.Param}}",
 	Imports: []string{importUTF8, importDecimal},
 	Emit:    func(c vogue.EmitContext) string { return compare(c, "<=") },
-	Declare: declareBound,
+	Local:   boundConst,
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{Kinds: str, Param: "4", In: "abcd", Note: "the bound itself is accepted"},
@@ -114,6 +114,7 @@ var Len = vogue.Rule{
 	Message: "{{.Field}} must be exactly {{.Param}} characters long",
 	Imports: []string{importUTF8},
 	Emit:    func(c vogue.EmitContext) string { return compare(c, "==") },
+	Local:   boundConst,
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{Param: "3", In: "EUR", Note: "a currency code of the expected width"},
@@ -177,6 +178,31 @@ var URL = vogue.Rule{
 	},
 }
 
+// TimeZone requires the name of an IANA time zone.
+var TimeZone = vogue.Rule{
+	Name:  "timezone",
+	Kinds: str,
+	Doc: "Requires the name of a zone in the IANA time zone database, such as " +
+		"\"America/Argentina/Buenos_Aires\" or \"UTC\", resolved with time.LoadLocation. The " +
+		"database is the one the process can read at run time — the system's, or the copy a binary " +
+		"embeds by importing time/tzdata, which a minimal container image needs. \"Local\" and the " +
+		"empty string are rejected: LoadLocation maps them to the process's own zone and to UTC, and " +
+		"neither names a place a stored value could mean.",
+	Message: "{{.Field}} must be an IANA time zone",
+	Call:    &vogue.FuncRef{Path: importFn, Name: "TimeZone"},
+	Examples: vogue.Examples{
+		Valid: []vogue.Example{
+			{In: "America/Argentina/Buenos_Aires", Note: "a zone named after its city"},
+			{In: "UTC", Note: "coordinated universal time"},
+		},
+		Invalid: []vogue.Example{
+			{In: "Mars/Olympus_Mons", Note: "a zone the database does not hold"},
+			{In: "Local", Note: "the process-local zone, which names no place"},
+			{In: "", Note: "the empty string"},
+		},
+	},
+}
+
 // UUID requires a UUID in canonical text form.
 var UUID = vogue.Rule{
 	Name:  "uuid",
@@ -209,22 +235,14 @@ var Regex = vogue.Rule{
 	Kinds: str,
 	Doc: "Requires the value to match the given RE2 pattern. The pattern is compiled at generate " +
 		"time, so a malformed one is a generator error naming the directive rather than a panic in " +
-		"production, and it is compiled again into a package-level variable in the generated file, " +
-		"so the constructor only matches. The match is unanchored: write ^ and $ when the whole " +
+		"production, and the generated constructor calls rulecheck.Regexp, which compiles it on first use " +
+		"and caches it, so every later call only matches. The match is unanchored: write ^ and $ when the whole " +
 		"value must match. The pattern may not contain a space, because a directive is read as " +
 		"whitespace-separated tokens; use `[[:space:]]` or `\\s` for one. Reach for a named rule " +
 		"first — `alphanum`, `prefix`, `len` — and keep this for a shape that has no name.",
 	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamRegex},
 	Message: "{{.Field}} must match the pattern {{.Param}}",
-	Imports: []string{importRegexp},
-	Declare: func(c vogue.EmitContext) string {
-		return "// " + regexpVar(c.Param) + " is the pattern the `regex` rule matches against,\n" +
-			"// compiled once at start-up rather than on every call.\n" +
-			"var " + regexpVar(c.Param) + " = regexp.MustCompile(" + strconv.Quote(c.Param) + ")"
-	},
-	Emit: func(c vogue.EmitContext) string {
-		return regexpVar(c.Param) + ".MatchString(" + c.Var + ")"
-	},
+	Call:    &vogue.FuncRef{Path: importFn, Name: "Regexp"},
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{Param: "^[A-Z]{3}-[0-9]{4}$", In: "SKU-0042", Note: "a code in the documented shape"},
@@ -250,6 +268,7 @@ var OneOf = vogue.Rule{
 		"list that stays a plain string or number.",
 	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamList},
 	Message: "{{.Field}} must be one of: {{.Param}}",
+	Imports: []string{importSlices},
 	Emit:    anyOf,
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
@@ -278,7 +297,7 @@ var Alpha = vogue.Rule{
 		"rune; pair it with `required` when the field is mandatory.",
 	Message: "{{.Field}} must contain letters only",
 	Imports: []string{importStrings, importUnicode},
-	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "!unicode.IsLetter(r)") },
+	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "!unicode.IsLetter(character)") },
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{In: "Tortilla", Note: "plain letters"},
@@ -303,7 +322,7 @@ var Alphanum = vogue.Rule{
 	Message: "{{.Field}} must contain letters and digits only",
 	Imports: []string{importStrings, importUnicode},
 	Emit: func(c vogue.EmitContext) string {
-		return noRuneWhere(c, "!unicode.IsLetter(r) && !unicode.IsDigit(r)")
+		return noRuneWhere(c, "!unicode.IsLetter(character) && !unicode.IsDigit(character)")
 	},
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
@@ -329,7 +348,7 @@ var Numeric = vogue.Rule{
 		"one of those. The empty string passes; pair it with `required`.",
 	Message: "{{.Field}} must contain digits only",
 	Imports: []string{importStrings},
-	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "r < '0' || r > '9'") },
+	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "character < '0' || character > '9'") },
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{In: "0042", Note: "a digit string keeping its leading zero"},
@@ -354,7 +373,7 @@ var ASCII = vogue.Rule{
 		"passes; pair it with `required`.",
 	Message: "{{.Field}} must contain ASCII characters only",
 	Imports: []string{importStrings, importUTF8},
-	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "r >= utf8.RuneSelf") },
+	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "character >= utf8.RuneSelf") },
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{In: "tortilla", Note: "plain ASCII letters"},
@@ -379,7 +398,7 @@ var Printable = vogue.Rule{
 		"it with `required`.",
 	Message: "{{.Field}} must not contain control characters",
 	Imports: []string{importStrings, importUnicode},
-	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "!unicode.IsPrint(r)") },
+	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "!unicode.IsPrint(character)") },
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{In: "Tortilla de patatas", Note: "an ordinary line of text"},

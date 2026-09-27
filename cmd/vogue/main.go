@@ -15,6 +15,8 @@
 //	-dir string          directory to generate from (default: $GOFILE's, else ".")
 //	-import-path string  import path of that directory (default: asked of `go list`)
 //	-tests               generate the test of every value object (default true)
+//	-sql                 generate the database/sql codec, Value and Scan (default true)
+//	-schema              generate a JSONSchema method returning a schema.Schema
 //	-dry-run             report the files that would be written, write nothing
 //	-list                print the rule catalogue and exit
 //	-version             print the version and exit
@@ -59,6 +61,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 	dir := flags.String("dir", "", "directory to generate from (default: the directory of $GOFILE, else the working directory)")
 	importPath := flags.String("import-path", "", "import path of that directory (default: asked of `go list`)")
 	tests := flags.Bool("tests", true, "generate the test of every value object")
+	schema := flags.Bool("schema", false, "generate a JSONSchema method describing each value object for OpenAPI")
+	sql := flags.Bool("sql", true, "generate the database/sql codec (Value and Scan); turn it off for a domain package that must not import database/sql/driver")
 	dryRun := flags.Bool("dry-run", false, "report the files that would be written, and write nothing")
 	list := flags.Bool("list", false, "print the rule catalogue and exit")
 	version := flags.Bool("version", false, "print the version and exit")
@@ -83,6 +87,8 @@ func run(args []string, stdout, stderr io.Writer) int {
 
 	opts := []generator.Option{
 		generator.WithTests(*tests),
+		generator.WithSQL(*sql),
+		generator.WithSchema(*schema),
 		generator.WithDryRun(*dryRun),
 		generator.WithStdout(stdout),
 		generator.WithStderr(stderr),

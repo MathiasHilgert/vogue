@@ -80,7 +80,13 @@ var MultipleOf = vogue.Rule{
 		if c.Param == "0" {
 			return c.Var + " == 0"
 		}
-		return c.Var + "%" + c.Param + " == 0"
+		return c.Var + "%" + c.Ident + " == 0"
+	},
+	Local: func(c vogue.EmitContext) string {
+		if c.Param == "0" {
+			return ""
+		}
+		return boundConst(c)
 	},
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
@@ -109,7 +115,8 @@ var Scale = vogue.Rule{
 		"four decimal places even though \"0.5\" is the same number.",
 	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamInt},
 	Message: "{{.Field}} must have at most {{.Param}} decimal places",
-	Emit:    func(c vogue.EmitContext) string { return c.Var + ".Scale() <= " + c.Param },
+	Emit:    func(c vogue.EmitContext) string { return c.Var + ".Scale() <= " + c.Ident },
+	Local:   func(c vogue.EmitContext) string { return "const " + c.Ident + " = " + c.Param },
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{Param: "4", In: "0.1234", Note: "exactly the places the bound allows"},

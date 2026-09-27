@@ -150,6 +150,10 @@ func TestTitle_SQL(t *testing.T) {
 
 			value, err := got.Value()
 			require.NoError(t, err)
+			if tc.src == nil {
+				assert.Nil(t, value, "a NULL column must be written back as NULL")
+				return
+			}
 			assert.Equal(t, tc.want, value)
 		})
 	}
@@ -182,7 +186,7 @@ func TestCovers(t *testing.T) {
 
 	t.Run("parses a base-ten representation", func(t *testing.T) {
 		// Act
-		got, err := fixture.ParseCovers("8")
+		got, err := fixture.NewCoversFromString("8")
 
 		// Assert
 		require.NoError(t, err)
@@ -191,7 +195,7 @@ func TestCovers(t *testing.T) {
 
 	t.Run("rejects text that is not a number", func(t *testing.T) {
 		// Act
-		_, err := fixture.ParseCovers("eight")
+		_, err := fixture.NewCoversFromString("eight")
 
 		// Assert
 		require.Error(t, err)
@@ -202,13 +206,13 @@ func TestCovers(t *testing.T) {
 func TestTabStatus(t *testing.T) {
 	t.Run("parses every declared member", func(t *testing.T) {
 		// Arrange
-		members := fixture.TabStatusValues()
+		members := fixture.TabStatuses{}.All()
 		require.Len(t, members, 3)
 
 		for _, member := range members {
 			t.Run(member.String(), func(t *testing.T) {
 				// Act
-				got, err := fixture.ParseTabStatus(member.String())
+				got, err := fixture.TabStatuses{}.Parse(member.String())
 
 				// Assert
 				require.NoError(t, err)
@@ -220,7 +224,7 @@ func TestTabStatus(t *testing.T) {
 
 	t.Run("rejects an unknown member", func(t *testing.T) {
 		// Act
-		got, err := fixture.ParseTabStatus("refunded")
+		got, err := fixture.TabStatuses{}.Parse("refunded")
 
 		// Assert
 		require.Error(t, err)
@@ -235,14 +239,14 @@ func TestTabStatus(t *testing.T) {
 
 		// Assert
 		assert.True(t, got.IsZero())
-		for _, member := range fixture.TabStatusValues() {
+		for _, member := range (fixture.TabStatuses{}).All() {
 			assert.False(t, got.Equal(member))
 		}
 	})
 
 	t.Run("round-trips through JSON and SQL", func(t *testing.T) {
 		// Act
-		raw, err := json.Marshal(fixture.TabStatusInProgress)
+		raw, err := json.Marshal(fixture.TabStatuses{}.InProgress())
 		require.NoError(t, err)
 		var got fixture.TabStatus
 		require.NoError(t, json.Unmarshal(raw, &got))
@@ -252,8 +256,8 @@ func TestTabStatus(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.JSONEq(t, `"in_progress"`, string(raw))
-		assert.True(t, got.Equal(fixture.TabStatusInProgress))
-		assert.True(t, scanned.Equal(fixture.TabStatusClosed))
+		assert.True(t, got.Equal(fixture.TabStatuses{}.InProgress()))
+		assert.True(t, scanned.Equal(fixture.TabStatuses{}.Closed()))
 	})
 }
 
@@ -265,7 +269,7 @@ func TestTabID(t *testing.T) {
 		// Assert
 		require.NoError(t, err)
 		assert.False(t, got.IsZero())
-		assert.Equal(t, uuid.Version(7), got.Version(), "the uuid7 strategy must mint time-ordered identifiers")
+		assert.Equal(t, uuid.Version(7), got.UUID().Version(), "the uuid7 strategy must mint time-ordered identifiers")
 	})
 
 	t.Run("parses and compares", func(t *testing.T) {
@@ -274,7 +278,7 @@ func TestTabID(t *testing.T) {
 		require.NoError(t, err)
 
 		// Act
-		parsed, err := fixture.ParseTabID(minted.String())
+		parsed, err := fixture.NewTabIDFromString(minted.String())
 
 		// Assert
 		require.NoError(t, err)
@@ -283,7 +287,7 @@ func TestTabID(t *testing.T) {
 
 	t.Run("rejects text that is not a UUID", func(t *testing.T) {
 		// Act
-		got, err := fixture.ParseTabID("not-a-uuid")
+		got, err := fixture.NewTabIDFromString("not-a-uuid")
 
 		// Assert
 		require.Error(t, err)
@@ -303,7 +307,7 @@ func TestTabID(t *testing.T) {
 func TestInvoiceNumber(t *testing.T) {
 	t.Run("accepts a database-assigned number", func(t *testing.T) {
 		// Act
-		got, err := fixture.InvoiceNumberFromInt64(1024)
+		got, err := fixture.NewInvoiceNumberFromInt64(1024)
 
 		// Assert
 		require.NoError(t, err)
@@ -313,7 +317,7 @@ func TestInvoiceNumber(t *testing.T) {
 
 	t.Run("rejects a non-positive number", func(t *testing.T) {
 		// Act
-		_, err := fixture.InvoiceNumberFromInt64(0)
+		_, err := fixture.NewInvoiceNumberFromInt64(0)
 
 		// Assert
 		require.Error(t, err)
@@ -322,7 +326,7 @@ func TestInvoiceNumber(t *testing.T) {
 
 	t.Run("crosses JSON as a string so precision survives", func(t *testing.T) {
 		// Arrange
-		number, err := fixture.InvoiceNumberFromInt64(9007199254740993)
+		number, err := fixture.NewInvoiceNumberFromInt64(9007199254740993)
 		require.NoError(t, err)
 
 		// Act

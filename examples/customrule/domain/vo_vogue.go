@@ -15,70 +15,107 @@ import (
 // TaxID is the Argentine taxpayer identifier of a supplier. The `cuit` rule is
 // this project's own; `trim` is a built-in, and writing it first is what makes
 // the check run on the value that will actually be stored.
-type TaxID struct{ v string }
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type TaxID struct {
+	value string
+	set   bool
+}
 
 // NewTaxID validates raw and returns the TaxID it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewTaxID(raw string) (TaxID, error) {
-	var n validation.Notification
-	v := raw
-	v = strings.TrimSpace(v)
-	if !(cuit.Valid(v)) {
-		n.Add(validation.FieldError{Field: "taxId", Rule: "cuit", Value: v, Message: "taxId must be a valid CUIT"})
+	var notification validation.Notification
+
+	value := raw
+	value = strings.TrimSpace(value)
+	if !cuit.Valid(value) {
+		notification.Reject(
+			"taxId",
+			"cuit",
+			"",
+			value,
+			"taxId must be a valid CUIT",
+		)
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return TaxID{}, err
+	if notification.HasErrors() {
+		var zero TaxID
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := notification
+
+		return zero, &failed
 	}
-	return TaxID{v: v}, nil
+
+	return TaxID{value: value, set: true}, nil
 }
 
 // String returns the validated value.
-func (t TaxID) String() string { return t.v }
+func (taxId TaxID) String() string { return taxId.value }
 
-// IsZero reports whether the receiver is the zero TaxID, which is the only
-// TaxID that never passed validation.
-func (t TaxID) IsZero() bool { return t.v == "" }
+// IsZero reports whether the receiver is the zero TaxID: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (taxId TaxID) IsZero() bool { return !taxId.set }
 
 // Equal reports whether both value objects hold the same value.
-func (t TaxID) Equal(other TaxID) bool { return t.v == other.v }
+func (taxId TaxID) Equal(other TaxID) bool {
+	return taxId.value == other.value && taxId.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so TaxID marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (t TaxID) MarshalText() ([]byte, error) { return []byte(t.v), nil }
+func (taxId TaxID) MarshalText() ([]byte, error) { return []byte(taxId.value), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a TaxID the constructor would have rejected.
-func (t *TaxID) UnmarshalText(data []byte) error {
+func (taxId *TaxID) UnmarshalText(data []byte) error {
 	parsed, err := NewTaxID(string(data))
 	if err != nil {
 		return err
 	}
-	*t = parsed
+
+	*taxId = parsed
+
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (t TaxID) Value() (driver.Value, error) { return t.v, nil }
+// Value implements driver.Valuer. The zero TaxID is stored as NULL, which
+// Scan reads back as the zero TaxID.
+func (taxId TaxID) Value() (driver.Value, error) {
+	if !taxId.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return taxId.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
-func (t *TaxID) Scan(src any) error {
-	switch value := src.(type) {
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
+func (taxId *TaxID) Scan(src any) error {
+	switch source := src.(type) {
 	case nil:
-		*t = TaxID{}
+		var zero TaxID
+
+		*taxId = zero
+
 		return nil
 	case string:
-		return t.UnmarshalText([]byte(value))
+		return taxId.UnmarshalText([]byte(source))
 	case []byte:
-		return t.UnmarshalText(value)
+		return taxId.UnmarshalText(source)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into TaxID: %w", src, validation.ErrUnsupportedSource)
 	}
@@ -86,77 +123,131 @@ func (t *TaxID) Scan(src any) error {
 
 // LegalName is the name a supplier is registered under. It uses nothing but
 // built-ins, which is what the same generator does for the rest of a project.
-type LegalName struct{ v string }
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type LegalName struct {
+	value string
+	set   bool
+}
 
 // NewLegalName validates raw and returns the LegalName it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewLegalName(raw string) (LegalName, error) {
-	var n validation.Notification
-	v := raw
-	v = strings.TrimSpace(v)
-	v = strings.Join(strings.Fields(v), " ")
-	if !(v != "") {
-		n.Add(validation.FieldError{Field: "legalName", Rule: "required", Value: v, Message: "legalName is required"})
+	const (
+		minimumParameter = 2
+		maximumParameter = 200
+	)
+
+	var notification validation.Notification
+
+	value := raw
+	value = strings.TrimSpace(value)
+	value = strings.Join(strings.Fields(value), " ")
+	if value == "" {
+		notification.Reject(
+			"legalName",
+			"required",
+			"",
+			value,
+			"legalName is required",
+		)
 	}
-	if !(utf8.RuneCountInString(v) >= 2) {
-		n.Add(validation.FieldError{Field: "legalName", Rule: "min", Param: "2", Value: v, Message: "legalName must be at least 2"})
+	if utf8.RuneCountInString(value) < minimumParameter {
+		notification.Reject(
+			"legalName",
+			"min",
+			"2",
+			value,
+			"legalName must be at least 2",
+		)
 	}
-	if !(utf8.RuneCountInString(v) <= 200) {
-		n.Add(validation.FieldError{Field: "legalName", Rule: "max", Param: "200", Value: v, Message: "legalName must be at most 200"})
+	if utf8.RuneCountInString(value) > maximumParameter {
+		notification.Reject(
+			"legalName",
+			"max",
+			"200",
+			value,
+			"legalName must be at most 200",
+		)
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return LegalName{}, err
+	if notification.HasErrors() {
+		var zero LegalName
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := notification
+
+		return zero, &failed
 	}
-	return LegalName{v: v}, nil
+
+	return LegalName{value: value, set: true}, nil
 }
 
 // String returns the validated value.
-func (l LegalName) String() string { return l.v }
+func (legalName LegalName) String() string { return legalName.value }
 
-// IsZero reports whether the receiver is the zero LegalName, which is the only
-// LegalName that never passed validation.
-func (l LegalName) IsZero() bool { return l.v == "" }
+// IsZero reports whether the receiver is the zero LegalName: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (legalName LegalName) IsZero() bool { return !legalName.set }
 
 // Equal reports whether both value objects hold the same value.
-func (l LegalName) Equal(other LegalName) bool { return l.v == other.v }
+func (legalName LegalName) Equal(other LegalName) bool {
+	return legalName.value == other.value && legalName.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so LegalName marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (l LegalName) MarshalText() ([]byte, error) { return []byte(l.v), nil }
+func (legalName LegalName) MarshalText() ([]byte, error) { return []byte(legalName.value), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a LegalName the constructor would have rejected.
-func (l *LegalName) UnmarshalText(data []byte) error {
+func (legalName *LegalName) UnmarshalText(data []byte) error {
 	parsed, err := NewLegalName(string(data))
 	if err != nil {
 		return err
 	}
-	*l = parsed
+
+	*legalName = parsed
+
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (l LegalName) Value() (driver.Value, error) { return l.v, nil }
+// Value implements driver.Valuer. The zero LegalName is stored as NULL, which
+// Scan reads back as the zero LegalName.
+func (legalName LegalName) Value() (driver.Value, error) {
+	if !legalName.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return legalName.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
-func (l *LegalName) Scan(src any) error {
-	switch value := src.(type) {
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
+func (legalName *LegalName) Scan(src any) error {
+	switch source := src.(type) {
 	case nil:
-		*l = LegalName{}
+		var zero LegalName
+
+		*legalName = zero
+
 		return nil
 	case string:
-		return l.UnmarshalText([]byte(value))
+		return legalName.UnmarshalText([]byte(source))
 	case []byte:
-		return l.UnmarshalText(value)
+		return legalName.UnmarshalText(source)
 	default:
 		return fmt.Errorf("vogue: cannot scan %T into LegalName: %w", src, validation.ErrUnsupportedSource)
 	}

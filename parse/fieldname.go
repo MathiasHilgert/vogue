@@ -66,10 +66,33 @@ func title(w string) string {
 // constName builds the Go constant name of one enum value, as in
 // TabStatus + "in_progress" giving TabStatusInProgress.
 func constName(typeName, value string) string {
+	return typeName + methodName(value)
+}
+
+// methodName returns the catalogue method of an enum member: its lower-snake
+// value in PascalCase, so "in_progress" becomes InProgress.
+func methodName(value string) string {
 	var b strings.Builder
-	b.WriteString(typeName)
 	for _, part := range strings.Split(value, "_") {
 		b.WriteString(title(part))
 	}
 	return b.String()
+}
+
+// plural returns the English plural of a Go type name, which is what the
+// catalogue type of an enum is called. It covers the regular forms — a
+// sibilant takes -es, a consonant followed by y takes -ies, everything else
+// takes -s — and nothing more: an enum whose name has an irregular plural
+// still gets a regular, predictable catalogue name.
+func plural(name string) string {
+	lower := strings.ToLower(name)
+	for _, sibilant := range []string{"s", "x", "z", "ch", "sh"} {
+		if strings.HasSuffix(lower, sibilant) {
+			return name + "es"
+		}
+	}
+	if n := len(lower); n > 1 && lower[n-1] == 'y' && !strings.ContainsRune("aeiou", rune(lower[n-2])) {
+		return name[:len(name)-1] + "ies"
+	}
+	return name + "s"
 }

@@ -85,10 +85,11 @@ func TestFiles(t *testing.T) {
 		assert.Equal(t, vogue.Enum, d.Kind)
 		assert.Empty(t, d.Rules)
 		assert.Equal(t, []parse.EnumValue{
-			{Value: "open", Const: "TabStatusOpen"},
-			{Value: "in_progress", Const: "TabStatusInProgress"},
-			{Value: "closed", Const: "TabStatusClosed"},
+			{Value: "open", Const: "TabStatusOpen", Method: "Open"},
+			{Value: "in_progress", Const: "TabStatusInProgress", Method: "InProgress"},
+			{Value: "closed", Const: "TabStatusClosed", Method: "Closed"},
 		}, d.Values)
+		assert.Equal(t, "TabStatuses", d.Catalogue)
 	})
 
 	t.Run("id directive", func(t *testing.T) {
@@ -264,6 +265,96 @@ func TestFilesDuplicateName(t *testing.T) {
 	assert.Equal(t,
 		at(t, src, "//vogue:int Title")+`: duplicate value object "Title" (first declared at `+at(t, src, "//vogue:string Title")+")",
 		err.Error())
+}
+
+func TestFilesEnumCatalogue(t *testing.T) {
+	t.Parallel()
+
+	t.Run("names the catalogue after the plural of the enum", func(t *testing.T) {
+		t.Parallel()
+
+		cases := []struct{ name, want string }{
+			{name: "PlaceKind", want: "PlaceKinds"},
+			{name: "TabStatus", want: "TabStatuses"},
+			{name: "Category", want: "Categories"},
+			{name: "Day", want: "Days"},
+			{name: "Match", want: "Matches"},
+			{name: "Box", want: "Boxes"},
+			{name: "Wish", want: "Wishes"},
+		}
+		for _, tc := range cases {
+			// Act.
+			pkg, err := parseSrc(t, "package tab\n//vogue:enum "+tc.name+" a,b\n")
+
+			// Assert.
+			require.NoError(t, err)
+			assert.Equal(t, tc.want, pkg.Files[0].Directives[0].Catalogue, tc.name)
+		}
+	})
+
+	t.Run("rejects a member whose method collides with a catalogue method", func(t *testing.T) {
+		t.Parallel()
+
+		// Act.
+		_, err := parseSrc(t, "package tab\n//vogue:enum Scope all,mine\n")
+
+		// Assert.
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `enum member "all" would be generated as the method All`)
+	})
+
+	t.Run("rejects a catalogue that collides with another value object", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange.
+		src := "package tab\n//vogue:enum Status a,b\n//vogue:string Statuses required\n"
+
+		// Act.
+		_, err := parseSrc(t, src)
+
+		// Assert.
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `the catalogue type Statuses of enum "Status" collides with a value object`)
+	})
+}
+
+func TestFilesExamples(t *testing.T) {
+	t.Parallel()
+
+	t.Run("collects example tokens apart from the rules", func(t *testing.T) {
+		t.Parallel()
+
+		// Act.
+		pkg, err := parseSrc(t, "package tab\n//vogue:string Code trim required example=AR example=\"DE\"\n")
+
+		// Assert.
+		require.NoError(t, err)
+		d := pkg.Files[0].Directives[0]
+		assert.Equal(t, []string{"trim", "required"}, ruleUses(d))
+		assert.Equal(t, []string{"AR", "DE"}, d.Examples)
+	})
+
+	t.Run("rejects an example the kind cannot express", func(t *testing.T) {
+		t.Parallel()
+
+		// Act.
+		_, err := parseSrc(t, "package tab\n//vogue:int Covers min=1 example=many\n")
+
+		// Assert.
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `example "many" is not a valid int`)
+	})
+
+	t.Run("rejects an example without a value", func(t *testing.T) {
+		t.Parallel()
+
+		// Act.
+		_, err := parseSrc(t, "package tab\n//vogue:string Code required example\n")
+
+		// Assert.
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "example requires a value")
+	})
 }
 
 func TestFilesInvalidRegexParam(t *testing.T) {

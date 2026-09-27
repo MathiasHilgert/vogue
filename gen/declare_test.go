@@ -52,7 +52,7 @@ func TestGenerator_Declarations(t *testing.T) {
 		require.NotEmpty(t, files)
 		code := string(files[0].Content)
 		assert.Contains(t, code, "var _vogueReAbc = regexp.MustCompile(`abc`)")
-		assert.Contains(t, code, "_vogueReAbc.MatchString(v)")
+		assert.Contains(t, code, "_vogueReAbc.MatchString(value)")
 		assert.Less(t, strings.Index(code, `"regexp"`), strings.Index(code, "var _vogueReAbc"),
 			"the declaration must come after the import block")
 		assert.Less(t, strings.Index(code, "var _vogueReAbc"), strings.Index(code, "type Code"),

@@ -95,6 +95,34 @@ func TestRun(t *testing.T) {
 		assert.ElementsMatch(t, []string{"vo.go", "vo_vogue.go"}, names(t, dir))
 	})
 
+	t.Run("leaves the SQL codec out when it is turned off", func(t *testing.T) {
+		// Arrange
+		dir := copyDir(t, filepath.Join("testdata", "tab"))
+
+		// Act
+		err := generator.Run(generator.WithDir(dir), generator.WithSQL(false))
+
+		// Assert
+		require.NoError(t, err)
+		generated, err := os.ReadFile(filepath.Join(dir, "vo_vogue.go"))
+		require.NoError(t, err)
+		assert.NotContains(t, string(generated), "database/sql/driver")
+	})
+
+	t.Run("adds the JSONSchema method when asked to", func(t *testing.T) {
+		// Arrange
+		dir := copyDir(t, filepath.Join("testdata", "tab"))
+
+		// Act
+		err := generator.Run(generator.WithDir(dir), generator.WithSchema(true))
+
+		// Assert
+		require.NoError(t, err)
+		generated, err := os.ReadFile(filepath.Join(dir, "vo_vogue.go"))
+		require.NoError(t, err)
+		assert.Contains(t, string(generated), "JSONSchema() schema.Schema")
+	})
+
 	t.Run("a dry run reports what it would write and writes nothing", func(t *testing.T) {
 		// Arrange
 		dir := copyDir(t, filepath.Join("testdata", "tab"))

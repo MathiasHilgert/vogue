@@ -77,8 +77,8 @@
 //     `nospace`, `prefix`, `suffix`, `contains` and `excludes`, and the
 //     integer checks `positive`, `nonneg` and `multipleof` — together with
 //     `rules.All`, `rules.Set` and `rules.MustSet`.
-//   - `rules/fn` holds the runtime helpers those rules dispatch to
-//     through [Rule.Call], such as `fn.Email`: pure `func(string) bool`
+//   - `rules/rulecheck` holds the runtime helpers those rules dispatch to
+//     through [Rule.Call], such as `rulecheck.Email`: pure `func(string) bool`
 //     predicates a generated constructor calls statically.
 //
 // Rules live in a [RuleSet], which is ordered and name-unique and provides

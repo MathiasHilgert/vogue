@@ -98,3 +98,99 @@ func TestNotification_HasErrors(t *testing.T) {
 	assert.False(t, before)
 	assert.True(t, notification.HasErrors())
 }
+
+func TestNotification_Reject(t *testing.T) {
+	t.Parallel()
+
+	// Arrange
+	var notification validation.Notification
+
+	// Act
+	notification.Reject("title", "min", "1", "", "title must be at least 1")
+
+	// Assert
+	require.Equal(t, 1, notification.Len())
+	assert.Equal(t, validation.FieldError{
+		Field: "title", Rule: "min", Param: "1", Value: "", Message: "title must be at least 1",
+	}, notification.Errors()[0])
+}
+
+func TestNotification_Reject_zeroAllocationsOnceGrown(t *testing.T) {
+	// Arrange
+	var notification validation.Notification
+	notification.Reject("title", "required", "", "", "title is required")
+
+	// Act
+	allocs := testing.AllocsPerRun(100, func() {
+		notification.Reset()
+		notification.Reject("title", "required", "", "", "title is required")
+	})
+
+	// Assert
+	assert.Zero(t, allocs)
+}
+
+func TestNotification_Collect(t *testing.T) {
+	t.Parallel()
+
+	t.Run("merges every failure of a validation error", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var inner validation.Notification
+		inner.Reject("latitude", "max", "90", "91", "latitude must be at most 90")
+		inner.Reject("latitude", "scale", "6", "91", "latitude must have at most 6 decimal places")
+
+		var notification validation.Notification
+
+		// Act
+		err := notification.Collect(fmt.Errorf("building coordinates: %w", inner.ErrOrNil()))
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, 2, notification.Len())
+	})
+
+	t.Run("adds a lone field error", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var notification validation.Notification
+
+		// Act
+		err := notification.Collect(validation.FieldError{Field: "longitude", Rule: "min", Message: "longitude must be at least -180"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, 1, notification.Len())
+	})
+
+	t.Run("ignores nil", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var notification validation.Notification
+
+		// Act
+		err := notification.Collect(nil)
+
+		// Assert
+		require.NoError(t, err)
+		assert.False(t, notification.HasErrors())
+	})
+
+	t.Run("hands back an error that is not a validation failure", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		var notification validation.Notification
+		boom := errors.New("minting failed")
+
+		// Act
+		err := notification.Collect(boom)
+
+		// Assert
+		require.ErrorIs(t, err, boom)
+		assert.False(t, notification.HasErrors())
+	})
+}
