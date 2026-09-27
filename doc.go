@@ -50,6 +50,12 @@
 //	var fe vogue.FieldError
 //	if errors.As(err, &fe) { log.Println(fe.Code()) }
 //
+// Both types live in the runtime package
+// github.com/MathiasHilgert/vogue/validation, which is the only vogue package
+// generated code imports and which depends on the standard library alone;
+// the names here are aliases kept for compatibility. Every failure also
+// matches the sentinel [ErrInvalid].
+//
 // The zero [Notification] is ready to use and allocates nothing until the
 // first failure, so constructing a value object from valid input allocates
 // nothing at all.
@@ -71,8 +77,8 @@
 //     `nospace`, `prefix`, `suffix`, `contains` and `excludes`, and the
 //     integer checks `positive`, `nonneg` and `multipleof` — together with
 //     `rules.All`, `rules.Set` and `rules.MustSet`.
-//   - `rules/fn` holds the runtime helpers those rules dispatch to
-//     through [Rule.Call], such as `fn.Email`: pure `func(string) bool`
+//   - `rules/rulecheck` holds the runtime helpers those rules dispatch to
+//     through [Rule.Call], such as `rulecheck.Email`: pure `func(string) bool`
 //     predicates a generated constructor calls statically.
 //
 // Rules live in a [RuleSet], which is ordered and name-unique and provides

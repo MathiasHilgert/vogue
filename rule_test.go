@@ -117,6 +117,15 @@ func TestRule_Validate(t *testing.T) {
 			},
 			wantMsg: "Declare requires Emit",
 		},
+		{
+			name: "local without emit",
+			mutate: func(r *vogue.Rule) {
+				r.Emit = nil
+				r.Call = &vogue.FuncRef{Path: "p", Name: "N"}
+				r.Local = func(vogue.EmitContext) string { return "const x = 1" }
+			},
+			wantMsg: "Local requires Emit",
+		},
 	}
 
 	for _, tc := range cases {
@@ -504,6 +513,24 @@ func TestRule_Declare(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, rule.Declare)
 		assert.Equal(t, "var _vogueBound = 3", rule.Declare(vogue.EmitContext{Param: "3"}))
+	})
+}
+
+func TestRule_Local(t *testing.T) {
+	t.Run("a rule may declare a constant inside the constructor, named after its step", func(t *testing.T) {
+		// Arrange
+		rule := minRule()
+		rule.Local = func(c vogue.EmitContext) string { return "const " + c.Ident + " = " + c.Param }
+		rule.Emit = func(c vogue.EmitContext) string { return c.Var + " >= " + c.Ident }
+
+		// Act
+		err := rule.Validate()
+
+		// Assert
+		require.NoError(t, err)
+		ctx := vogue.EmitContext{Var: "v", Param: "3", Ident: "minParam"}
+		assert.Equal(t, "const minParam = 3", rule.Local(ctx))
+		assert.Equal(t, "v >= minParam", rule.Emit(ctx))
 	})
 }
 

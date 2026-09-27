@@ -5,311 +5,129 @@ package domain
 import (
 	"testing"
 
-	"github.com/MathiasHilgert/vogue"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/MathiasHilgert/vogue/voguetest"
 )
 
-// TestNewTaxID exercises the constructor against the examples the rules of
-// the directive declare: one accepted input, and one row per rejected input
-// naming every rule that rejects it.
-func TestNewTaxID(t *testing.T) {
+// The strings below are shared by several rows of the tables in this file.
+const (
+	exampleCuit              = "cuit"
+	exampleTortilla          = "Tortilla"
+	exampleTortillaDePatatas = "Tortilla de patatas"
+)
+
+// TestTaxID runs the value-object suite against the examples the directive
+// and its rules declare.
+func TestTaxID(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	cases := []struct {
-		name      string
-		in        string
-		wantRules []string
-	}{
-		{name: "accepts \"20123456786\"", in: "20123456786"},
-		{name: "rejects the right shape with the wrong check digit", in: "20123456789", wantRules: []string{"cuit"}},
-		{name: "rejects ten digits, one short", in: "2012345678", wantRules: []string{"cuit"}},
-		{name: "rejects a punctuated CUIT, which is not what is stored", in: "20-12345678-6", wantRules: []string{"cuit"}},
-		{name: "rejects a non-digit in the check position", in: "2012345678X", wantRules: []string{"cuit"}},
-		{name: "rejects the empty string", in: "", wantRules: []string{"cuit"}},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Act
-			got, err := NewTaxID(tc.in)
-
-			// Assert
-			if len(tc.wantRules) == 0 {
-				require.NoError(t, err)
-				assert.False(t, got.IsZero())
-				return
-			}
-			require.Error(t, err)
-			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
-			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "taxId", Rule: rule},
-					"the %q rule was expected to reject the input", rule)
-			}
-		})
-	}
+	voguetest.Scalar[TaxID, *TaxID, string]{
+		Field:      "taxId",
+		New:        NewTaxID,
+		Get:        nil,
+		FromString: nil,
+		ParseRule:  "",
+		Examples:   nil,
+		Candidates: []string{"20123456786", "27123456780"},
+		Rejected: []voguetest.Rejection[string]{
+			{
+				Name:  "rejects the right shape with the wrong check digit",
+				Input: "20123456789",
+				Rules: []string{exampleCuit},
+			},
+			{
+				Name:  "rejects ten digits, one short",
+				Input: "2012345678",
+				Rules: []string{exampleCuit},
+			},
+			{
+				Name:  "rejects a punctuated CUIT, which is not what is stored",
+				Input: "20-12345678-6",
+				Rules: []string{exampleCuit},
+			},
+			{
+				Name:  "rejects a non-digit in the check position",
+				Input: "2012345678X",
+				Rules: []string{exampleCuit},
+			},
+			{
+				Name:  "rejects the empty string",
+				Input: "",
+				Rules: []string{exampleCuit},
+			},
+		},
+		Normalized: []voguetest.Normalization[string]{
+			{
+				Name:  "the blanks around a pasted value are dropped",
+				Input: "  Tortilla  ",
+				Out:   exampleTortilla,
+			},
+			{
+				Name:  "tabs and newlines count as whitespace too",
+				Input: "\tTortilla\n",
+				Out:   exampleTortilla,
+			},
+			{
+				Name:  "an already clean value is left alone",
+				Input: exampleTortilla,
+				Out:   exampleTortilla,
+			},
+		},
+		RefusesFloat: false,
+	}.Run(t)
 }
 
-// TestTaxID_TextRoundTrip proves a marshalled value object unmarshals back to
-// an equal one, which is what a JSON boundary does to it.
-func TestTaxID_TextRoundTrip(t *testing.T) {
+// TestLegalName runs the value-object suite against the examples the directive
+// and its rules declare.
+func TestLegalName(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	want, err := NewTaxID("20123456786")
-	require.NoError(t, err)
-
-	// Act
-	text, err := want.MarshalText()
-	require.NoError(t, err)
-
-	var got TaxID
-	err = got.UnmarshalText(text)
-
-	// Assert
-	require.NoError(t, err)
-	assert.True(t, want.Equal(got), "%s did not survive the text round trip", want.String())
-}
-
-// TestTaxID_SQLRoundTrip proves a stored value object reads back equal.
-func TestTaxID_SQLRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	want, err := NewTaxID("20123456786")
-	require.NoError(t, err)
-
-	// Act
-	stored, err := want.Value()
-	require.NoError(t, err)
-
-	var got TaxID
-	err = got.Scan(stored)
-
-	// Assert
-	require.NoError(t, err)
-	assert.True(t, want.Equal(got), "%s did not survive the SQL round trip", want.String())
-}
-
-// TestTaxID_Scan covers the sources Scan accepts and the ones it refuses.
-func TestTaxID_Scan(t *testing.T) {
-	t.Parallel()
-
-	t.Run("a NULL column produces the zero value", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got TaxID
-
-		// Act
-		err := got.Scan(nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, got.IsZero())
-	})
-
-	t.Run("a stored value the rules reject is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got TaxID
-
-		// Act
-		err := got.Scan("20123456789")
-
-		// Assert
-		require.Error(t, err)
-		assert.True(t, got.IsZero())
-	})
-
-	t.Run("an unsupported source is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got TaxID
-
-		// Act
-		err := got.Scan(struct{}{})
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cannot scan")
-	})
-}
-
-// TestTaxID_IsZero separates the zero value from a validated one.
-func TestTaxID_IsZero(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	var zero TaxID
-	built, err := NewTaxID("20123456786")
-	require.NoError(t, err)
-
-	// Act & Assert
-	assert.True(t, zero.IsZero())
-	assert.False(t, built.IsZero())
-	assert.False(t, zero.Equal(built))
-}
-
-// TestNewLegalName exercises the constructor against the examples the rules of
-// the directive declare: one accepted input, and one row per rejected input
-// naming every rule that rejects it.
-func TestNewLegalName(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	cases := []struct {
-		name      string
-		in        string
-		wantRules []string
-	}{
-		{name: "accepts \"Tortilla\"", in: "Tortilla"},
-		{name: "rejects the empty string", in: "", wantRules: []string{"required"}},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Act
-			got, err := NewLegalName(tc.in)
-
-			// Assert
-			if len(tc.wantRules) == 0 {
-				require.NoError(t, err)
-				assert.False(t, got.IsZero())
-				return
-			}
-			require.Error(t, err)
-			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
-			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "legalName", Rule: rule},
-					"the %q rule was expected to reject the input", rule)
-			}
-		})
-	}
-}
-
-// TestNewLegalName_Normalizes proves the normalizers of the directive rewrite the
-// value instead of only accepting it.
-func TestNewLegalName_Normalizes(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	cases := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{name: "the blanks around a pasted value are dropped", in: "  Tortilla  ", want: "Tortilla"},
-		{name: "tabs and newlines count as whitespace too", in: "\tTortilla\n", want: "Tortilla"},
-		{name: "an already clean value is left alone", in: "Tortilla", want: "Tortilla"},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Act
-			got, err := NewLegalName(tc.in)
-
-			// Assert
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, got.String())
-		})
-	}
-}
-
-// TestLegalName_TextRoundTrip proves a marshalled value object unmarshals back to
-// an equal one, which is what a JSON boundary does to it.
-func TestLegalName_TextRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	want, err := NewLegalName("Tortilla")
-	require.NoError(t, err)
-
-	// Act
-	text, err := want.MarshalText()
-	require.NoError(t, err)
-
-	var got LegalName
-	err = got.UnmarshalText(text)
-
-	// Assert
-	require.NoError(t, err)
-	assert.True(t, want.Equal(got), "%s did not survive the text round trip", want.String())
-}
-
-// TestLegalName_SQLRoundTrip proves a stored value object reads back equal.
-func TestLegalName_SQLRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	want, err := NewLegalName("Tortilla")
-	require.NoError(t, err)
-
-	// Act
-	stored, err := want.Value()
-	require.NoError(t, err)
-
-	var got LegalName
-	err = got.Scan(stored)
-
-	// Assert
-	require.NoError(t, err)
-	assert.True(t, want.Equal(got), "%s did not survive the SQL round trip", want.String())
-}
-
-// TestLegalName_Scan covers the sources Scan accepts and the ones it refuses.
-func TestLegalName_Scan(t *testing.T) {
-	t.Parallel()
-
-	t.Run("a NULL column produces the zero value", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got LegalName
-
-		// Act
-		err := got.Scan(nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, got.IsZero())
-	})
-
-	t.Run("an unsupported source is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got LegalName
-
-		// Act
-		err := got.Scan(struct{}{})
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cannot scan")
-	})
-}
-
-// TestLegalName_IsZero separates the zero value from a validated one.
-func TestLegalName_IsZero(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	var zero LegalName
-	built, err := NewLegalName("Tortilla")
-	require.NoError(t, err)
-
-	// Act & Assert
-	assert.True(t, zero.IsZero())
-	assert.False(t, built.IsZero())
-	assert.False(t, zero.Equal(built))
+	voguetest.Scalar[LegalName, *LegalName, string]{
+		Field:      "legalName",
+		New:        NewLegalName,
+		Get:        nil,
+		FromString: nil,
+		ParseRule:  "",
+		Examples:   nil,
+		Candidates: []string{exampleTortilla, " "},
+		Rejected: []voguetest.Rejection[string]{
+			{
+				Name:  "rejects the empty string",
+				Input: "",
+				Rules: []string{"required"},
+			},
+		},
+		Normalized: []voguetest.Normalization[string]{
+			{
+				Name:  "the blanks around a pasted value are dropped",
+				Input: "  Tortilla  ",
+				Out:   exampleTortilla,
+			},
+			{
+				Name:  "tabs and newlines count as whitespace too",
+				Input: "\tTortilla\n",
+				Out:   exampleTortilla,
+			},
+			{
+				Name:  "an already clean value is left alone",
+				Input: exampleTortilla,
+				Out:   exampleTortilla,
+			},
+			{
+				Name:  "a run of spaces becomes one",
+				Input: "Tortilla   de  patatas",
+				Out:   exampleTortillaDePatatas,
+			},
+			{
+				Name:  "the ends are trimmed as well",
+				Input: "  Tortilla de patatas  ",
+				Out:   exampleTortillaDePatatas,
+			},
+			{
+				Name:  "a tab and a newline become plain spaces",
+				Input: "Tortilla\tde\npatatas",
+				Out:   exampleTortillaDePatatas,
+			},
+		},
+		RefusesFloat: false,
+	}.Run(t)
 }

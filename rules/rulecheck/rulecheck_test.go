@@ -1,9 +1,9 @@
-package fn_test
+package rulecheck_test
 
 import (
 	"testing"
 
-	"github.com/MathiasHilgert/vogue/rules/fn"
+	"github.com/MathiasHilgert/vogue/rules/rulecheck"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -26,13 +26,13 @@ func TestEmail(t *testing.T) {
 		{name: "an address list", in: "a@b.test, c@d.test", want: false},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
 			// Act
-			got := fn.Email(tc.in)
+			got := rulecheck.Email(testCase.in)
 
 			// Assert
-			assert.Equal(t, tc.want, got)
+			assert.Equal(t, testCase.want, got)
 		})
 	}
 }
@@ -54,13 +54,13 @@ func TestURL(t *testing.T) {
 		{name: "a control character", in: "https://example.com/\n", want: false},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
 			// Act
-			got := fn.URL(tc.in)
+			got := rulecheck.URL(testCase.in)
 
 			// Assert
-			assert.Equal(t, tc.want, got)
+			assert.Equal(t, testCase.want, got)
 		})
 	}
 }
@@ -83,13 +83,82 @@ func TestUUID(t *testing.T) {
 		{name: "surrounding whitespace", in: " 9b2b4f52-1c2d-4e5a-9f3b-6d7c8e9f0a1b ", want: false},
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
 			// Act
-			got := fn.UUID(tc.in)
+			got := rulecheck.UUID(testCase.in)
 
 			// Assert
-			assert.Equal(t, tc.want, got)
+			assert.Equal(t, testCase.want, got)
+		})
+	}
+}
+
+func TestRegexp(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		v       string
+		pattern string
+		want    bool
+	}{
+		{name: "matches an anchored pattern", v: "AR", pattern: "^[A-Z]{2}$", want: true},
+		{name: "rejects a value outside the pattern", v: "ar", pattern: "^[A-Z]{2}$", want: false},
+		{name: "matches unanchored anywhere", v: "x-42-y", pattern: "[0-9]+", want: true},
+		{name: "rejects an invalid pattern rather than panicking", v: "a", pattern: "[", want: false},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			got := rulecheck.Regexp(testCase.v, testCase.pattern)
+
+			// Assert
+			assert.Equal(t, testCase.want, got)
+		})
+	}
+}
+
+func TestRegexp_compilesOnce(t *testing.T) {
+	// Arrange
+	rulecheck.Regexp("warm", "^w")
+
+	// Act
+	allocs := testing.AllocsPerRun(100, func() { rulecheck.Regexp("warm", "^w") })
+
+	// Assert
+	assert.Zero(t, allocs, "a cached pattern must be matched without compiling it again")
+}
+
+func TestTimeZone(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		in   string
+		want bool
+	}{
+		{name: "a zone with a city", in: "America/Argentina/Buenos_Aires", want: true},
+		{name: "another continent", in: "Europe/Madrid", want: true},
+		{name: "UTC", in: "UTC", want: true},
+		{name: "a zone that does not exist", in: "Mars/Olympus_Mons", want: false},
+		{name: "the process-local zone, which names no place", in: "Local", want: false},
+		{name: "the empty string, which LoadLocation reads as UTC", in: "", want: false},
+		{name: "a path escaping the zone database", in: "../etc/passwd", want: false},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act
+			got := rulecheck.TimeZone(testCase.in)
+
+			// Assert
+			assert.Equal(t, testCase.want, got)
 		})
 	}
 }

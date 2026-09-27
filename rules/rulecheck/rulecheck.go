@@ -1,12 +1,12 @@
-// Package fn holds the runtime helpers the built-in vogue rules dispatch to.
+// Package rulecheck holds the runtime helpers the built-in vogue rules dispatch to.
 //
 // A rule whose check does not fit in a readable inline expression declares a
 // [vogue.FuncRef] pointing here, and the generator emits a static call such as
-// `fn.Email(v)`. Everything in this package is therefore a pure predicate of
+// `rulecheck.Email(v)`. Everything in this package is therefore a pure predicate of
 // the form `func(v string) bool`, reporting true when the value is acceptable:
 // no state, no configuration and no error return, so a generated constructor
 // stays a straight line of checks.
-package fn
+package rulecheck
 
 import (
 	"net/mail"
@@ -27,9 +27,9 @@ import (
 //
 // Deliverability is not checked: no DNS lookup is performed, and a
 // syntactically valid address at a domain that does not exist is accepted.
-func Email(v string) bool {
-	addr, err := mail.ParseAddress(v)
-	return err == nil && addr.Name == "" && addr.Address == v
+func Email(value string) bool {
+	addr, err := mail.ParseAddress(value)
+	return err == nil && addr.Name == "" && addr.Address == value
 }
 
 // URL reports whether v is an absolute http or https URL.
@@ -43,12 +43,12 @@ func Email(v string) bool {
 // as a link.
 //
 // Reachability is not checked: no request is made.
-func URL(v string) bool {
-	u, err := url.ParseRequestURI(v)
-	if err != nil || u.Host == "" {
+func URL(value string) bool {
+	parsed, err := url.ParseRequestURI(value)
+	if err != nil || parsed.Host == "" {
 		return false
 	}
-	return u.Scheme == "http" || u.Scheme == "https"
+	return parsed.Scheme == "http" || parsed.Scheme == "https"
 }
 
 // UUID reports whether v is a UUID in the canonical RFC 4122 text form,
@@ -60,9 +60,9 @@ func URL(v string) bool {
 // prefix — are deliberately rejected: a stored identifier that compares equal
 // as text is worth more than one that has to be normalised before every
 // comparison.
-func UUID(v string) bool {
-	if len(v) != 36 {
+func UUID(value string) bool {
+	if len(value) != 36 {
 		return false
 	}
-	return uuid.Validate(v) == nil
+	return uuid.Validate(value) == nil
 }

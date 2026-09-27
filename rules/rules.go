@@ -80,6 +80,7 @@ func All() []vogue.Rule {
 		Email,
 		URL,
 		UUID,
+		TimeZone,
 		Regex,
 		OneOf,
 		Alpha,

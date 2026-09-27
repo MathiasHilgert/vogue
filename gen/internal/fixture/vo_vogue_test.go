@@ -5,1035 +5,176 @@ package fixture
 import (
 	"testing"
 
-	"github.com/MathiasHilgert/vogue"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/MathiasHilgert/vogue/voguetest"
 )
 
-// TestNewTitle exercises the constructor against the examples the rules of
-// the directive declare: one accepted input, and one row per rejected input
-// naming every rule that rejects it.
-func TestNewTitle(t *testing.T) {
+// The strings below are shared by several rows of the tables in this file.
+const (
+	exampleMin = "min"
+)
+
+// TestTitle runs the value-object suite against the examples the directive
+// and its rules declare.
+func TestTitle(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	cases := []struct {
-		name      string
-		in        string
-		wantRules []string
-	}{
-		{name: "accepts \"a\"", in: "a"},
-		{name: "rejects the empty string", in: "", wantRules: []string{"required", "min"}},
-		{name: "rejects a value carrying a digit", in: "a1", wantRules: []string{"nodigits"}},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Act
-			got, err := NewTitle(tc.in)
-
-			// Assert
-			if len(tc.wantRules) == 0 {
-				require.NoError(t, err)
-				assert.False(t, got.IsZero())
-				return
-			}
-			require.Error(t, err)
-			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
-			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "title", Rule: rule},
-					"the %q rule was expected to reject the input", rule)
-			}
-		})
-	}
+	voguetest.Scalar[Title, *Title, string]{
+		Field:      "title",
+		New:        NewTitle,
+		Get:        nil,
+		FromString: nil,
+		ParseRule:  "",
+		Examples:   nil,
+		Candidates: []string{"a", "a tab name", "abc"},
+		Rejected: []voguetest.Rejection[string]{
+			{
+				Name:  "rejects the empty string",
+				Input: "",
+				Rules: []string{"required", exampleMin},
+			},
+			{
+				Name:  "rejects a value carrying a digit",
+				Input: "a1",
+				Rules: []string{"nodigits"},
+			},
+		},
+		Normalized: []voguetest.Normalization[string]{
+			{
+				Name:  "trim removes the blanks around a value",
+				Input: "  a  ",
+				Out:   "a",
+			},
+			{
+				Name:  "lower folds an upper-case value",
+				Input: "A",
+				Out:   "a",
+			},
+		},
+		RefusesFloat: false,
+	}.Run(t)
 }
 
-// TestNewTitle_Normalizes proves the normalizers of the directive rewrite the
-// value instead of only accepting it.
-func TestNewTitle_Normalizes(t *testing.T) {
+// TestCovers runs the value-object suite against the examples the directive
+// and its rules declare.
+func TestCovers(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	cases := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{name: "trim removes the blanks around a value", in: "  a  ", want: "a"},
-		{name: "lower folds an upper-case value", in: "A", want: "a"},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Act
-			got, err := NewTitle(tc.in)
-
-			// Assert
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, got.String())
-		})
-	}
+	voguetest.Scalar[Covers, *Covers, int64]{
+		Field:      "covers",
+		New:        NewCovers,
+		Get:        Covers.Int64,
+		FromString: NewCoversFromString,
+		ParseRule:  "int",
+		Examples:   nil,
+		Candidates: []int64{1, 200},
+		Rejected: []voguetest.Rejection[int64]{
+			{
+				Name:  "rejects a table with nobody at it",
+				Input: 0,
+				Rules: []string{exampleMin},
+			},
+			{
+				Name:  "rejects one guest more than the house holds",
+				Input: 201,
+				Rules: []string{"max"},
+			},
+		},
+		Normalized:   nil,
+		RefusesFloat: false,
+	}.Run(t)
 }
 
-// TestTitle_TextRoundTrip proves a marshalled value object unmarshals back to
-// an equal one, which is what a JSON boundary does to it.
-func TestTitle_TextRoundTrip(t *testing.T) {
+// TestTabStatus pins the members of TabStatus and runs the enum suite over them.
+func TestTabStatus(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	want, err := NewTitle("a")
-	require.NoError(t, err)
-
-	// Act
-	text, err := want.MarshalText()
-	require.NoError(t, err)
-
-	var got Title
-	err = got.UnmarshalText(text)
-
-	// Assert
-	require.NoError(t, err)
-	assert.True(t, want.Equal(got), "%s did not survive the text round trip", want.String())
+	voguetest.Enum[TabStatus, *TabStatus]{
+		Field: "tabStatus",
+		All:   TabStatuses{}.All(),
+		Parse: TabStatuses{}.Parse,
+		Want: []string{
+			"open",
+			"in_progress",
+			"closed",
+		},
+	}.Run(t)
 }
 
-// TestTitle_SQLRoundTrip proves a stored value object reads back equal.
-func TestTitle_SQLRoundTrip(t *testing.T) {
+// TestTabID runs the identifier suite: fresh UUIDv7 mints, and any
+// RFC 4122 UUID read back.
+func TestTabID(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	want, err := NewTitle("a")
-	require.NoError(t, err)
-
-	// Act
-	stored, err := want.Value()
-	require.NoError(t, err)
-
-	var got Title
-	err = got.Scan(stored)
-
-	// Assert
-	require.NoError(t, err)
-	assert.True(t, want.Equal(got), "%s did not survive the SQL round trip", want.String())
+	voguetest.UUID[TabID, *TabID]{
+		Field:      "tabId",
+		New:        NewTabID,
+		FromString: NewTabIDFromString,
+		Version:    7,
+	}.Run(t)
 }
 
-// TestTitle_Scan covers the sources Scan accepts and the ones it refuses.
-func TestTitle_Scan(t *testing.T) {
+// TestInvoiceNumber runs the database-assigned identifier suite.
+func TestInvoiceNumber(t *testing.T) {
 	t.Parallel()
 
-	t.Run("a NULL column produces the zero value", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got Title
-
-		// Act
-		err := got.Scan(nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, got.IsZero())
-	})
-
-	t.Run("a stored value the rules reject is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got Title
-
-		// Act
-		err := got.Scan("a1")
-
-		// Assert
-		require.Error(t, err)
-		assert.True(t, got.IsZero())
-	})
-
-	t.Run("an unsupported source is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got Title
-
-		// Act
-		err := got.Scan(struct{}{})
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cannot scan")
-	})
+	voguetest.Int64ID[InvoiceNumber, *InvoiceNumber]{
+		Field:      "invoiceNumber",
+		FromInt64:  NewInvoiceNumberFromInt64,
+		FromString: NewInvoiceNumberFromString,
+	}.Run(t)
 }
 
-// TestTitle_IsZero separates the zero value from a validated one.
-func TestTitle_IsZero(t *testing.T) {
+// TestSlug runs the value-object suite against the examples the directive
+// and its rules declare.
+func TestSlug(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	var zero Title
-	built, err := NewTitle("a")
-	require.NoError(t, err)
-
-	// Act & Assert
-	assert.True(t, zero.IsZero())
-	assert.False(t, built.IsZero())
-	assert.False(t, zero.Equal(built))
+	voguetest.Scalar[Slug, *Slug, string]{
+		Field:      "slug",
+		New:        NewSlug,
+		Get:        nil,
+		FromString: nil,
+		ParseRule:  "",
+		Examples:   nil,
+		Candidates: nil,
+		Rejected:   nil,
+		Normalized: []voguetest.Normalization[string]{
+			{
+				Name:  "lower folds an upper-case value",
+				Input: "A",
+				Out:   "a",
+			},
+		},
+		RefusesFloat: false,
+	}.Run(t)
 }
 
-// TestNewCovers exercises the constructor against the examples the rules of
-// the directive declare: one accepted input, and one row per rejected input
-// naming every rule that rejects it.
-func TestNewCovers(t *testing.T) {
+// TestWeight runs the value-object suite against the examples the directive
+// and its rules declare.
+func TestWeight(t *testing.T) {
 	t.Parallel()
 
-	// Arrange
-	cases := []struct {
-		name      string
-		in        int64
-		wantRules []string
-	}{
-		{name: "accepts \"1\"", in: 1},
-		{name: "rejects a table with nobody at it", in: 0, wantRules: []string{"min"}},
-		{name: "rejects one guest more than the house holds", in: 201, wantRules: []string{"max"}},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Act
-			got, err := NewCovers(tc.in)
-
-			// Assert
-			if len(tc.wantRules) == 0 {
-				require.NoError(t, err)
-				assert.False(t, got.IsZero())
-				assert.Equal(t, tc.in, got.Int64())
-				return
-			}
-			require.Error(t, err)
-			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
-			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "covers", Rule: rule},
-					"the %q rule was expected to reject the input", rule)
-			}
-		})
-	}
-}
-
-// TestCovers_TextRoundTrip proves a marshalled value object unmarshals back to
-// an equal one, which is what a JSON boundary does to it.
-func TestCovers_TextRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	want, err := NewCovers(1)
-	require.NoError(t, err)
-
-	// Act
-	text, err := want.MarshalText()
-	require.NoError(t, err)
-
-	var got Covers
-	err = got.UnmarshalText(text)
-
-	// Assert
-	require.NoError(t, err)
-	assert.True(t, want.Equal(got), "%s did not survive the text round trip", want.String())
-}
-
-// TestCovers_SQLRoundTrip proves a stored value object reads back equal.
-func TestCovers_SQLRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	want, err := NewCovers(1)
-	require.NoError(t, err)
-
-	// Act
-	stored, err := want.Value()
-	require.NoError(t, err)
-
-	var got Covers
-	err = got.Scan(stored)
-
-	// Assert
-	require.NoError(t, err)
-	assert.True(t, want.Equal(got), "%s did not survive the SQL round trip", want.String())
-}
-
-// TestCovers_Scan covers the sources Scan accepts and the ones it refuses.
-func TestCovers_Scan(t *testing.T) {
-	t.Parallel()
-
-	t.Run("a NULL column produces the zero value", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got Covers
-
-		// Act
-		err := got.Scan(nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, got.IsZero())
-	})
-
-	t.Run("a stored value the rules reject is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got Covers
-
-		// Act
-		err := got.Scan("0")
-
-		// Assert
-		require.Error(t, err)
-		assert.True(t, got.IsZero())
-	})
-
-	t.Run("an unsupported source is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got Covers
-
-		// Act
-		err := got.Scan(struct{}{})
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cannot scan")
-	})
-}
-
-// TestParseCovers covers the textual entry point of the value object.
-func TestParseCovers(t *testing.T) {
-	t.Parallel()
-
-	t.Run("reads a valid representation", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		want, err := NewCovers(1)
-		require.NoError(t, err)
-
-		// Act
-		got, err := ParseCovers("1")
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, want.Equal(got))
-	})
-
-	t.Run("rejects a representation that is not a whole number", func(t *testing.T) {
-		t.Parallel()
-
-		// Act
-		got, err := ParseCovers("not-a-number")
-
-		// Assert
-		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "covers", Rule: "int"})
-		assert.True(t, got.IsZero())
-	})
-}
-
-// TestCovers_IsZero separates the zero value from a validated one.
-func TestCovers_IsZero(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	var zero Covers
-	built, err := NewCovers(1)
-	require.NoError(t, err)
-
-	// Act & Assert
-	assert.True(t, zero.IsZero())
-	assert.False(t, built.IsZero())
-	assert.False(t, zero.Equal(built))
-}
-
-// TestParseTabStatus resolves every declared member and refuses everything else.
-func TestParseTabStatus(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	cases := []struct {
-		name    string
-		in      string
-		want    TabStatus
-		wantErr bool
-	}{
-		{name: "parses open", in: "open", want: TabStatusOpen},
-		{name: "parses in_progress", in: "in_progress", want: TabStatusInProgress},
-		{name: "parses closed", in: "closed", want: TabStatusClosed},
-		{name: "rejects a value that is not a member", in: "not-a-member", wantErr: true},
-		{name: "rejects the empty string", in: "", wantErr: true},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Act
-			got, err := ParseTabStatus(tc.in)
-
-			// Assert
-			if tc.wantErr {
-				require.Error(t, err)
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "tabStatus", Rule: "oneof", Param: "open,in_progress,closed"})
-				assert.True(t, got.IsZero())
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, got)
-			assert.Equal(t, tc.in, got.String())
-		})
-	}
-}
-
-// TestTabStatusValues pins the member set and its order: a member added to or
-// removed from the directive fails here first.
-func TestTabStatusValues(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	want := []string{"open", "in_progress", "closed"}
-
-	// Act
-	got := TabStatusValues()
-
-	// Assert
-	require.Len(t, got, len(want))
-	for i, member := range got {
-		assert.Equal(t, want[i], member.String())
-		assert.False(t, member.IsZero())
-	}
-}
-
-// TestTabStatus_RoundTrip proves every member survives both boundaries it
-// crosses, the text codec and the database.
-func TestTabStatus_RoundTrip(t *testing.T) {
-	t.Parallel()
-
-	for _, want := range TabStatusValues() {
-		t.Run(want.String(), func(t *testing.T) {
-			t.Parallel()
-
-			// Act
-			text, err := want.MarshalText()
-			require.NoError(t, err)
-
-			var fromText TabStatus
-			require.NoError(t, fromText.UnmarshalText(text))
-
-			stored, err := want.Value()
-			require.NoError(t, err)
-
-			var fromSQL TabStatus
-			err = fromSQL.Scan(stored)
-
-			// Assert
-			require.NoError(t, err)
-			assert.True(t, want.Equal(fromText))
-			assert.True(t, want.Equal(fromSQL))
-		})
-	}
-}
-
-// TestTabStatus_Scan covers the sources Scan accepts and the ones it refuses.
-func TestTabStatus_Scan(t *testing.T) {
-	t.Parallel()
-
-	t.Run("a NULL column produces the zero value", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got TabStatus
-
-		// Act
-		err := got.Scan(nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, got.IsZero())
-	})
-
-	t.Run("a stored value that is no longer a member is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got TabStatus
-
-		// Act
-		err := got.Scan("not-a-member")
-
-		// Assert
-		require.Error(t, err)
-		assert.True(t, got.IsZero())
-	})
-
-	t.Run("an unsupported source is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got TabStatus
-
-		// Act
-		err := got.Scan(struct{}{})
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cannot scan")
-	})
-}
-
-// TestTabStatus_IsZero proves the zero value is not one of the members, which is
-// the whole point of generating an enum as a struct.
-func TestTabStatus_IsZero(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	var zero TabStatus
-
-	// Act & Assert
-	assert.True(t, zero.IsZero())
-	assert.Empty(t, zero.String())
-	for _, member := range TabStatusValues() {
-		assert.False(t, zero.Equal(member), "the zero value must not equal %s", member.String())
-	}
-}
-
-// TestNewTabID proves the generator mints fresh identifiers of the declared
-// version.
-func TestNewTabID(t *testing.T) {
-	t.Parallel()
-
-	// Act
-	first, err := NewTabID()
-	require.NoError(t, err)
-	second, err := NewTabID()
-	require.NoError(t, err)
-
-	// Assert
-	assert.False(t, first.IsZero())
-	assert.False(t, first.Equal(second), "two mints must not collide")
-	assert.EqualValues(t, 7, first.Version())
-}
-
-// TestParseTabID reads the identifiers an existing row may hold, which is any
-// RFC 4122 UUID rather than only the version this type mints.
-func TestParseTabID(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	cases := []struct {
-		name    string
-		in      string
-		wantErr bool
-		zero    bool
-	}{
-		{name: "reads 018ff1d4-9c2a-7b3e-9f6a-6c1d2e3f4a5b", in: "018ff1d4-9c2a-7b3e-9f6a-6c1d2e3f4a5b"},
-		{name: "reads 3f333df6-90a4-4fda-8dd3-9485d27cee36", in: "3f333df6-90a4-4fda-8dd3-9485d27cee36"},
-		{name: "reads the nil UUID as an unassigned identifier", in: "00000000-0000-0000-0000-000000000000", zero: true},
-		{name: "rejects a value that is not a UUID", in: "not-a-uuid", wantErr: true},
-		{name: "rejects the empty string", in: "", wantErr: true},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Act
-			got, err := ParseTabID(tc.in)
-
-			// Assert
-			if tc.wantErr {
-				require.Error(t, err)
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "tabId", Rule: "uuid"})
-				assert.True(t, got.IsZero())
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tc.zero, got.IsZero())
-			assert.Equal(t, tc.in, got.String())
-		})
-	}
-}
-
-// TestTabID_RoundTrip proves an identifier survives the text codec and the
-// database unchanged.
-func TestTabID_RoundTrip(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	want, err := NewTabID()
-	require.NoError(t, err)
-
-	// Act
-	text, err := want.MarshalText()
-	require.NoError(t, err)
-
-	var fromText TabID
-	require.NoError(t, fromText.UnmarshalText(text))
-
-	stored, err := want.Value()
-	require.NoError(t, err)
-
-	var fromSQL TabID
-	err = fromSQL.Scan(stored)
-
-	// Assert
-	require.NoError(t, err)
-	assert.True(t, want.Equal(fromText))
-	assert.True(t, want.Equal(fromSQL))
-}
-
-// TestTabID_Scan refuses a stored value that is not an identifier.
-func TestTabID_Scan(t *testing.T) {
-	t.Parallel()
-
-	t.Run("a stored value that is not a UUID is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got TabID
-
-		// Act
-		err := got.Scan("not-a-uuid")
-
-		// Assert
-		require.Error(t, err)
-		assert.True(t, got.IsZero())
-	})
-
-	t.Run("an unsupported source is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got TabID
-
-		// Act
-		err := got.Scan(struct{}{})
-
-		// Assert
-		require.Error(t, err)
-	})
-}
-
-// TestTabID_IsZero separates an unassigned identifier from a minted one.
-func TestTabID_IsZero(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	var zero TabID
-	minted, err := NewTabID()
-	require.NoError(t, err)
-
-	// Act & Assert
-	assert.True(t, zero.IsZero())
-	assert.False(t, minted.IsZero())
-	assert.False(t, zero.Equal(minted))
-}
-
-// TestInvoiceNumberFromInt64 proves a database-assigned identifier is accepted and
-// that the values no sequence ever hands out are not.
-func TestInvoiceNumberFromInt64(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	cases := []struct {
-		name    string
-		in      int64
-		wantErr bool
-	}{
-		{name: "accepts the first identifier a sequence hands out", in: 1},
-		{name: "accepts a large identifier", in: 9007199254740993},
-		{name: "rejects zero, which is the unassigned identifier", in: 0, wantErr: true},
-		{name: "rejects a negative identifier", in: -1, wantErr: true},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Act
-			got, err := InvoiceNumberFromInt64(tc.in)
-
-			// Assert
-			if tc.wantErr {
-				require.Error(t, err)
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "invoiceNumber", Rule: "positive"})
-				assert.True(t, got.IsZero())
-				return
-			}
-			require.NoError(t, err)
-			assert.Equal(t, tc.in, got.Int64())
-			assert.False(t, got.IsZero())
-		})
-	}
-}
-
-// TestParseInvoiceNumber covers the textual entry point of the identifier.
-func TestParseInvoiceNumber(t *testing.T) {
-	t.Parallel()
-
-	t.Run("reads a base-10 identifier", func(t *testing.T) {
-		t.Parallel()
-
-		// Act
-		got, err := ParseInvoiceNumber("42")
-
-		// Assert
-		require.NoError(t, err)
-		assert.Equal(t, int64(42), got.Int64())
-	})
-
-	t.Run("rejects a representation that is not a whole number", func(t *testing.T) {
-		t.Parallel()
-
-		// Act
-		got, err := ParseInvoiceNumber("not-a-number")
-
-		// Assert
-		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "invoiceNumber", Rule: "int"})
-		assert.True(t, got.IsZero())
-	})
-
-	t.Run("rejects an identifier no sequence hands out", func(t *testing.T) {
-		t.Parallel()
-
-		// Act
-		got, err := ParseInvoiceNumber("0")
-
-		// Assert
-		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "invoiceNumber", Rule: "positive"})
-		assert.True(t, got.IsZero())
-	})
-}
-
-// TestInvoiceNumber_RoundTrip proves an identifier survives the text codec and the
-// database unchanged. It crosses JSON as a string, so a JavaScript client
-// cannot round it off.
-func TestInvoiceNumber_RoundTrip(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	want, err := InvoiceNumberFromInt64(9007199254740993)
-	require.NoError(t, err)
-
-	// Act
-	text, err := want.MarshalText()
-	require.NoError(t, err)
-
-	var fromText InvoiceNumber
-	require.NoError(t, fromText.UnmarshalText(text))
-
-	stored, err := want.Value()
-	require.NoError(t, err)
-
-	var fromSQL InvoiceNumber
-	err = fromSQL.Scan(stored)
-
-	// Assert
-	require.NoError(t, err)
-	assert.Equal(t, "9007199254740993", string(text))
-	assert.True(t, want.Equal(fromText))
-	assert.True(t, want.Equal(fromSQL))
-}
-
-// TestInvoiceNumber_Scan covers the sources Scan accepts and the ones it refuses.
-func TestInvoiceNumber_Scan(t *testing.T) {
-	t.Parallel()
-
-	t.Run("a NULL column produces the unassigned identifier", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got InvoiceNumber
-
-		// Act
-		err := got.Scan(nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, got.IsZero())
-	})
-
-	t.Run("a stored identifier that is not positive is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got InvoiceNumber
-
-		// Act
-		err := got.Scan(int64(0))
-
-		// Assert
-		require.Error(t, err)
-		assert.True(t, got.IsZero())
-	})
-
-	t.Run("an unsupported source is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got InvoiceNumber
-
-		// Act
-		err := got.Scan(struct{}{})
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cannot scan")
-	})
-}
-
-// TestInvoiceNumber_IsZero separates an unassigned identifier from an assigned one.
-func TestInvoiceNumber_IsZero(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	var zero InvoiceNumber
-	assigned, err := InvoiceNumberFromInt64(1)
-	require.NoError(t, err)
-
-	// Act & Assert
-	assert.True(t, zero.IsZero())
-	assert.Equal(t, "0", zero.String())
-	assert.False(t, assigned.IsZero())
-	assert.False(t, zero.Equal(assigned))
-}
-
-// TestNewSlug has nothing to assert: no example declared by the rules of
-// Slug survives all of them, so any table would either be fabricated or
-// silently green.
-func TestNewSlug(t *testing.T) {
-	t.Parallel()
-	t.Skip("vogue: no example of Slug satisfies every rule and differs from the zero value; add Examples to the rules it uses")
-}
-
-// TestNewSlug_Normalizes proves the normalizers of the directive rewrite the
-// value instead of only accepting it.
-func TestNewSlug_Normalizes(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	cases := []struct {
-		name string
-		in   string
-		want string
-	}{
-		{name: "lower folds an upper-case value", in: "A", want: "a"},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Act
-			got, err := NewSlug(tc.in)
-
-			// Assert
-			require.NoError(t, err)
-			assert.Equal(t, tc.want, got.String())
-		})
-	}
-}
-
-// TestNewWeight exercises the constructor against the examples the rules of
-// the directive declare: one accepted input, and one row per rejected input
-// naming every rule that rejects it.
-func TestNewWeight(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	cases := []struct {
-		name      string
-		in        string
-		wantRules []string
-	}{
-		{name: "accepts \"1.5\"", in: "1.5"},
-		{name: "rejects a weight below zero", in: "-0.25", wantRules: []string{"min"}},
-		{name: "rejects four decimal places do not", in: "0.1234", wantRules: []string{"scale"}},
-	}
-
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Act
-			got, err := ParseWeight(tc.in)
-
-			// Assert
-			if len(tc.wantRules) == 0 {
-				require.NoError(t, err)
-				assert.False(t, got.IsZero())
-				return
-			}
-			require.Error(t, err)
-			assert.True(t, got.IsZero(), "a rejected input must not produce a usable value object")
-			for _, rule := range tc.wantRules {
-				assert.ErrorIs(t, err, vogue.FieldError{Field: "weight", Rule: rule},
-					"the %q rule was expected to reject the input", rule)
-			}
-		})
-	}
-}
-
-// TestWeight_TextRoundTrip proves a marshalled value object unmarshals back to
-// an equal one, which is what a JSON boundary does to it.
-func TestWeight_TextRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	want, err := ParseWeight("1.5")
-	require.NoError(t, err)
-
-	// Act
-	text, err := want.MarshalText()
-	require.NoError(t, err)
-
-	var got Weight
-	err = got.UnmarshalText(text)
-
-	// Assert
-	require.NoError(t, err)
-	assert.True(t, want.Equal(got), "%s did not survive the text round trip", want.String())
-}
-
-// TestWeight_SQLRoundTrip proves a stored value object reads back equal.
-func TestWeight_SQLRoundTrip(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	want, err := ParseWeight("1.5")
-	require.NoError(t, err)
-
-	// Act
-	stored, err := want.Value()
-	require.NoError(t, err)
-
-	var got Weight
-	err = got.Scan(stored)
-
-	// Assert
-	require.NoError(t, err)
-	assert.True(t, want.Equal(got), "%s did not survive the SQL round trip", want.String())
-}
-
-// TestWeight_Scan covers the sources Scan accepts and the ones it refuses.
-func TestWeight_Scan(t *testing.T) {
-	t.Parallel()
-
-	t.Run("a NULL column produces the zero value", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got Weight
-
-		// Act
-		err := got.Scan(nil)
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, got.IsZero())
-	})
-
-	t.Run("a stored value the rules reject is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got Weight
-
-		// Act
-		err := got.Scan("-0.25")
-
-		// Assert
-		require.Error(t, err)
-		assert.True(t, got.IsZero())
-	})
-
-	t.Run("a binary float source is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got Weight
-
-		// Act
-		err := got.Scan(1.5)
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "binary float")
-		assert.True(t, got.IsZero())
-	})
-
-	t.Run("an unsupported source is refused", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		var got Weight
-
-		// Act
-		err := got.Scan(struct{}{})
-
-		// Assert
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "cannot scan")
-	})
-}
-
-// TestParseWeight covers the textual entry point of the value object.
-func TestParseWeight(t *testing.T) {
-	t.Parallel()
-
-	t.Run("reads a valid representation", func(t *testing.T) {
-		t.Parallel()
-
-		// Arrange
-		want, err := ParseWeight("1.5")
-		require.NoError(t, err)
-
-		// Act
-		got, err := ParseWeight("1.5")
-
-		// Assert
-		require.NoError(t, err)
-		assert.True(t, want.Equal(got))
-	})
-
-	t.Run("rejects a representation that is not an exact decimal number", func(t *testing.T) {
-		t.Parallel()
-
-		// Act
-		got, err := ParseWeight("not-a-number")
-
-		// Assert
-		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "weight", Rule: "decimal"})
-		assert.True(t, got.IsZero())
-	})
-}
-
-// TestWeight_IsZero separates the zero value from a validated one.
-func TestWeight_IsZero(t *testing.T) {
-	t.Parallel()
-
-	// Arrange
-	var zero Weight
-	built, err := ParseWeight("1.5")
-	require.NoError(t, err)
-
-	// Act & Assert
-	assert.True(t, zero.IsZero())
-	assert.False(t, built.IsZero())
-	assert.False(t, zero.Equal(built))
+	voguetest.Scalar[Weight, *Weight, string]{
+		Field:      "weight",
+		New:        NewWeightFromString,
+		Get:        nil,
+		FromString: NewWeightFromString,
+		ParseRule:  "decimal",
+		Examples:   nil,
+		Candidates: []string{"1.5", "1.25"},
+		Rejected: []voguetest.Rejection[string]{
+			{
+				Name:  "rejects a weight below zero",
+				Input: "-0.25",
+				Rules: []string{exampleMin},
+			},
+			{
+				Name:  "rejects four decimal places do not",
+				Input: "0.1234",
+				Rules: []string{"scale"},
+			},
+		},
+		Normalized:   nil,
+		RefusesFloat: true,
+	}.Run(t)
 }

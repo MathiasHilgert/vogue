@@ -115,6 +115,7 @@ func Files(fset *token.FileSet, files []*ast.File, rules *vogue.RuleSet) (*Packa
 		pkg.Files = append(pkg.Files, parsed)
 	}
 
+	p.checkCatalogues(pkg)
 	if len(p.errs) > 0 {
 		p.errs.sort()
 		return nil, p.errs
@@ -129,6 +130,26 @@ type collector struct {
 	rules    *vogue.RuleSet
 	declared map[string]token.Position
 	errs     Errors
+}
+
+// catalogueMethods are the methods every enum catalogue declares, which no
+// member method may shadow.
+var catalogueMethods = map[string]struct{}{"All": {}, "Parse": {}}
+
+// checkCatalogues reports an enum whose catalogue type would take the name of
+// another value object of the package. It runs once every directive is known,
+// because the colliding one may be declared later or in another file.
+func (p *collector) checkCatalogues(pkg *Package) {
+	for _, d := range pkg.Directives() {
+		if d.Catalogue == "" {
+			continue
+		}
+		if at, taken := p.declared[d.Catalogue]; taken {
+			p.errs.hint(d.Pos,
+				fmt.Sprintf("the catalogue type %s of enum %q collides with a value object declared at %s", d.Catalogue, d.Name, at),
+				"rename one of them")
+		}
+	}
 }
 
 // file collects the directives of one syntax tree, remembering the ordinary
@@ -200,12 +221,13 @@ func (p *collector) directive(comment *ast.Comment, doc string) (Directive, bool
 			return Directive{}, false
 		}
 		d.Values = values
+		d.Catalogue = plural(nameTok.text)
 	case vogue.String, vogue.Int, vogue.Decimal:
-		rules, ok := p.ruleUses(pos, kind, tokens)
+		rules, examples, ok := p.ruleUses(pos, kind, tokens)
 		if !ok {
 			return Directive{}, false
 		}
-		d.Rules = rules
+		d.Rules, d.Examples = rules, examples
 	}
 	return d, true
 }
@@ -275,20 +297,43 @@ func (p *collector) enumValues(pos, namePos token.Position, name string, tokens 
 			continue
 		}
 		seen[item] = struct{}{}
-		values = append(values, EnumValue{Value: item, Const: constName(name, item)})
+		method := methodName(item)
+		if _, reserved := catalogueMethods[method]; reserved {
+			p.errs.hint(tokPos,
+				fmt.Sprintf("enum member %q would be generated as the method %s, which the catalogue already declares", item, method),
+				"rename the member")
+			ok = false
+			continue
+		}
+		values = append(values, EnumValue{Value: item, Const: constName(name, item), Method: method})
 	}
 	return values, ok
 }
 
-// ruleUses resolves every rule token of a string or int directive against the
-// catalogue, preserving the order in which they were written.
-func (p *collector) ruleUses(pos token.Position, kind vogue.Kind, tokens []dtoken) ([]RuleUse, bool) {
+// exampleToken is the reserved token name that declares a valid value rather
+// than naming a rule.
+const exampleToken = "example"
+
+// ruleUses resolves every rule token of a string, int or decimal directive
+// against the catalogue, preserving the order in which they were written, and
+// collects its `example=` tokens.
+func (p *collector) ruleUses(pos token.Position, kind vogue.Kind, tokens []dtoken) ([]RuleUse, []string, bool) {
 	uses := make([]RuleUse, 0, len(tokens))
+	var examples []string
 	seen := make(map[string]token.Position, len(tokens))
 	ok := true
 	for _, tok := range tokens {
 		tokPos := offsetPos(pos, tok.off)
 		name, param, hasParam := strings.Cut(tok.text, "=")
+
+		if name == exampleToken {
+			if !p.checkExample(tokPos, kind, param, hasParam) {
+				ok = false
+				continue
+			}
+			examples = append(examples, param)
+			continue
+		}
 
 		rule, found := p.rules.Get(name)
 		if !found {
@@ -319,7 +364,30 @@ func (p *collector) ruleUses(pos token.Position, kind vogue.Kind, tokens []dtoke
 		}
 		uses = append(uses, RuleUse{Rule: rule, Param: param, Pos: tokPos})
 	}
-	return uses, ok
+	return uses, examples, ok
+}
+
+// checkExample validates an `example=` token: it needs a value, and the value
+// must be one the kind's constructor can be handed.
+func (p *collector) checkExample(pos token.Position, kind vogue.Kind, value string, hasValue bool) bool {
+	if !hasValue {
+		p.errs.hint(pos, "example requires a value", "write example=<value>")
+		return false
+	}
+	var err error
+	switch kind {
+	case vogue.Int:
+		_, err = strconv.ParseInt(value, 10, 64)
+	case vogue.Decimal:
+		_, err = decimal.Parse(value)
+	default:
+		// A string takes any text, and the enum and id kinds take no tokens.
+	}
+	if err != nil {
+		p.errs.err(pos, fmt.Sprintf("example %q is not a valid %s", value, kind))
+		return false
+	}
+	return true
 }
 
 // checkParam validates the presence and the syntax of a rule parameter against

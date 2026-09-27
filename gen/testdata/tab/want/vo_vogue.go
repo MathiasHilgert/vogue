@@ -9,88 +9,148 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/MathiasHilgert/vogue"
 	"github.com/MathiasHilgert/vogue/gen/internal/testrules"
+	"github.com/MathiasHilgert/vogue/validation"
 	"github.com/google/uuid"
 )
 
 // Title is the human-readable name of a tab, as the waiter typed it.
-type Title struct{ v string }
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type Title struct {
+	value string
+	set   bool
+}
 
 // NewTitle validates raw and returns the Title it describes.
 //
 // Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [vogue.FieldError] on a notification. Every
-// failure is collected, so the returned error describes the whole input rather
-// than the first thing that went wrong.
+// working value, checks record a [validation.FieldError] on a notification.
+// Every failure is collected, so the returned error describes the whole input
+// rather than the first thing that went wrong.
 func NewTitle(raw string) (Title, error) {
-	var n vogue.Notification
-	v := raw
-	if !(v != "") {
-		n.Add(vogue.FieldError{Field: "title", Rule: "required", Value: v, Message: "title is required"})
+	const (
+		minimumParameter = 1
+		maximumParameter = 120
+	)
+
+	var notification validation.Notification
+
+	value := raw
+	if value == "" {
+		notification.Reject(
+			"title",
+			"required",
+			"",
+			value,
+			"title is required",
+		)
 	}
-	v = strings.TrimSpace(v)
-	v = strings.ToLower(v)
-	if !(utf8.RuneCountInString(v) >= 1) {
-		n.Add(vogue.FieldError{Field: "title", Rule: "min", Param: "1", Value: v, Message: "title must be at least 1"})
+	value = strings.TrimSpace(value)
+	value = strings.ToLower(value)
+	if utf8.RuneCountInString(value) < minimumParameter {
+		notification.Reject(
+			"title",
+			"min",
+			"1",
+			value,
+			"title must be at least 1",
+		)
 	}
-	if !(utf8.RuneCountInString(v) <= 120) {
-		n.Add(vogue.FieldError{Field: "title", Rule: "max", Param: "120", Value: v, Message: "title must be at most 120"})
+	if utf8.RuneCountInString(value) > maximumParameter {
+		notification.Reject(
+			"title",
+			"max",
+			"120",
+			value,
+			"title must be at most 120",
+		)
 	}
-	if !(testrules.NoDigits(v)) {
-		n.Add(vogue.FieldError{Field: "title", Rule: "nodigits", Value: v, Message: "title must not contain digits"})
+	if !testrules.NoDigits(value) {
+		notification.Reject(
+			"title",
+			"nodigits",
+			"",
+			value,
+			"title must not contain digits",
+		)
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return Title{}, err
+	if notification.HasErrors() {
+		var zero Title
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := notification
+
+		return zero, &failed
 	}
-	return Title{v: v}, nil
+
+	return Title{value: value, set: true}, nil
 }
 
 // String returns the validated value.
-func (t Title) String() string { return t.v }
+func (title Title) String() string { return title.value }
 
-// IsZero reports whether the receiver is the zero Title, which is the only
-// Title that never passed validation.
-func (t Title) IsZero() bool { return t.v == "" }
+// IsZero reports whether the receiver is the zero Title: one that was never
+// constructed, as opposed to one constructed from an empty string the rules
+// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+func (title Title) IsZero() bool { return !title.set }
 
 // Equal reports whether both value objects hold the same value.
-func (t Title) Equal(other Title) bool { return t.v == other.v }
+func (title Title) Equal(other Title) bool {
+	return title.value == other.value && title.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json falls back to
 // the text codec for types that implement it, so Title marshals and
 // unmarshals as a JSON string without a MarshalJSON of its own, and works as a
 // map key too.
-func (t Title) MarshalText() ([]byte, error) { return []byte(t.v), nil }
+func (title Title) MarshalText() ([]byte, error) { return []byte(title.value), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
 // no payload can produce a Title the constructor would have rejected.
-func (t *Title) UnmarshalText(data []byte) error {
+func (title *Title) UnmarshalText(data []byte) error {
 	parsed, err := NewTitle(string(data))
 	if err != nil {
 		return err
 	}
-	*t = parsed
+
+	*title = parsed
+
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (t Title) Value() (driver.Value, error) { return t.v, nil }
+// Value implements driver.Valuer. The zero Title is stored as NULL, which
+// Scan reads back as the zero Title.
+func (title Title) Value() (driver.Value, error) {
+	if !title.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return title.value, nil
+}
 
 // Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a vogue error instead of
-// an invalid value object.
-func (t *Title) Scan(src any) error {
-	switch value := src.(type) {
+// row that no longer satisfies the rules surfaces as a validation error
+// instead of an invalid value object.
+func (title *Title) Scan(src any) error {
+	switch source := src.(type) {
 	case nil:
-		*t = Title{}
+		var zero Title
+
+		*title = zero
+
 		return nil
 	case string:
-		return t.UnmarshalText([]byte(value))
+		return title.UnmarshalText([]byte(source))
 	case []byte:
-		return t.UnmarshalText(value)
+		return title.UnmarshalText(source)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into Title", src)
+		return fmt.Errorf("vogue: cannot scan %T into Title: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
@@ -98,303 +158,530 @@ func (t *Title) Scan(src any) error {
 //
 // The value is held as an int64 so it survives every database driver and JSON
 // number without a widening conversion at the boundary.
-type Covers struct{ v int64 }
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type Covers struct {
+	value int64
+	set   bool
+}
 
 // NewCovers validates raw and returns the Covers it describes.
 //
 // Rules are applied in the order they were declared, and every failure is
 // collected into one error rather than the first one aborting the rest.
 func NewCovers(raw int64) (Covers, error) {
-	var n vogue.Notification
-	v := raw
-	if !(v >= 1) {
-		n.Add(vogue.FieldError{Field: "covers", Rule: "min", Param: "1", Value: strconv.FormatInt(v, 10), Message: "covers must be at least 1"})
+	const (
+		minimumParameter = 1
+		maximumParameter = 200
+	)
+
+	var notification validation.Notification
+
+	value := raw
+	if value < minimumParameter {
+		notification.Reject(
+			"covers",
+			"min",
+			"1",
+			strconv.FormatInt(value, 10),
+			"covers must be at least 1",
+		)
 	}
-	if !(v <= 200) {
-		n.Add(vogue.FieldError{Field: "covers", Rule: "max", Param: "200", Value: strconv.FormatInt(v, 10), Message: "covers must be at most 200"})
+	if value > maximumParameter {
+		notification.Reject(
+			"covers",
+			"max",
+			"200",
+			strconv.FormatInt(value, 10),
+			"covers must be at most 200",
+		)
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return Covers{}, err
+	if notification.HasErrors() {
+		var zero Covers
+
+		// Only a rejected input escapes to the heap: the notification is
+		// copied here, so the happy path above allocates nothing.
+		failed := notification
+
+		return zero, &failed
 	}
-	return Covers{v: v}, nil
+
+	return Covers{value: value, set: true}, nil
 }
 
-// ParseCovers reads a base-10 representation and validates it.
-func ParseCovers(raw string) (Covers, error) {
-	v, err := strconv.ParseInt(raw, 10, 64)
+// NewCoversFromString reads a base-10 representation and validates it. A
+// representation that is not a whole number is reported as a failure of the
+// "int" rule, so a caller handles it like every other rule.
+func NewCoversFromString(raw string) (Covers, error) {
+	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "covers", Rule: "int", Value: raw, Message: "covers must be a whole number"})
-		return Covers{}, n.ErrOrNil()
+		var (
+			zero         Covers
+			notification validation.Notification
+		)
+
+		notification.Reject(
+			"covers",
+			"int",
+			"",
+			raw,
+			"covers must be a whole number",
+		)
+
+		return zero, &notification
 	}
-	return NewCovers(v)
+
+	return NewCovers(value)
 }
 
 // Int64 returns the validated value.
-func (c Covers) Int64() int64 { return c.v }
+func (covers Covers) Int64() int64 { return covers.value }
 
 // String returns the base-10 representation of the value.
-func (c Covers) String() string { return strconv.FormatInt(c.v, 10) }
+func (covers Covers) String() string { return strconv.FormatInt(covers.value, 10) }
 
-// IsZero reports whether the receiver is the zero Covers, which is the only
-// Covers that never passed validation.
-func (c Covers) IsZero() bool { return c.v == 0 }
+// IsZero reports whether the receiver is the zero Covers: one that was never
+// constructed, as opposed to one constructed from 0. It is what
+// `json:",omitzero"` asks, and what Value stores as NULL.
+func (covers Covers) IsZero() bool { return !covers.set }
 
 // Equal reports whether both value objects hold the same value.
-func (c Covers) Equal(other Covers) bool { return c.v == other.v }
+func (covers Covers) Equal(other Covers) bool {
+	return covers.value == other.value && covers.set == other.set
+}
 
 // MarshalText implements encoding.TextMarshaler. encoding/json uses the text
 // codec when a type implements it, so Covers round-trips through JSON without
 // a MarshalJSON of its own.
-func (c Covers) MarshalText() ([]byte, error) {
-	return strconv.AppendInt(nil, c.v, 10), nil
-}
+func (covers Covers) MarshalText() ([]byte, error) { return []byte(covers.String()), nil }
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
 // no payload can produce a Covers the constructor would have rejected.
-func (c *Covers) UnmarshalText(data []byte) error {
-	parsed, err := ParseCovers(string(data))
+func (covers *Covers) UnmarshalText(data []byte) error {
+	parsed, err := NewCoversFromString(string(data))
 	if err != nil {
 		return err
 	}
-	*c = parsed
+
+	*covers = parsed
+
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (c Covers) Value() (driver.Value, error) { return c.v, nil }
+// Value implements driver.Valuer. The zero Covers is stored as NULL, which
+// Scan reads back as the zero Covers.
+func (covers Covers) Value() (driver.Value, error) {
+	if !covers.set {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return covers.value, nil
+}
 
 // Scan implements sql.Scanner for integer and text columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a vogue
-// error.
-func (c *Covers) Scan(src any) error {
-	switch value := src.(type) {
+// validation so a row that no longer satisfies the rules surfaces as a
+// validation error.
+func (covers *Covers) Scan(src any) error {
+	switch source := src.(type) {
 	case nil:
-		*c = Covers{}
+		var zero Covers
+
+		*covers = zero
+
 		return nil
 	case int64:
-		parsed, err := NewCovers(value)
+		parsed, err := NewCovers(source)
 		if err != nil {
 			return err
 		}
-		*c = parsed
+
+		*covers = parsed
+
 		return nil
 	case string:
-		return c.UnmarshalText([]byte(value))
+		return covers.UnmarshalText([]byte(source))
 	case []byte:
-		return c.UnmarshalText(value)
+		return covers.UnmarshalText(source)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into Covers", src)
+		return fmt.Errorf("vogue: cannot scan %T into Covers: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
 // TabStatus is the lifecycle state of a tab.
 //
-// The members are the package-level TabStatus variables below. The type stays a
-// struct with an unexported field so its zero value is not a member: an
-// uninitialised TabStatus reports IsZero and can never be mistaken for a
-// meaningful state.
-type TabStatus struct{ v string }
+// The members are returned by the methods of [TabStatuses]: TabStatuses{}.Open() and
+// its siblings. The type stays a struct with an unexported field so its zero
+// value is not a member: an uninitialised TabStatus reports IsZero and can never
+// be mistaken for a meaningful state.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type TabStatus struct{ value string }
 
-// The members of TabStatus, in declaration order.
-var (
-	// TabStatusOpen is the "open" member of TabStatus.
-	TabStatusOpen = TabStatus{v: "open"}
-	// TabStatusInProgress is the "in_progress" member of TabStatus.
-	TabStatusInProgress = TabStatus{v: "in_progress"}
-	// TabStatusClosed is the "closed" member of TabStatus.
-	TabStatusClosed = TabStatus{v: "closed"}
-)
+// TabStatuses is the catalogue of the members of TabStatus. It holds nothing: its zero
+// value is the whole catalogue, so a member is spelled TabStatuses{}.Open().
+type TabStatuses struct{}
 
-// TabStatusValues returns every member in declaration order. Ranging over it is
-// what makes a test exhaustive: a member added to the directive shows up here
-// without the test being touched.
-func TabStatusValues() []TabStatus {
-	return []TabStatus{TabStatusOpen, TabStatusInProgress, TabStatusClosed}
+// Open returns the "open" member of TabStatus.
+func (TabStatuses) Open() TabStatus { return TabStatus{value: "open"} }
+
+// InProgress returns the "in_progress" member of TabStatus.
+func (TabStatuses) InProgress() TabStatus { return TabStatus{value: "in_progress"} }
+
+// Closed returns the "closed" member of TabStatus.
+func (TabStatuses) Closed() TabStatus { return TabStatus{value: "closed"} }
+
+// All returns every member in declaration order. Ranging over it is what makes
+// a test exhaustive: a member added to the directive shows up here without the
+// test being touched.
+func (tabStatuses TabStatuses) All() []TabStatus {
+	return []TabStatus{
+		tabStatuses.Open(),
+		tabStatuses.InProgress(),
+		tabStatuses.Closed(),
+	}
 }
 
-// ParseTabStatus resolves the wire representation of a member.
-func ParseTabStatus(raw string) (TabStatus, error) {
-	switch raw {
-	case "open":
-		return TabStatusOpen, nil
-	case "in_progress":
-		return TabStatusInProgress, nil
-	case "closed":
-		return TabStatusClosed, nil
+// Parse resolves the wire representation of a member, rejecting anything else
+// as a failure of the "oneof" rule.
+func (tabStatuses TabStatuses) Parse(raw string) (TabStatus, error) {
+	for _, member := range tabStatuses.All() {
+		if member.value == raw {
+			return member, nil
+		}
 	}
 
-	var n vogue.Notification
-	n.Add(vogue.FieldError{Field: "tabStatus", Rule: "oneof", Param: "open,in_progress,closed", Value: raw, Message: "tabStatus must be one of: open, in_progress, closed"})
-	return TabStatus{}, n.ErrOrNil()
+	var (
+		zero         TabStatus
+		notification validation.Notification
+	)
+
+	notification.Reject(
+		"tabStatus",
+		"oneof",
+		"open,in_progress,closed",
+		raw,
+		"tabStatus must be one of: open, in_progress, closed",
+	)
+
+	return zero, &notification
 }
 
 // String returns the wire representation of the member, empty for the zero
 // value.
-func (t TabStatus) String() string { return t.v }
+func (tabStatus TabStatus) String() string { return tabStatus.value }
 
 // IsZero reports whether the receiver is the zero TabStatus rather than one of
 // its members.
-func (t TabStatus) IsZero() bool { return t.v == "" }
+func (tabStatus TabStatus) IsZero() bool { return tabStatus.value == "" }
 
 // Equal reports whether both value objects hold the same member.
-func (t TabStatus) Equal(other TabStatus) bool { return t.v == other.v }
+func (tabStatus TabStatus) Equal(other TabStatus) bool { return tabStatus.value == other.value }
 
 // MarshalText implements encoding.TextMarshaler, which is also what
 // encoding/json uses, so a member marshals as its wire string.
-func (t TabStatus) MarshalText() ([]byte, error) { return []byte(t.v), nil }
+func (tabStatus TabStatus) MarshalText() ([]byte, error) { return []byte(tabStatus.value), nil }
 
-// UnmarshalText implements encoding.TextUnmarshaler through ParseTabStatus, so an
-// unknown member is rejected rather than accepted as a new state.
-func (t *TabStatus) UnmarshalText(data []byte) error {
-	parsed, err := ParseTabStatus(string(data))
+// UnmarshalText implements encoding.TextUnmarshaler through TabStatuses.Parse, so
+// an unknown member is rejected rather than accepted as a new state.
+func (tabStatus *TabStatus) UnmarshalText(data []byte) error {
+	parsed, err := TabStatuses{}.Parse(string(data))
 	if err != nil {
 		return err
 	}
-	*t = parsed
+
+	*tabStatus = parsed
+
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (t TabStatus) Value() (driver.Value, error) { return t.v, nil }
+// Value implements driver.Valuer. The zero TabStatus, which is no member, is
+// stored as NULL.
+func (tabStatus TabStatus) Value() (driver.Value, error) {
+	if tabStatus.value == "" {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return tabStatus.value, nil
+}
 
 // Scan implements sql.Scanner for text columns, rejecting a stored value that
 // is no longer a member.
-func (t *TabStatus) Scan(src any) error {
-	switch value := src.(type) {
+func (tabStatus *TabStatus) Scan(src any) error {
+	switch source := src.(type) {
 	case nil:
-		*t = TabStatus{}
+		var zero TabStatus
+
+		*tabStatus = zero
+
 		return nil
 	case string:
-		return t.UnmarshalText([]byte(value))
+		return tabStatus.UnmarshalText([]byte(source))
 	case []byte:
-		return t.UnmarshalText(value)
+		return tabStatus.UnmarshalText(source)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into TabStatus", src)
+		return fmt.Errorf("vogue: cannot scan %T into TabStatus: %w", src, validation.ErrUnsupportedSource)
 	}
 }
 
 // TabID identifies a tab across services.
 //
-// It embeds uuid.UUID, which is what gives it String, MarshalText,
-// UnmarshalText, Value and Scan: the identifier behaves like a UUID everywhere
-// a UUID is expected, while staying a distinct type no other identifier can be
-// assigned to.
-type TabID struct{ uuid.UUID }
+// It holds a uuid.UUID it does not expose for writing, so an identifier is
+// either minted, read from text or a row, or the zero value, and stays a
+// distinct type no other identifier can be assigned to. UUID returns the
+// underlying value for the code that needs one.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type TabID struct{ value uuid.UUID }
 
 // NewTabID mints a time-ordered UUIDv7, which keeps inserts index-friendly.
 func NewTabID() (TabID, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
-		return TabID{}, fmt.Errorf("vogue: minting TabID: %w", err)
+		var zero TabID
+
+		return zero, fmt.Errorf("vogue: minting TabID: %w", err)
 	}
-	return TabID{UUID: id}, nil
+
+	return TabID{value: id}, nil
 }
 
-// ParseTabID reads any RFC 4122 UUID, not only the version this type mints,
-// so identifiers written by an earlier schema stay readable.
-func ParseTabID(raw string) (TabID, error) {
+// NewTabIDFromString reads any RFC 4122 UUID, not only the version this type
+// mints, so identifiers written by an earlier schema stay readable.
+func NewTabIDFromString(raw string) (TabID, error) {
 	id, err := uuid.Parse(raw)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "tabId", Rule: "uuid", Value: raw, Message: "tabId must be a valid UUID"})
-		return TabID{}, n.ErrOrNil()
+		var (
+			zero         TabID
+			notification validation.Notification
+		)
+
+		notification.Reject(
+			"tabId",
+			"uuid",
+			"",
+			raw,
+			"tabId must be a valid UUID",
+		)
+
+		return zero, &notification
 	}
-	return TabID{UUID: id}, nil
+
+	return TabID{value: id}, nil
 }
+
+// UUID returns the identifier as a uuid.UUID.
+func (tabId TabID) UUID() uuid.UUID { return tabId.value }
+
+// String returns the canonical text of the identifier.
+func (tabId TabID) String() string { return tabId.value.String() }
 
 // IsZero reports whether the receiver is the nil UUID, which is what an
 // unassigned identifier looks like.
-func (t TabID) IsZero() bool { return t.UUID == uuid.Nil }
+func (tabId TabID) IsZero() bool { return tabId.value == uuid.Nil }
 
 // Equal reports whether both identifiers refer to the same entity.
-func (t TabID) Equal(other TabID) bool { return t.UUID == other.UUID }
+func (tabId TabID) Equal(other TabID) bool { return tabId.value == other.value }
+
+// MarshalText implements encoding.TextMarshaler, which encoding/json also
+// uses, so the identifier crosses a JSON boundary as its canonical string.
+func (tabId TabID) MarshalText() ([]byte, error) { return []byte(tabId.value.String()), nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler through
+// NewTabIDFromString.
+func (tabId *TabID) UnmarshalText(data []byte) error {
+	parsed, err := NewTabIDFromString(string(data))
+	if err != nil {
+		return err
+	}
+
+	*tabId = parsed
+
+	return nil
+}
+
+// Value implements driver.Valuer, storing the canonical text. An unassigned
+// identifier is stored as NULL.
+func (tabId TabID) Value() (driver.Value, error) {
+	if tabId.value == uuid.Nil {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return tabId.value.String(), nil
+}
+
+// Scan implements sql.Scanner for uuid and text columns.
+func (tabId *TabID) Scan(src any) error {
+	switch source := src.(type) {
+	case nil:
+		var zero TabID
+
+		*tabId = zero
+
+		return nil
+	case string:
+		return tabId.UnmarshalText([]byte(source))
+	case []byte:
+		return tabId.scanBytes(source)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into TabID: %w", src, validation.ErrUnsupportedSource)
+	}
+}
+
+// scanBytes reads a uuid column, which a driver hands back either as its text
+// or as its 16 raw bytes.
+func (tabId *TabID) scanBytes(raw []byte) error {
+	const rawLength = 16
+
+	if len(raw) != rawLength {
+		return tabId.UnmarshalText(raw)
+	}
+
+	id, err := uuid.FromBytes(raw)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot scan %d bytes into TabID: %w", len(raw), err)
+	}
+
+	*tabId = TabID{value: id}
+
+	return nil
+}
 
 // InvoiceNumber is the id value object for the field "invoiceNumber".
 //
 // The value is assigned by the database, so this type has no generator: an
-// identifier is either read from a row with Scan or ParseInvoiceNumber, or built from
-// a number the database already handed out with InvoiceNumberFromInt64.
-type InvoiceNumber struct{ v int64 }
+// identifier is either read from a row or a payload, or built from a number the
+// database already handed out with NewInvoiceNumberFromInt64.
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+type InvoiceNumber struct{ value int64 }
 
-// InvoiceNumberFromInt64 wraps a database-assigned identifier. Identifiers are
+// NewInvoiceNumberFromInt64 wraps a database-assigned identifier. Identifiers are
 // positive by definition, so zero and negative values are rejected rather than
 // quietly producing an identifier equal to the zero value.
-func InvoiceNumberFromInt64(raw int64) (InvoiceNumber, error) {
-	var n vogue.Notification
-	v := raw
-	if !(v > 0) {
-		n.Add(vogue.FieldError{Field: "invoiceNumber", Rule: "positive", Value: strconv.FormatInt(v, 10), Message: "invoiceNumber must be a positive identifier"})
+func NewInvoiceNumberFromInt64(raw int64) (InvoiceNumber, error) {
+	if raw <= 0 {
+		var (
+			zero         InvoiceNumber
+			notification validation.Notification
+		)
+
+		notification.Reject(
+			"invoiceNumber",
+			"positive",
+			"",
+			strconv.FormatInt(raw, 10),
+			"invoiceNumber must be a positive identifier",
+		)
+
+		return zero, &notification
 	}
 
-	if err := n.ErrOrNil(); err != nil {
-		return InvoiceNumber{}, err
-	}
-	return InvoiceNumber{v: v}, nil
+	return InvoiceNumber{value: raw}, nil
 }
 
-// ParseInvoiceNumber reads a base-10 representation of an identifier.
-func ParseInvoiceNumber(raw string) (InvoiceNumber, error) {
-	v, err := strconv.ParseInt(raw, 10, 64)
+// NewInvoiceNumberFromString reads a base-10 representation of an identifier.
+func NewInvoiceNumberFromString(raw string) (InvoiceNumber, error) {
+	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: "invoiceNumber", Rule: "int", Value: raw, Message: "invoiceNumber must be a whole number"})
-		return InvoiceNumber{}, n.ErrOrNil()
+		var (
+			zero         InvoiceNumber
+			notification validation.Notification
+		)
+
+		notification.Reject(
+			"invoiceNumber",
+			"int",
+			"",
+			raw,
+			"invoiceNumber must be a whole number",
+		)
+
+		return zero, &notification
 	}
-	return InvoiceNumberFromInt64(v)
+
+	return NewInvoiceNumberFromInt64(value)
 }
 
 // Int64 returns the identifier as the database holds it.
-func (i InvoiceNumber) Int64() int64 { return i.v }
+func (invoiceNumber InvoiceNumber) Int64() int64 { return invoiceNumber.value }
 
 // String returns the base-10 representation of the identifier.
-func (i InvoiceNumber) String() string { return strconv.FormatInt(i.v, 10) }
+func (invoiceNumber InvoiceNumber) String() string { return strconv.FormatInt(invoiceNumber.value, 10) }
 
 // IsZero reports whether the receiver is an unassigned identifier.
-func (i InvoiceNumber) IsZero() bool { return i.v == 0 }
+func (invoiceNumber InvoiceNumber) IsZero() bool { return invoiceNumber.value == 0 }
 
 // Equal reports whether both identifiers refer to the same entity.
-func (i InvoiceNumber) Equal(other InvoiceNumber) bool { return i.v == other.v }
+func (invoiceNumber InvoiceNumber) Equal(other InvoiceNumber) bool {
+	return invoiceNumber.value == other.value
+}
 
 // MarshalText implements encoding.TextMarshaler, which encoding/json also
 // uses, so the identifier crosses a JSON boundary as a string and keeps its
 // full precision in a JavaScript client.
-func (i InvoiceNumber) MarshalText() ([]byte, error) {
-	return strconv.AppendInt(nil, i.v, 10), nil
+func (invoiceNumber InvoiceNumber) MarshalText() ([]byte, error) {
+	return []byte(invoiceNumber.String()), nil
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler through ParseInvoiceNumber.
-func (i *InvoiceNumber) UnmarshalText(data []byte) error {
-	parsed, err := ParseInvoiceNumber(string(data))
+// UnmarshalText implements encoding.TextUnmarshaler through
+// NewInvoiceNumberFromString.
+func (invoiceNumber *InvoiceNumber) UnmarshalText(data []byte) error {
+	parsed, err := NewInvoiceNumberFromString(string(data))
 	if err != nil {
 		return err
 	}
-	*i = parsed
+
+	*invoiceNumber = parsed
+
 	return nil
 }
 
-// Value implements driver.Valuer.
-func (i InvoiceNumber) Value() (driver.Value, error) { return i.v, nil }
+// Value implements driver.Valuer. An unassigned identifier is stored as
+// NULL.
+func (invoiceNumber InvoiceNumber) Value() (driver.Value, error) {
+	if invoiceNumber.value == 0 {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return invoiceNumber.value, nil
+}
 
 // Scan implements sql.Scanner for integer and text columns.
-func (i *InvoiceNumber) Scan(src any) error {
-	switch value := src.(type) {
+func (invoiceNumber *InvoiceNumber) Scan(src any) error {
+	switch source := src.(type) {
 	case nil:
-		*i = InvoiceNumber{}
+		var zero InvoiceNumber
+
+		*invoiceNumber = zero
+
 		return nil
 	case int64:
-		parsed, err := InvoiceNumberFromInt64(value)
+		parsed, err := NewInvoiceNumberFromInt64(source)
 		if err != nil {
 			return err
 		}
-		*i = parsed
+
+		*invoiceNumber = parsed
+
 		return nil
 	case string:
-		return i.UnmarshalText([]byte(value))
+		return invoiceNumber.UnmarshalText([]byte(source))
 	case []byte:
-		return i.UnmarshalText(value)
+		return invoiceNumber.UnmarshalText(source)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into InvoiceNumber", src)
+		return fmt.Errorf("vogue: cannot scan %T into InvoiceNumber: %w", src, validation.ErrUnsupportedSource)
 	}
 }

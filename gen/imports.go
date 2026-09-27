@@ -9,12 +9,12 @@ import (
 // Import paths the generated code uses, named once so a template change and an
 // import change never drift apart.
 const (
-	importDriver  = "database/sql/driver"
-	importFmt     = "fmt"
-	importStrconv = "strconv"
-	importUUID    = "github.com/google/uuid"
-	importDecimal = "github.com/govalues/decimal"
-	importVogue   = "github.com/MathiasHilgert/vogue"
+	importDriver     = "database/sql/driver"
+	importFmt        = "fmt"
+	importStrconv    = "strconv"
+	importUUID       = "github.com/google/uuid"
+	importDecimal    = "github.com/govalues/decimal"
+	importValidation = "github.com/MathiasHilgert/vogue/validation"
 )
 
 // importSet collects the import paths of one generated file, keyed by the

@@ -1,0 +1,217 @@
+# Strict lint profile for generated code.
+#
+# This is frappe-api's .golangci.yml (github.com/MathiasHilgert/frappe-api),
+# copied verbatim below this header except for three marked changes, so that
+# the code vogue generates is held to the configuration of a real consumer:
+#
+#   1. `default: all` instead of `default: none`, with a short list of linters
+#      disabled that judge a project's layout or test style rather than the
+#      quality of generated code (see the comment on `disable`).
+#   2. `exclusions.generated: disable` for linters and formatters, so the
+#      `// Code generated ... DO NOT EDIT.` header buys no leniency.
+#   3. The `domain` depguard rule also covers gen/testdata/strict/domain, the
+#      golden output generated for a domain package, so frappe-api's
+#      hexagonal layering applies to it.
+#
+# It is run by CI against gen/testdata/strict/domain and
+# gen/testdata/strict/persistence; see .github/workflows/ci.yml.
+# golangci-lint v2 configuration.
+# This file defines static analysis (linters) and code formatting (formatters)
+# rules enforced locally (task lint:run / lint:format / lint:fix) and in CI
+# (.github/workflows/ci.yml).
+version: "2"
+
+linters:
+  # Start from a minimal default set and explicitly enable a solid,
+  # community-recommended set of linters instead of "enable-all".
+  default: all # CHANGE 1 (was: none)
+  # CHANGE 1: linters that judge project layout or test style rather than the
+  # generated code: one-letter receivers are idiomatic (varnamelen), generated
+  # tests live in the package they test (testpackage), whitespace style is a
+  # team choice frappe-api does not make (wsl, wsl_v5), and the module-level
+  # linters have no go.mod of their own to judge here.
+  disable:
+    - varnamelen
+    - testpackage
+    - wsl
+    - wsl_v5
+    - gomoddirectives
+    - gomodguard
+  enable:
+    - errcheck    # unchecked error return values
+    - govet       # suspicious constructs (vet)
+    - staticcheck # bugs, style and simplification issues (includes stylecheck rules)
+    - ineffassign # ineffectual assignments
+    - unused      # unused constants, variables, functions and types
+    - revive      # configurable, fast replacement for golint
+    - gosec       # security-focused checks
+    - gocritic    # opinionated set of diagnostics, style and performance checks
+    - misspell    # commonly misspelled English words in comments/strings
+    - unconvert   # unnecessary type conversions
+    - unparam     # unused function parameters
+    - bodyclose   # HTTP response bodies that are not closed
+    - errorlint   # error wrapping and comparison issues (errors.Is/As/%w)
+    - nolintlint  # malformed or unnecessary //nolint directives
+    - prealloc    # slices that could be preallocated
+    - gocyclo     # cyclomatic complexity
+    - gocognit    # cognitive complexity
+    - depguard    # forbidden import paths per architectural layer
+
+  settings:
+    depguard:
+      # Hexagonal layering rules. Each layer only sees what it is allowed to
+      # depend on, so business logic never leaks framework or infrastructure
+      # concerns and foundation code never reaches back into business
+      # modules. See the target architecture notes in the repository docs.
+      rules:
+        domain:
+          files:
+            - "**/internal/modules/*/domain/*.go"
+            - "**/internal/modules/*/domain/**/*.go"
+            - "**/gen/testdata/strict/domain/*.go" # CHANGE 3
+          deny:
+            - pkg: net/http
+              desc: "domain must stay transport-agnostic; move HTTP concerns to adapters"
+            - pkg: github.com/danielgtaylor/huma
+              desc: "domain must stay transport-agnostic; huma route registration belongs in adapters/http"
+            - pkg: database/sql
+              desc: "domain must stay persistence-agnostic; move storage concerns to adapters"
+            - pkg: github.com/jackc
+              desc: "domain must not depend on a concrete Postgres driver; keep persistence in adapters"
+            - pkg: github.com/lib/pq
+              desc: "domain must not depend on a concrete Postgres driver; keep persistence in adapters"
+            - pkg: github.com/go-sql-driver
+              desc: "domain must not depend on a concrete MySQL driver; keep persistence in adapters"
+            - pkg: encoding/json
+              desc: "domain must stay serialization-agnostic; (de)serialize at the adapter boundary"
+            - pkg: github.com/MathiasHilgert/frappe-api/internal/foundation
+              desc: "domain must stay free of foundation infrastructure entirely; foundation belongs to adapters and module root only"
+            - pkg: go.opentelemetry.io/otel
+              desc: "domain must stay free of telemetry entirely; metrics and tracing belong in the module's metrics/tracing subpackages"
+        application:
+          files:
+            - "**/internal/modules/*/application/*.go"
+            - "**/internal/modules/*/application/**/*.go"
+          deny:
+            - pkg: net/http
+              desc: "application use cases must stay transport-agnostic; move HTTP concerns to adapters"
+            - pkg: github.com/danielgtaylor/huma
+              desc: "application use cases must stay transport-agnostic; huma route registration belongs in adapters/http"
+            - pkg: database/sql
+              desc: "application use cases must stay persistence-agnostic; move storage concerns to adapters"
+            - pkg: github.com/jackc
+              desc: "application must not depend on a concrete Postgres driver; keep persistence in adapters"
+            - pkg: github.com/lib/pq
+              desc: "application must not depend on a concrete Postgres driver; keep persistence in adapters"
+            - pkg: github.com/go-sql-driver
+              desc: "application must not depend on a concrete MySQL driver; keep persistence in adapters"
+            - pkg: github.com/MathiasHilgert/frappe-api/internal/foundation/httpserver
+              desc: "application must not depend on the HTTP server foundation package"
+            - pkg: github.com/MathiasHilgert/frappe-api/internal/foundation/database
+              desc: "application must not depend on the database foundation package"
+            - pkg: github.com/MathiasHilgert/frappe-api/internal/foundation/i18n/localizedtext/postgres
+              desc: "use the storage-agnostic localizedtext.Service; the Postgres store is wired by the composition root"
+            - pkg: github.com/MathiasHilgert/frappe-api/internal/foundation/cache
+              desc: "caching is infrastructure: decorate the module's read port in adapters with cache.ReadThrough; use cases never see the cache"
+        foundation:
+          files:
+            - "**/internal/foundation/*.go"
+            - "**/internal/foundation/**/*.go"
+          deny:
+            - pkg: github.com/MathiasHilgert/frappe-api/internal/modules
+              desc: "foundation makes the application run and must stay free of business modules; modules depend on foundation, never the reverse"
+            - pkg: github.com/MathiasHilgert/frappe-api/internal/dependencies
+              desc: "foundation must not depend on the composition root; dependencies wires modules and foundation together, never the reverse"
+        modules:
+          # Applies to every layer of every module (domain, application,
+          # adapters, module root): only the composition root wires modules
+          # together, a module must never reach into it.
+          files:
+            - "**/internal/modules/**/*.go"
+          deny:
+            - pkg: github.com/MathiasHilgert/frappe-api/internal/dependencies
+              desc: "modules must not depend on the composition root; dependencies wires modules in, never the reverse"
+            - pkg: github.com/MathiasHilgert/frappe-api/internal/foundation/configuration
+              desc: "modules must not depend on the application-wide configuration package; each module declares its own Configuration struct and receives values by constructor injection from the composition root"
+            - pkg: go.opentelemetry.io/otel/sdk
+              desc: "modules may use the OpenTelemetry API only; SDK setup and wiring belongs to internal/foundation/telemetry"
+            - pkg: go.opentelemetry.io/otel/exporters
+              desc: "modules may use the OpenTelemetry API only; exporter setup belongs to internal/foundation/telemetry"
+            - pkg: github.com/riverqueue
+              desc: "modules define, enqueue and handle jobs through internal/foundation/jobs only; River is a backend detail wired by the composition root"
+            - pkg: github.com/MathiasHilgert/frappe-api/internal/foundation/jobs/river
+              desc: "modules define, enqueue and handle jobs through internal/foundation/jobs only; the River backend is wired by the composition root"
+        nats:
+          # The event platform is broker-agnostic: code talks to the
+          # events.Publisher and events.Subscriber ports. Only the NATS
+          # adapter (internal/foundation/nats) and the composition root
+          # that wires it may import the NATS client.
+          files:
+            - "**/*.go"
+            - "!**/internal/foundation/nats/**"
+            - "!**/internal/dependencies/**"
+          deny:
+            - pkg: github.com/nats-io
+              desc: "use the broker-agnostic ports in internal/foundation/events; only internal/foundation/nats and internal/dependencies may import the NATS client"
+        databasetest:
+          # databasetest (internal/foundation/database/databasetest)
+          # pulls in testcontainers-go and pgtestdb, both test-only
+          # dependencies a production binary must never link. This rule
+          # is paired with the "_test.go" exclusion below, which turns
+          # depguard off for test files, so only non-test ("_test.go")
+          # files are actually denied this import; a "_test.go" file may
+          # import databasetest freely.
+          files:
+            - "**/*.go"
+          deny:
+            - pkg: github.com/MathiasHilgert/frappe-api/internal/foundation/database/databasetest
+              desc: "databasetest is test-only (testcontainers-go, pgtestdb); import it only from a _test.go file"
+
+    gocyclo:
+      # Functions above this cyclomatic complexity must be refactored.
+      min-complexity: 10
+    gocognit:
+      # Functions above this cognitive complexity must be refactored.
+      min-complexity: 15
+    govet:
+      enable-all: true
+    revive:
+      # Fail on any rule violation rather than only warning.
+      severity: error
+    gosec:
+      # Excludes are intentionally empty; tighten via inline //nolint with
+      # justification instead of broad rule suppression.
+      excludes: []
+
+  exclusions:
+    generated: disable # CHANGE 2
+    rules:
+      # Test files get relaxed checks: table-driven tests and fixtures often
+      # trip complexity/param/security linters without adding real risk.
+      - path: _test\.go
+        linters:
+          - gocyclo
+          - gocognit
+          - gosec
+          - unparam
+          - errcheck
+      # Lets a "_test.go" file import databasetest (see the "databasetest"
+      # depguard rule above); every other depguard rule still applies to
+      # test files, so this only narrows that one rule instead of turning
+      # depguard off for tests entirely.
+      - path: _test\.go
+        linters:
+          - depguard
+        text: "databasetest"
+
+formatters:
+  exclusions:
+    generated: disable # CHANGE 2
+  enable:
+    - gofumpt  # stricter, opinionated superset of gofmt
+    - goimports
+  settings:
+    goimports:
+      # Group first-party imports after stdlib/third-party for readability.
+      local-prefixes:
+        - github.com/MathiasHilgert/frappe-api

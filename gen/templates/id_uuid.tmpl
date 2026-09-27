@@ -1,36 +1,130 @@
 {{$n := .Name}}{{$r := .Recv}}
 {{range .DocLines}}// {{.}}
 {{end}}//
-// It embeds uuid.UUID, which is what gives it String, MarshalText,
-// UnmarshalText, Value and Scan: the identifier behaves like a UUID everywhere
-// a UUID is expected, while staying a distinct type no other identifier can be
-// assigned to.
-type {{$n}} struct{ uuid.UUID }
+// It holds a uuid.UUID it does not expose for writing, so an identifier is
+// either minted, read from text or a row, or the zero value, and stays a
+// distinct type no other identifier can be assigned to. UUID returns the
+// underlying value for the code that needs one.
+{{- if .SQL}}
+//
+//nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
+{{- end}}
+type {{$n}} struct{ value uuid.UUID }
 
 // New{{$n}} mints {{.MintDoc}}.
 func New{{$n}}() ({{$n}}, error) {
 	id, err := {{.Mint}}()
 	if err != nil {
-		return {{$n}}{}, fmt.Errorf("vogue: minting {{$n}}: %w", err)
+		var zero {{$n}}
+
+		return zero, fmt.Errorf("vogue: minting {{$n}}: %w", err)
 	}
-	return {{$n}}{UUID: id}, nil
+
+	return {{$n}}{value: id}, nil
 }
 
-// Parse{{$n}} reads any RFC 4122 UUID, not only the version this type mints,
-// so identifiers written by an earlier schema stay readable.
-func Parse{{$n}}(raw string) ({{$n}}, error) {
+// New{{$n}}FromString reads any RFC 4122 UUID, not only the version this type
+// mints, so identifiers written by an earlier schema stay readable.
+func New{{$n}}FromString(raw string) ({{$n}}, error) {
 	id, err := uuid.Parse(raw)
 	if err != nil {
-		var n vogue.Notification
-		n.Add(vogue.FieldError{Field: {{q .Field}}, Rule: "uuid", Value: raw, Message: "{{.Field}} must be a valid UUID"})
-		return {{$n}}{}, n.ErrOrNil()
+		var (
+			zero {{$n}}
+			notification validation.Notification
+		)
+
+		notification.Reject(
+			{{q .Field}},
+			"uuid",
+			"",
+			raw,
+			"{{.Field}} must be a valid UUID",
+		)
+
+		return zero, &notification
 	}
-	return {{$n}}{UUID: id}, nil
+
+	return {{$n}}{value: id}, nil
 }
+
+// UUID returns the identifier as a uuid.UUID.
+func ({{$r}} {{$n}}) UUID() uuid.UUID { return {{$r}}.value }
+
+// String returns the canonical text of the identifier.
+func ({{$r}} {{$n}}) String() string { return {{$r}}.value.String() }
 
 // IsZero reports whether the receiver is the nil UUID, which is what an
 // unassigned identifier looks like.
-func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.UUID == uuid.Nil }
+func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.value == uuid.Nil }
 
 // Equal reports whether both identifiers refer to the same entity.
-func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.UUID == other.UUID }
+func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.value == other.value }
+
+// MarshalText implements encoding.TextMarshaler, which encoding/json also
+// uses, so the identifier crosses a JSON boundary as its canonical string.
+func ({{$r}} {{$n}}) MarshalText() ([]byte, error) { return []byte({{$r}}.value.String()), nil }
+
+// UnmarshalText implements encoding.TextUnmarshaler through
+// New{{$n}}FromString.
+func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
+	parsed, err := New{{$n}}FromString(string(data))
+	if err != nil {
+		return err
+	}
+
+	*{{$r}} = parsed
+
+	return nil
+}
+{{if .SQL}}
+// Value implements driver.Valuer, storing the canonical text. An unassigned
+// identifier is stored as NULL.
+func ({{$r}} {{$n}}) Value() (driver.Value, error) {
+	if {{$r}}.value == uuid.Nil {
+		// A nil driver.Value is SQL NULL.
+		var null driver.Value
+
+		return null, nil
+	}
+
+	return {{$r}}.value.String(), nil
+}
+
+// Scan implements sql.Scanner for uuid and text columns.
+func ({{$r}} *{{$n}}) Scan(src any) error {
+	switch source := src.(type) {
+	case nil:
+		var zero {{$n}}
+
+		*{{$r}} = zero
+
+		return nil
+	case string:
+		return {{$r}}.UnmarshalText([]byte(source))
+	case []byte:
+		return {{$r}}.scanBytes(source)
+	default:
+		return fmt.Errorf("vogue: cannot scan %T into {{$n}}: %w", src, validation.ErrUnsupportedSource)
+	}
+}
+
+// scanBytes reads a uuid column, which a driver hands back either as its text
+// or as its 16 raw bytes.
+func ({{$r}} *{{$n}}) scanBytes(raw []byte) error {
+	const rawLength = 16
+
+	if len(raw) != rawLength {
+		return {{$r}}.UnmarshalText(raw)
+	}
+
+	id, err := uuid.FromBytes(raw)
+	if err != nil {
+		return fmt.Errorf("vogue: cannot scan %d bytes into {{$n}}: %w", len(raw), err)
+	}
+
+	*{{$r}} = {{$n}}{value: id}
+
+	return nil
+}
+{{end}}
+{{template "schema" .}}
