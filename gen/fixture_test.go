@@ -24,7 +24,7 @@ func TestGenerate_Fixture(t *testing.T) {
 		pkg, err := parse.Dir(dir, testrules.Set(fixturePath))
 		require.NoError(t, err)
 
-		g, err := gen.New(gen.Options{Package: pkg, ImportPath: fixturePath})
+		g, err := gen.New(gen.Options{Validation: testValidation, Package: pkg, ImportPath: fixturePath, SQL: true})
 		require.NoError(t, err)
 
 		// Act

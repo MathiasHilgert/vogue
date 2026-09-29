@@ -17,7 +17,10 @@ import (
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("")
-	if err := generator.Run(generator.WithRules(cuitrule.Rule)); err != nil {
+	if err := generator.Run(
+		generator.WithValidation("github.com/MathiasHilgert/vogue/examples/validation", "Validation"),
+		generator.WithRules(cuitrule.Rule),
+	); err != nil {
 		log.Fatal(err)
 	}
 }

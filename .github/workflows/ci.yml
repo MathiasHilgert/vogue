@@ -50,6 +50,7 @@ jobs:
             ./rules/internal/catalogue/
             ./examples/customrule/domain/
             ./examples/composite/geo/
+            ./examples/validation/
 
       - name: Check generated code is up to date
         run: |

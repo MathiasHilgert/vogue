@@ -118,6 +118,14 @@ func TestRule_Validate(t *testing.T) {
 			wantMsg: "Declare requires Emit",
 		},
 		{
+			name: "precondition on a normalizer",
+			mutate: func(r *vogue.Rule) {
+				r.Normalize = true
+				r.Precondition = true
+			},
+			wantMsg: "cannot be a precondition",
+		},
+		{
 			name: "method together with emit",
 			mutate: func(r *vogue.Rule) {
 				r.Method = func(vogue.EmitContext) (string, string) { return "isOK", "return true" }

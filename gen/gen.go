@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"go/format"
+	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -82,15 +83,37 @@ type Options struct {
 	// named after it in snake case with no suffix: CountryCode is written to
 	// country_code.go and country_code_test.go. Suffix is ignored.
 	PerValueObject bool
-	// OmitSQL leaves the database/sql/driver codec (Value and Scan) out of
-	// the generated code. A hexagonal domain package that must not import
-	// database/sql/driver sets it and converts at the persistence adapter
-	// through the text codec or the accessors instead.
-	OmitSQL bool
-	// Schema adds a JSONSchema method to every value object, returning the
-	// neutral github.com/MathiasHilgert/vogue/schema description an HTTP
-	// adapter publishes in its OpenAPI document.
+	// Validation names the type the constructors record their failures on. It
+	// is required: generated code imports nothing of vogue, so the failure
+	// type is the consumer's own.
+	Validation Validation
+	// SQL adds the database/sql/driver codec, Value and Scan, to every value
+	// object. A hexagonal domain package that must not import
+	// database/sql/driver leaves it off and converts at the persistence
+	// adapter through the text codec or the accessors instead.
+	SQL bool
+	// Schema adds a JSONSchema method to every value object, returning its
+	// JSON Schema as a map keyed by the schema keywords, which an HTTP adapter
+	// publishes in its OpenAPI document.
 	Schema bool
+}
+
+// Validation is the consumer-owned type generated constructors record their
+// failures on: a package path and an exported type name. The type's zero
+// value must be ready to use, and it must have two methods:
+//
+//	Add(field, rule, message string)
+//	Err() error
+//
+// Err returns nil until something was added, and otherwise an error that also
+// has `Has(field, rule string) bool`, which the generated tests use to check
+// that the expected rule rejected an input.
+type Validation struct {
+	// ImportPath is the import path of the package holding the type. When it
+	// equals [Options.ImportPath] the type is used unqualified.
+	ImportPath string
+	// TypeName is the exported name of the type, such as "Validation".
+	TypeName string
 }
 
 // OutFile is one generated file: the path it belongs at and its formatted
@@ -118,6 +141,10 @@ func New(opts Options) (*Generator, error) {
 	}
 	if opts.Package.Name == "" {
 		return nil, fmt.Errorf("gen: package name must not be empty")
+	}
+	if opts.Validation.ImportPath == "" || !token.IsExported(opts.Validation.TypeName) {
+		return nil, fmt.Errorf("gen: Options.Validation must name the import path and the exported type "+
+			"generated constructors record their failures on, got %q and %q", opts.Validation.ImportPath, opts.Validation.TypeName)
 	}
 
 	tmpl, err := template.New("vogue").Funcs(template.FuncMap{"q": quote}).ParseFS(templates, "templates/*.tmpl")

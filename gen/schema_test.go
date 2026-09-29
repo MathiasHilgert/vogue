@@ -15,7 +15,7 @@ func generateSchema(t *testing.T, directive string) string {
 	t.Helper()
 
 	pkg := parseSource(t, directive, rules.MustSet())
-	files, err := filesOf(t, gen.Options{Package: pkg, Schema: true})
+	files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Schema: true})
 	require.NoError(t, err)
 
 	return string(files[0].Content)
@@ -29,7 +29,7 @@ func TestGenerate_Schema(t *testing.T) {
 
 		// Act
 		pkg := parseSource(t, "//vogue:string Code required\n", rules.MustSet())
-		files, err := filesOf(t, gen.Options{Package: pkg})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg})
 
 		// Assert
 		require.NoError(t, err)
@@ -43,12 +43,13 @@ func TestGenerate_Schema(t *testing.T) {
 		code := generateSchema(t, "//vogue:string CountryCode trim upper required len=2 regex=^[A-Z]{2}$\n")
 
 		// Assert
-		assert.Contains(t, code, "func (CountryCode) JSONSchema() schema.Schema {")
-		assert.Contains(t, code, `"github.com/MathiasHilgert/vogue/schema"`)
-		assert.Regexp(t, `Pattern:\s+"\^\[A-Z\]\{2\}\$",`, code)
+		assert.Contains(t, code, "func (CountryCode) JSONSchema() map[string]any {")
+		assert.NotContains(t, code, "vogue/schema", "the schema is a plain map, no package of vogue")
+		assert.Regexp(t, `"type":\s+"string",`, code)
+		assert.Regexp(t, `"pattern":\s+`+"`"+`\^\[A-Z\]\{2\}\$`+"`"+`,`, code)
 		assert.Regexp(t, `minimumLength\s+= 2\n`, code)
-		assert.Regexp(t, `MinLength:\s+schema.Length\{Set: true, Value: minimumLength\},`, code)
-		assert.Regexp(t, `MaxLength:\s+schema.Length\{Set: true, Value: maximumLength\},`, code)
+		assert.Regexp(t, `"minLength":\s+minimumLength,`, code)
+		assert.Regexp(t, `"maxLength":\s+maximumLength,`, code)
 	})
 
 	t.Run("describes the bounds of a number and the format of its text", func(t *testing.T) {
@@ -58,10 +59,10 @@ func TestGenerate_Schema(t *testing.T) {
 		code := generateSchema(t, "//vogue:decimal Latitude min=-90 max=90.5\n")
 
 		// Assert
-		assert.Regexp(t, `Format:\s+schema.FormatDecimal,`, code)
-		assert.Regexp(t, `minimum\s+= -90\n`, code)
-		assert.Regexp(t, `maximum\s+= 90.5\n`, code)
-		assert.Regexp(t, `Maximum:\s+schema.Number\{Set: true, Value: maximum\},`, code)
+		assert.Regexp(t, `"format":\s+"decimal",`, code)
+		assert.Regexp(t, `minimum\s+float64 = -90\n`, code)
+		assert.Regexp(t, `maximum\s+float64 = 90.5\n`, code)
+		assert.Regexp(t, `"maximum":\s+maximum,`, code)
 	})
 
 	t.Run("lists the members of an enum", func(t *testing.T) {
@@ -71,7 +72,8 @@ func TestGenerate_Schema(t *testing.T) {
 		code := generateSchema(t, "//vogue:enum PlaceKind country,city\n")
 
 		// Assert
-		assert.Regexp(t, `Enum:\s+\[\]string\{"country", "city"\},`, code)
+		assert.Contains(t, code, "members := PlaceKinds{}.All()", "the members are read from the catalogue, not spelled a third time")
+		assert.Regexp(t, `"enum":\s+values,`, code)
 	})
 
 	t.Run("names the format of an identifier", func(t *testing.T) {
@@ -81,8 +83,8 @@ func TestGenerate_Schema(t *testing.T) {
 		code := generateSchema(t, "//vogue:id PlaceID\n//vogue:id RunID int64\n")
 
 		// Assert
-		assert.Regexp(t, `Format:\s+schema.FormatUUID,`, code)
-		assert.Regexp(t, `ExclusiveMinimum:\s+schema.Number\{Set: true, Value: exclusiveMinimum\},`, code)
+		assert.Regexp(t, `"format":\s+"uuid",`, code)
+		assert.Regexp(t, `"exclusiveMinimum":\s+exclusiveMinimum,`, code)
 	})
 }
 
@@ -108,24 +110,23 @@ func TestGenerate_SchemaDerivation(t *testing.T) {
 		{
 			name:      "nonneg and min combine into the higher of the two minimums",
 			directive: "//vogue:int Floor min=-5 nonneg\n//vogue:int Covers nonneg min=3\n",
-			want:      []string{`minimum\s+= 0\n`, `minimum\s+= 3\n`},
-			wantNot:   []string{`minimum\s+= -5\n`},
+			want:      []string{`minimum\s+float64 = 0\n`, `minimum\s+float64 = 3\n`},
+			wantNot:   []string{`minimum\s+float64 = -5\n`},
 		},
 		{
 			name:      "a check a normalizer runs after says nothing about the canonical text",
 			directive: "//vogue:string Code len=2 regex=^[a-z]+$ upper\n",
-			want:      []string{`Pattern:\s+"",`, `MinLength:\s+schema.Length\{Set: false`},
+			wantNot:   []string{`"pattern"`, `"minLength"`},
 		},
 		{
 			name:      "the items of an integer list are normalized",
 			directive: "//vogue:int Courses oneof=01,+2\n",
-			want:      []string{`Enum:\s+\[\]string\{"1", "2"\},`},
+			want:      []string{`"enum":\s+\[\]string\{"1", "2"\},`},
 		},
 		{
 			name:      "an RE2-only pattern is left out rather than published in the wrong dialect",
 			directive: "//vogue:string Code regex=\\A[a-z]+\\z\n//vogue:string Other regex=(?i)^abc$\n",
-			want:      []string{`Pattern:\s+"",`},
-			wantNot:   []string{`Pattern:\s+"\\\\A`, `Pattern:\s+"\(\?i\)`},
+			wantNot:   []string{`"pattern"`},
 		},
 	}
 

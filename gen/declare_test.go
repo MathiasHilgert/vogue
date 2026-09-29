@@ -45,7 +45,7 @@ func TestGenerator_Declarations(t *testing.T) {
 		pkg := parseSource(t, "//vogue:string Code pattern=abc\n", set)
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: set})
 
 		// Assert
 		require.NoError(t, err)
@@ -64,7 +64,7 @@ func TestGenerator_Declarations(t *testing.T) {
 		pkg := parseSource(t, "//vogue:string Code pattern=abc\n\n//vogue:string Other pattern=abc\n", set)
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: set})
 
 		// Assert
 		require.NoError(t, err)
@@ -76,7 +76,7 @@ func TestGenerator_Declarations(t *testing.T) {
 		pkg := parseSource(t, "//vogue:string Code pattern=abc\n\n//vogue:string Other pattern=xyz\n", set)
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: set})
 
 		// Assert
 		require.NoError(t, err)

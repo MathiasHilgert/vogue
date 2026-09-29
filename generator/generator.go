@@ -44,6 +44,7 @@ package generator
 import (
 	"errors"
 	"fmt"
+	"go/token"
 	"io"
 	"os"
 	"os/exec"
@@ -65,6 +66,7 @@ type config struct {
 	withoutBuiltin bool
 	tests          bool
 	sql            bool
+	validation     gen.Validation
 	suffix         string
 	perValueObject bool
 	schema         bool
@@ -120,10 +122,35 @@ func WithSuffix(suffix string) Option {
 	return func(c *config) { c.suffix, c.perValueObject = suffix, suffix == "" }
 }
 
+// WithValidation names the type generated constructors record their failures
+// on, by the import path of its package and its exported name. It is required:
+// generated code imports nothing of vogue, so the failure type is the
+// consumer's own. See [ValidationContract] for what the type must provide. When
+// the path is the package being generated into, the type is used unqualified.
+func WithValidation(path, typeName string) Option {
+	return func(c *config) { c.validation = gen.Validation{ImportPath: path, TypeName: typeName} }
+}
+
+// ParseValidation splits the value of the `-validation` flag,
+// `<import path>.<Type>`, at the last dot after the last slash, so a path
+// whose elements hold dots, such as example.com/app/fault, is read whole.
+func ParseValidation(spec string) (path, typeName string, err error) {
+	slash := strings.LastIndex(spec, "/")
+	dot := strings.LastIndex(spec, ".")
+	if dot <= slash+1 || dot == len(spec)-1 {
+		return "", "", fmt.Errorf("vogue: -validation %q must be <import path>.<Type>, such as example.com/app/fault.Validation", spec)
+	}
+	path, typeName = spec[:dot], spec[dot+1:]
+	if !token.IsExported(typeName) {
+		return "", "", fmt.Errorf("vogue: -validation %q: the type %q must be exported", spec, typeName)
+	}
+	return path, typeName, nil
+}
+
 // WithSQL turns the database/sql/driver codec — Value and Scan — on or off.
-// It is on by default. A hexagonal domain package whose linter forbids
-// importing database/sql/driver turns it off and converts at the persistence
-// adapter, through the text codec or the accessors.
+// It is off by default, so a domain package that must not import
+// database/sql/driver needs no flag. Turn it on for value objects stored
+// through database/sql.
 func WithSQL(on bool) Option {
 	return func(c *config) { c.sql = on }
 }
@@ -154,7 +181,7 @@ func WithStderr(w io.Writer) Option {
 
 // newConfig resolves the defaults and applies the options.
 func newConfig(opts []Option) *config {
-	c := &config{tests: true, sql: true, suffix: gen.DefaultSuffix, stdout: os.Stdout, stderr: os.Stderr}
+	c := &config{tests: true, suffix: gen.DefaultSuffix, stdout: os.Stdout, stderr: os.Stderr}
 	for _, opt := range opts {
 		opt(c)
 	}
@@ -192,6 +219,9 @@ func defaultDir() string {
 // suffix — are removed, but only when they carry that header.
 func Run(opts ...Option) error {
 	c := newConfig(opts)
+	if c.validation.ImportPath == "" {
+		return errors.New(strings.TrimRight(ValidationRequired, "\n"))
+	}
 
 	set, err := c.ruleSet()
 	if err != nil {
@@ -305,7 +335,8 @@ func (c *config) render(pkg *parse.Package, set *vogue.RuleSet) ([]gen.OutFile, 
 		ImportPath:     c.resolveImportPath(),
 		Suffix:         c.suffix,
 		PerValueObject: c.perValueObject,
-		OmitSQL:        !c.sql,
+		Validation:     c.validation,
+		SQL:            c.sql,
 		Schema:         c.schema,
 	})
 	if err != nil {

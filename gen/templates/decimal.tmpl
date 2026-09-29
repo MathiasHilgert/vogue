@@ -1,47 +1,24 @@
 {{$n := .Name}}{{$r := .Recv}}
 {{range .DocLines}}// {{.}}
-{{end}}//
-// The value is held as a decimal.Decimal: an exact base-10 number with no
-// binary float underneath, so a rate, a percentage or a fractional quantity
-// reads back as the value someone typed.
-{{- if .SQL}}
-//
+{{end}}
+{{- if .SQL}}//
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
-{{- end}}
-type {{$n}} struct {
+{{end}}type {{$n}} struct {
 	value decimal.Decimal
 	set   bool
 }
 
 // New{{$n}} validates raw and returns the {{$n}} it describes.
-//
-// Rules are applied in the order they were declared, and every failure is
-// collected into one error rather than the first one aborting the rest.
 func New{{$n}}(raw decimal.Decimal) ({{$n}}, error) {
 {{template "validate" .}}
-	return {{$n}}{value: value, set: true}, nil
-}
-
-// New{{$n}}FromString reads a decimal representation and validates it. A
-// representation decimal.Parse cannot read is reported as a failure of the
-// "decimal" rule, so a caller handles it the same way as every other rule.
+// New{{$n}}FromString reads an exact decimal number and validates it.
 func New{{$n}}FromString(raw string) ({{$n}}, error) {
 	value, err := decimal.Parse(raw)
 	if err != nil {
-		var (
-			zero {{$n}}
-			notification validation.Notification
-		)
+		var failures {{.Failures}}
+		failures.Add({{q .Field}}, "decimal", "must be an exact decimal number")
 
-		notification.Reject(
-			{{q .Field}},
-			"decimal",
-			"",
-			raw,
-			"{{.Field}} must be an exact decimal number",
-		)
-
-		return zero, &notification
+		return {{$n}}{}, failures.Err()
 	}
 
 	return New{{$n}}(value)
@@ -50,38 +27,27 @@ func New{{$n}}FromString(raw string) ({{$n}}, error) {
 // Decimal returns the validated value.
 func ({{$r}} {{$n}}) Decimal() decimal.Decimal { return {{$r}}.value }
 
-// String returns the canonical representation of the value, which keeps the
-// scale it was created with: 1.50 reads back as "1.50", not as "1.5".
+// String returns the canonical text, which keeps the scale: 1.50 stays "1.50".
 func ({{$r}} {{$n}}) String() string { return {{$r}}.value.String() }
 
-// IsZero reports whether the receiver is the zero {{$n}}: one that was never
-// constructed, as opposed to one constructed from 0. It is what
-// `json:",omitzero"` asks, and what Value stores as NULL.
+// IsZero reports whether the receiver was never constructed; `json:",omitzero"` asks it.
 func ({{$r}} {{$n}}) IsZero() bool { return !{{$r}}.set }
 
-// Equal reports whether both value objects hold the same number.
-//
-// It compares with Cmp rather than with ==, because a decimal carries its
-// scale: 1.5 and 1.50 are the same number written at two scales, and == would
-// call them different. Two {{$n}} values that compare equal here may therefore
-// still marshal to different text, which is what keeps a stored scale intact.
+// Equal reports whether both hold the same number, so 1.5 equals 1.50.
 func ({{$r}} {{$n}}) Equal(other {{$n}}) bool {
 	return {{$r}}.set == other.set && {{$r}}.value.Cmp(other.value) == 0
 }
 
-// MarshalText implements encoding.TextMarshaler. encoding/json uses the text
-// codec when a type implements it, so {{$n}} crosses a JSON boundary as a
-// string and never as a float the receiver would have to round.
+// MarshalText implements encoding.TextMarshaler; the zero {{$n}} has no text form.
 func ({{$r}} {{$n}}) MarshalText() ([]byte, error) {
 	if {{$r}}.IsZero() {
-		return nil, fmt.Errorf("vogue: cannot marshal the zero {{$n}}: %w", validation.ErrZeroValue)
+		return nil, fmt.Errorf("cannot marshal the zero {{$n}}: %w", errors.ErrUnsupported)
 	}
 
 	return []byte({{$r}}.value.String()), nil
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
-// no payload can produce a {{$n}} the constructor would have rejected.
+// UnmarshalText implements encoding.TextUnmarshaler and validates like the constructor.
 func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 	parsed, err := New{{$n}}FromString(string(data))
 	if err != nil {
@@ -92,11 +58,9 @@ func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 
 	return nil
 }
-{{template "json" .}}
 {{if .SQL}}
-// Value implements driver.Valuer, storing the canonical representation as
-// text. A PostgreSQL `numeric` column accepts it and keeps every digit, which
-// a float parameter would not. The zero {{$n}} is stored as NULL.
+// Value implements driver.Valuer, storing the canonical text, which a numeric
+// column keeps digit for digit. The zero {{$n}} is stored as NULL.
 func ({{$r}} {{$n}}) Value() (driver.Value, error) {
 	if !{{$r}}.set {
 		// A nil driver.Value is SQL NULL.
@@ -108,15 +72,9 @@ func ({{$r}} {{$n}}) Value() (driver.Value, error) {
 	return {{$r}}.value.String(), nil
 }
 
-// Scan implements sql.Scanner for text and integer columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a
-// validation error.
-//
-// A float64 or float32 source is refused with [validation.ErrLossySource]
-// rather than converted: it has already lost digits by the time it arrives,
-// and accepting it would undo the reason this kind exists. A driver that
-// hands back a numeric column as a float is misconfigured; with pgx, the
-// numeric codec must deliver text.
+// Scan implements sql.Scanner and validates like the constructor. A binary
+// float is refused: it has already lost digits, so a driver must hand numeric
+// columns back as text.
 func ({{$r}} *{{$n}}) Scan(src any) error {
 	switch source := src.(type) {
 	case nil:
@@ -132,9 +90,9 @@ func ({{$r}} *{{$n}}) Scan(src any) error {
 	case int64:
 		return {{$r}}.scanInt64(source)
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into {{$n}}: %w", src, validation.ErrLossySource)
+		return fmt.Errorf("cannot scan the binary float %T into {{$n}}: %w", src, errors.ErrUnsupported)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into {{$n}}: %w", src, validation.ErrUnsupportedSource)
+		return fmt.Errorf("cannot scan %T into {{$n}}: %w", src, errors.ErrUnsupported)
 	}
 }
 
@@ -142,7 +100,7 @@ func ({{$r}} *{{$n}}) Scan(src any) error {
 func ({{$r}} *{{$n}}) scanInt64(number int64) error {
 	whole, err := decimal.New(number, 0)
 	if err != nil {
-		return fmt.Errorf("vogue: cannot scan %d into {{$n}}: %w", number, err)
+		return fmt.Errorf("cannot scan %d into {{$n}}: %w", number, err)
 	}
 
 	parsed, err := New{{$n}}(whole)

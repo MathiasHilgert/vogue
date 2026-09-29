@@ -36,6 +36,18 @@ func TestRenderMessage(t *testing.T) {
 			want: "title:",
 		},
 		{
+			name: "the kind the rule is used on",
+			tmpl: `{{if eq .Kind.String "string"}}length {{end}}must be at most {{.Param}}`,
+			data: vogue.MessageData{Kind: vogue.String, Param: "3"},
+			want: "length must be at most 3",
+		},
+		{
+			name: "another kind words it differently",
+			tmpl: `{{if eq .Kind.String "string"}}length {{end}}must be at most {{.Param}}`,
+			data: vogue.MessageData{Kind: vogue.Int, Param: "3"},
+			want: "must be at most 3",
+		},
+		{
 			name: "no html escaping",
 			tmpl: "{{.Value}}",
 			data: vogue.MessageData{Value: `a<b&c"`},

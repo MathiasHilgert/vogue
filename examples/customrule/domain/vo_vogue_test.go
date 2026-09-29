@@ -3,51 +3,77 @@
 package domain
 
 import (
+	"errors"
 	"testing"
-
-	"github.com/MathiasHilgert/vogue/voguetest"
 )
 
-// TestTaxID runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestTaxID(t *testing.T) {
+// TestTaxID_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestTaxID_Normalizes(t *testing.T) {
 	const exampleTortilla = "Tortilla"
 
 	t.Parallel()
 
-	voguetest.Scalar[TaxID, *TaxID, string]{
-		Field:      "taxID",
-		New:        NewTaxID,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{"20123456786", "27123456780"},
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  "the blanks around a pasted value are dropped",
-				Input: "  Tortilla  ",
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  "tabs and newlines count as whitespace too",
-				Input: "\tTortilla\n",
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  "an already clean value is left alone",
-				Input: exampleTortilla,
-				Out:   exampleTortilla,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{"the blanks around a pasted value are dropped", "  Tortilla  ", exampleTortilla},
+		{"tabs and newlines count as whitespace too", "\tTortilla\n", exampleTortilla},
+		{"an already clean value is left alone", exampleTortilla, exampleTortilla},
+	} {
+		want, err := NewTaxID(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewTaxID(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewTaxID(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
 }
 
-// TestLegalName runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestLegalName(t *testing.T) {
+// TestTaxID_RoundTripsText checks what the directive accepts survives its text.
+func TestTaxID_RoundTripsText(t *testing.T) {
+	t.Parallel()
+
+	for _, input := range []string{"20123456786", "27123456780"} {
+		value, err := NewTaxID(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf("%v.MarshalText() = %v", value, err)
+		}
+
+		var decoded TaxID
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf("%v became %v, %v through its text", value, decoded, err)
+		}
+	}
+}
+
+// TestTaxID_ZeroHasNoText checks that the zero TaxID cannot be marshaled.
+func TestTaxID_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero TaxID
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero TaxID marshaled: %v", err)
+	}
+}
+
+// TestLegalName_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestLegalName_Normalizes(t *testing.T) {
 	const (
 		exampleTortilla          = "Tortilla"
 		exampleTortillaDePatatas = "Tortilla de patatas"
@@ -55,47 +81,66 @@ func TestLegalName(t *testing.T) {
 
 	t.Parallel()
 
-	voguetest.Scalar[LegalName, *LegalName, string]{
-		Field:      "legalName",
-		New:        NewLegalName,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleTortilla, " "},
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  "the blanks around a pasted value are dropped",
-				Input: "  Tortilla  ",
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  "tabs and newlines count as whitespace too",
-				Input: "\tTortilla\n",
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  "an already clean value is left alone",
-				Input: exampleTortilla,
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  "a run of spaces becomes one",
-				Input: "Tortilla   de  patatas",
-				Out:   exampleTortillaDePatatas,
-			},
-			{
-				Name:  "the ends are trimmed as well",
-				Input: "  Tortilla de patatas  ",
-				Out:   exampleTortillaDePatatas,
-			},
-			{
-				Name:  "a tab and a newline become plain spaces",
-				Input: "Tortilla\tde\npatatas",
-				Out:   exampleTortillaDePatatas,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{"the blanks around a pasted value are dropped", "  Tortilla  ", exampleTortilla},
+		{"tabs and newlines count as whitespace too", "\tTortilla\n", exampleTortilla},
+		{"an already clean value is left alone", exampleTortilla, exampleTortilla},
+		{"a run of spaces becomes one", "Tortilla   de  patatas", exampleTortillaDePatatas},
+		{"the ends are trimmed as well", "  Tortilla de patatas  ", exampleTortillaDePatatas},
+		{"a tab and a newline become plain spaces", "Tortilla\tde\npatatas", exampleTortillaDePatatas},
+	} {
+		want, err := NewLegalName(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewLegalName(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewLegalName(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
+}
+
+// TestLegalName_RoundTripsText checks what the directive accepts survives its text.
+func TestLegalName_RoundTripsText(t *testing.T) {
+	const exampleTortilla = "Tortilla"
+
+	t.Parallel()
+
+	for _, input := range []string{exampleTortilla, " "} {
+		value, err := NewLegalName(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf("%v.MarshalText() = %v", value, err)
+		}
+
+		var decoded LegalName
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf("%v became %v, %v through its text", value, decoded, err)
+		}
+	}
+}
+
+// TestLegalName_ZeroHasNoText checks that the zero LegalName cannot be marshaled.
+func TestLegalName_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero LegalName
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero LegalName marshaled: %v", err)
+	}
 }

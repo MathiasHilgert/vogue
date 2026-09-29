@@ -4,14 +4,14 @@ package place
 
 import (
 	"database/sql/driver"
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
-	"github.com/MathiasHilgert/vogue/textjson"
-	"github.com/MathiasHilgert/vogue/validation"
+	"github.com/MathiasHilgert/vogue/examples/validation"
 	"github.com/google/uuid"
 	"github.com/govalues/decimal"
 )
@@ -20,16 +20,12 @@ var countryCodePattern = regexp.MustCompile(`^[A-Z]{2}$`)
 
 // PlaceKind is the kind of a place in the geographic hierarchy.
 //
-// The members are returned by the methods of [PlaceKinds]: PlaceKinds{}.Country() and
-// its siblings. The type stays a struct with an unexported field so its zero
-// value is not a member: an uninitialised PlaceKind reports IsZero and can never
-// be mistaken for a meaningful state.
+// Its members are the methods of [PlaceKinds], spelled PlaceKinds{}.Country(). The zero PlaceKind is no member.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type PlaceKind struct{ value string }
 
-// PlaceKinds is the catalogue of the members of PlaceKind. It holds nothing: its zero
-// value is the whole catalogue, so a member is spelled PlaceKinds{}.Country().
+// PlaceKinds is the catalogue of the members of PlaceKind; its zero value is all of it.
 type PlaceKinds struct{}
 
 // Country returns the "country" member of PlaceKind.
@@ -41,8 +37,7 @@ func (PlaceKinds) Subdivision() PlaceKind { return PlaceKind{value: "subdivision
 // City returns the "city" member of PlaceKind.
 func (PlaceKinds) City() PlaceKind { return PlaceKind{value: "city"} }
 
-// All returns every member in declaration order, so code that must handle every
-// member — a test, a lookup table — can range over it instead of listing them.
+// All returns every member in declaration order.
 func (placeKinds PlaceKinds) All() []PlaceKind {
 	return []PlaceKind{
 		placeKinds.Country(),
@@ -51,58 +46,42 @@ func (placeKinds PlaceKinds) All() []PlaceKind {
 	}
 }
 
-// Parse resolves the wire representation of a member, rejecting anything else
-// as a failure of the "oneof" rule. It compares against the members' own
-// values, so no wire string is written twice and nothing is allocated.
+// Parse returns the member whose wire value is raw, or a "oneof" failure.
 func (placeKinds PlaceKinds) Parse(raw string) (PlaceKind, error) {
 	switch raw {
-	case placeKinds.Country().value:
+	case "country":
 		return placeKinds.Country(), nil
-	case placeKinds.Subdivision().value:
+	case "subdivision":
 		return placeKinds.Subdivision(), nil
-	case placeKinds.City().value:
+	case "city":
 		return placeKinds.City(), nil
 	}
 
-	var (
-		zero         PlaceKind
-		notification validation.Notification
-	)
+	var failures validation.Validation
+	failures.Add("placeKind", "oneof", "must be one of: country, subdivision, city")
 
-	notification.Reject(
-		"placeKind",
-		"oneof",
-		"country,subdivision,city",
-		raw,
-		"placeKind must be one of: country, subdivision, city",
-	)
-
-	return zero, &notification
+	return PlaceKind{}, failures.Err()
 }
 
-// String returns the wire representation of the member, empty for the zero
-// value.
+// String returns the wire value, empty for the zero PlaceKind.
 func (placeKind PlaceKind) String() string { return placeKind.value }
 
-// IsZero reports whether the receiver is the zero PlaceKind rather than one of
-// its members.
+// IsZero reports whether the receiver is no member; `json:",omitzero"` asks it.
 func (placeKind PlaceKind) IsZero() bool { return placeKind.value == "" }
 
-// Equal reports whether both value objects hold the same member.
-func (placeKind PlaceKind) Equal(other PlaceKind) bool { return placeKind.value == other.value }
+// Equal reports whether both are the same member.
+func (placeKind PlaceKind) Equal(other PlaceKind) bool { return placeKind == other }
 
-// MarshalText implements encoding.TextMarshaler, which is also what
-// encoding/json uses, so a member marshals as its wire string.
+// MarshalText implements encoding.TextMarshaler; the zero PlaceKind has no text form.
 func (placeKind PlaceKind) MarshalText() ([]byte, error) {
 	if placeKind.IsZero() {
-		return nil, fmt.Errorf("vogue: cannot marshal the zero PlaceKind: %w", validation.ErrZeroValue)
+		return nil, fmt.Errorf("cannot marshal the zero PlaceKind: %w", errors.ErrUnsupported)
 	}
 
 	return []byte(placeKind.value), nil
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler through PlaceKinds.Parse, so
-// an unknown member is rejected rather than accepted as a new state.
+// UnmarshalText implements encoding.TextUnmarshaler through PlaceKinds.Parse.
 func (placeKind *PlaceKind) UnmarshalText(data []byte) error {
 	parsed, err := PlaceKinds{}.Parse(string(data))
 	if err != nil {
@@ -114,45 +93,9 @@ func (placeKind *PlaceKind) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements json.Marshaler. The zero PlaceKind is null, which is
-// what keeps an unset field from being written as a value that would read back
-// as a constructed one; anything else is the JSON string of its text form.
-func (placeKind PlaceKind) MarshalJSON() ([]byte, error) {
-	if placeKind.IsZero() {
-		return textjson.Null(), nil
-	}
-
-	text, err := placeKind.MarshalText()
-	if err != nil {
-		return nil, err
-	}
-
-	return textjson.Quote(text), nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
-// PlaceKind; a JSON string goes through UnmarshalText, so it is validated.
-func (placeKind *PlaceKind) UnmarshalJSON(data []byte) error {
-	text, isNull, err := textjson.Unquote(data)
-	if err != nil {
-		return fmt.Errorf("vogue: cannot decode PlaceKind: %w", err)
-	}
-
-	if isNull {
-		var zero PlaceKind
-
-		*placeKind = zero
-
-		return nil
-	}
-
-	return placeKind.UnmarshalText(text)
-}
-
-// Value implements driver.Valuer. The zero PlaceKind, which is no member, is
-// stored as NULL.
+// Value implements driver.Valuer; the zero PlaceKind is stored as NULL.
 func (placeKind PlaceKind) Value() (driver.Value, error) {
-	if placeKind.value == "" {
+	if placeKind.IsZero() {
 		// A nil driver.Value is SQL NULL.
 		var null driver.Value
 
@@ -162,8 +105,7 @@ func (placeKind PlaceKind) Value() (driver.Value, error) {
 	return placeKind.value, nil
 }
 
-// Scan implements sql.Scanner for text columns, rejecting a stored value that
-// is no longer a member.
+// Scan implements sql.Scanner and rejects a stored value that is no longer a member.
 func (placeKind *PlaceKind) Scan(src any) error {
 	switch source := src.(type) {
 	case nil:
@@ -177,7 +119,7 @@ func (placeKind *PlaceKind) Scan(src any) error {
 	case []byte:
 		return placeKind.UnmarshalText(source)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into PlaceKind: %w", src, validation.ErrUnsupportedSource)
+		return fmt.Errorf("cannot scan %T into PlaceKind: %w", src, errors.ErrUnsupported)
 	}
 }
 
@@ -190,55 +132,30 @@ type CountryCode struct {
 }
 
 // NewCountryCode validates raw and returns the CountryCode it describes.
-//
-// Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification.
-// Every failure is collected, so the returned error describes the whole input
-// rather than the first thing that went wrong.
 func NewCountryCode(raw string) (CountryCode, error) {
-	const lengthParameter = 2
+	var countryCode CountryCode // stays zero unless every rule passes
+	var failures validation.Validation
 
-	var notification validation.Notification
+	const lengthParameter = 2
 
 	value := raw
 	value = strings.TrimSpace(value)
 	value = strings.ToUpper(value)
 	if value == "" {
-		notification.Reject(
-			"countryCode",
-			"required",
-			"",
-			value,
-			"countryCode is required",
-		)
+		failures.Add("countryCode", "required", "is required")
+
+		return countryCode, failures.Err()
 	}
 	if utf8.RuneCountInString(value) != lengthParameter {
-		notification.Reject(
-			"countryCode",
-			"len",
-			"2",
-			value,
-			"countryCode must be exactly 2 characters long",
-		)
+		failures.Add("countryCode", "len", "must be exactly 2 characters long")
 	}
 	if !countryCodePattern.MatchString(value) {
-		notification.Reject(
-			"countryCode",
-			"regex",
-			"^[A-Z]{2}$",
-			value,
-			"countryCode must match the pattern ^[A-Z]{2}$",
-		)
+		failures.Add("countryCode", "regex", "must match the pattern ^[A-Z]{2}$")
 	}
 
-	if notification.HasErrors() {
-		var zero CountryCode
-
-		// Only a rejected input escapes to the heap: the notification is
-		// copied here, so the happy path above allocates nothing.
-		failed := notification
-
-		return zero, &failed
+	err := failures.Err()
+	if err != nil {
+		return countryCode, err
 	}
 
 	return CountryCode{value: value, set: true}, nil
@@ -247,30 +164,22 @@ func NewCountryCode(raw string) (CountryCode, error) {
 // String returns the validated value.
 func (countryCode CountryCode) String() string { return countryCode.value }
 
-// IsZero reports whether the receiver is the zero CountryCode: one that was never
-// constructed, as opposed to one constructed from an empty string the rules
-// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+// IsZero reports whether the receiver was never constructed; `json:",omitzero"` asks it.
 func (countryCode CountryCode) IsZero() bool { return !countryCode.set }
 
-// Equal reports whether both value objects hold the same value.
-func (countryCode CountryCode) Equal(other CountryCode) bool {
-	return countryCode.value == other.value && countryCode.set == other.set
-}
+// Equal reports whether both hold the same value.
+func (countryCode CountryCode) Equal(other CountryCode) bool { return countryCode == other }
 
-// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
-// the text codec for types that implement it, so CountryCode marshals and
-// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
-// map key too.
+// MarshalText implements encoding.TextMarshaler; the zero CountryCode has no text form.
 func (countryCode CountryCode) MarshalText() ([]byte, error) {
 	if countryCode.IsZero() {
-		return nil, fmt.Errorf("vogue: cannot marshal the zero CountryCode: %w", validation.ErrZeroValue)
+		return nil, fmt.Errorf("cannot marshal the zero CountryCode: %w", errors.ErrUnsupported)
 	}
 
 	return []byte(countryCode.value), nil
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
-// no payload can produce a CountryCode the constructor would have rejected.
+// UnmarshalText implements encoding.TextUnmarshaler and validates like the constructor.
 func (countryCode *CountryCode) UnmarshalText(data []byte) error {
 	parsed, err := NewCountryCode(string(data))
 	if err != nil {
@@ -282,43 +191,7 @@ func (countryCode *CountryCode) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements json.Marshaler. The zero CountryCode is null, which is
-// what keeps an unset field from being written as a value that would read back
-// as a constructed one; anything else is the JSON string of its text form.
-func (countryCode CountryCode) MarshalJSON() ([]byte, error) {
-	if countryCode.IsZero() {
-		return textjson.Null(), nil
-	}
-
-	text, err := countryCode.MarshalText()
-	if err != nil {
-		return nil, err
-	}
-
-	return textjson.Quote(text), nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
-// CountryCode; a JSON string goes through UnmarshalText, so it is validated.
-func (countryCode *CountryCode) UnmarshalJSON(data []byte) error {
-	text, isNull, err := textjson.Unquote(data)
-	if err != nil {
-		return fmt.Errorf("vogue: cannot decode CountryCode: %w", err)
-	}
-
-	if isNull {
-		var zero CountryCode
-
-		*countryCode = zero
-
-		return nil
-	}
-
-	return countryCode.UnmarshalText(text)
-}
-
-// Value implements driver.Valuer. The zero CountryCode is stored as NULL, which
-// Scan reads back as the zero CountryCode.
+// Value implements driver.Valuer; the zero CountryCode is stored as NULL.
 func (countryCode CountryCode) Value() (driver.Value, error) {
 	if !countryCode.set {
 		// A nil driver.Value is SQL NULL.
@@ -330,9 +203,7 @@ func (countryCode CountryCode) Value() (driver.Value, error) {
 	return countryCode.value, nil
 }
 
-// Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a validation error
-// instead of an invalid value object.
+// Scan implements sql.Scanner and validates like the constructor.
 func (countryCode *CountryCode) Scan(src any) error {
 	switch source := src.(type) {
 	case nil:
@@ -346,7 +217,7 @@ func (countryCode *CountryCode) Scan(src any) error {
 	case []byte:
 		return countryCode.UnmarshalText(source)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into CountryCode: %w", src, validation.ErrUnsupportedSource)
+		return fmt.Errorf("cannot scan %T into CountryCode: %w", src, errors.ErrUnsupported)
 	}
 }
 
@@ -359,57 +230,32 @@ type PlaceName struct {
 }
 
 // NewPlaceName validates raw and returns the PlaceName it describes.
-//
-// Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification.
-// Every failure is collected, so the returned error describes the whole input
-// rather than the first thing that went wrong.
 func NewPlaceName(raw string) (PlaceName, error) {
+	var placeName PlaceName // stays zero unless every rule passes
+	var failures validation.Validation
+
 	const (
 		minimumParameter = 1
 		maximumParameter = 200
 	)
 
-	var notification validation.Notification
-
 	value := raw
 	value = strings.Join(strings.Fields(value), " ")
 	if value == "" {
-		notification.Reject(
-			"placeName",
-			"required",
-			"",
-			value,
-			"placeName is required",
-		)
+		failures.Add("placeName", "required", "is required")
+
+		return placeName, failures.Err()
 	}
 	if utf8.RuneCountInString(value) < minimumParameter {
-		notification.Reject(
-			"placeName",
-			"min",
-			"1",
-			value,
-			"placeName must be at least 1",
-		)
+		failures.Add("placeName", "min", "length must be at least 1")
 	}
 	if utf8.RuneCountInString(value) > maximumParameter {
-		notification.Reject(
-			"placeName",
-			"max",
-			"200",
-			value,
-			"placeName must be at most 200",
-		)
+		failures.Add("placeName", "max", "length must be at most 200")
 	}
 
-	if notification.HasErrors() {
-		var zero PlaceName
-
-		// Only a rejected input escapes to the heap: the notification is
-		// copied here, so the happy path above allocates nothing.
-		failed := notification
-
-		return zero, &failed
+	err := failures.Err()
+	if err != nil {
+		return placeName, err
 	}
 
 	return PlaceName{value: value, set: true}, nil
@@ -418,30 +264,22 @@ func NewPlaceName(raw string) (PlaceName, error) {
 // String returns the validated value.
 func (placeName PlaceName) String() string { return placeName.value }
 
-// IsZero reports whether the receiver is the zero PlaceName: one that was never
-// constructed, as opposed to one constructed from an empty string the rules
-// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+// IsZero reports whether the receiver was never constructed; `json:",omitzero"` asks it.
 func (placeName PlaceName) IsZero() bool { return !placeName.set }
 
-// Equal reports whether both value objects hold the same value.
-func (placeName PlaceName) Equal(other PlaceName) bool {
-	return placeName.value == other.value && placeName.set == other.set
-}
+// Equal reports whether both hold the same value.
+func (placeName PlaceName) Equal(other PlaceName) bool { return placeName == other }
 
-// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
-// the text codec for types that implement it, so PlaceName marshals and
-// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
-// map key too.
+// MarshalText implements encoding.TextMarshaler; the zero PlaceName has no text form.
 func (placeName PlaceName) MarshalText() ([]byte, error) {
 	if placeName.IsZero() {
-		return nil, fmt.Errorf("vogue: cannot marshal the zero PlaceName: %w", validation.ErrZeroValue)
+		return nil, fmt.Errorf("cannot marshal the zero PlaceName: %w", errors.ErrUnsupported)
 	}
 
 	return []byte(placeName.value), nil
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
-// no payload can produce a PlaceName the constructor would have rejected.
+// UnmarshalText implements encoding.TextUnmarshaler and validates like the constructor.
 func (placeName *PlaceName) UnmarshalText(data []byte) error {
 	parsed, err := NewPlaceName(string(data))
 	if err != nil {
@@ -453,43 +291,7 @@ func (placeName *PlaceName) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements json.Marshaler. The zero PlaceName is null, which is
-// what keeps an unset field from being written as a value that would read back
-// as a constructed one; anything else is the JSON string of its text form.
-func (placeName PlaceName) MarshalJSON() ([]byte, error) {
-	if placeName.IsZero() {
-		return textjson.Null(), nil
-	}
-
-	text, err := placeName.MarshalText()
-	if err != nil {
-		return nil, err
-	}
-
-	return textjson.Quote(text), nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
-// PlaceName; a JSON string goes through UnmarshalText, so it is validated.
-func (placeName *PlaceName) UnmarshalJSON(data []byte) error {
-	text, isNull, err := textjson.Unquote(data)
-	if err != nil {
-		return fmt.Errorf("vogue: cannot decode PlaceName: %w", err)
-	}
-
-	if isNull {
-		var zero PlaceName
-
-		*placeName = zero
-
-		return nil
-	}
-
-	return placeName.UnmarshalText(text)
-}
-
-// Value implements driver.Valuer. The zero PlaceName is stored as NULL, which
-// Scan reads back as the zero PlaceName.
+// Value implements driver.Valuer; the zero PlaceName is stored as NULL.
 func (placeName PlaceName) Value() (driver.Value, error) {
 	if !placeName.set {
 		// A nil driver.Value is SQL NULL.
@@ -501,9 +303,7 @@ func (placeName PlaceName) Value() (driver.Value, error) {
 	return placeName.value, nil
 }
 
-// Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a validation error
-// instead of an invalid value object.
+// Scan implements sql.Scanner and validates like the constructor.
 func (placeName *PlaceName) Scan(src any) error {
 	switch source := src.(type) {
 	case nil:
@@ -517,7 +317,7 @@ func (placeName *PlaceName) Scan(src any) error {
 	case []byte:
 		return placeName.UnmarshalText(source)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into PlaceName: %w", src, validation.ErrUnsupportedSource)
+		return fmt.Errorf("cannot scan %T into PlaceName: %w", src, errors.ErrUnsupported)
 	}
 }
 
@@ -530,45 +330,24 @@ type TimeZoneID struct {
 }
 
 // NewTimeZoneID validates raw and returns the TimeZoneID it describes.
-//
-// Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification.
-// Every failure is collected, so the returned error describes the whole input
-// rather than the first thing that went wrong.
 func NewTimeZoneID(raw string) (TimeZoneID, error) {
-	var timeZoneID TimeZoneID
-
-	var notification validation.Notification
+	var timeZoneID TimeZoneID // stays zero unless every rule passes
+	var failures validation.Validation
 
 	value := raw
 	value = strings.TrimSpace(value)
 	if value == "" {
-		notification.Reject(
-			"timeZoneID",
-			"required",
-			"",
-			value,
-			"timeZoneID is required",
-		)
+		failures.Add("timeZoneID", "required", "is required")
+
+		return timeZoneID, failures.Err()
 	}
 	if !timeZoneID.isTimeZone(value) {
-		notification.Reject(
-			"timeZoneID",
-			"timezone",
-			"",
-			value,
-			"timeZoneID must be an IANA time zone",
-		)
+		failures.Add("timeZoneID", "timezone", "must be an IANA time zone")
 	}
 
-	if notification.HasErrors() {
-		var zero TimeZoneID
-
-		// Only a rejected input escapes to the heap: the notification is
-		// copied here, so the happy path above allocates nothing.
-		failed := notification
-
-		return zero, &failed
+	err := failures.Err()
+	if err != nil {
+		return timeZoneID, err
 	}
 
 	return TimeZoneID{value: value, set: true}, nil
@@ -577,30 +356,22 @@ func NewTimeZoneID(raw string) (TimeZoneID, error) {
 // String returns the validated value.
 func (timeZoneID TimeZoneID) String() string { return timeZoneID.value }
 
-// IsZero reports whether the receiver is the zero TimeZoneID: one that was never
-// constructed, as opposed to one constructed from an empty string the rules
-// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+// IsZero reports whether the receiver was never constructed; `json:",omitzero"` asks it.
 func (timeZoneID TimeZoneID) IsZero() bool { return !timeZoneID.set }
 
-// Equal reports whether both value objects hold the same value.
-func (timeZoneID TimeZoneID) Equal(other TimeZoneID) bool {
-	return timeZoneID.value == other.value && timeZoneID.set == other.set
-}
+// Equal reports whether both hold the same value.
+func (timeZoneID TimeZoneID) Equal(other TimeZoneID) bool { return timeZoneID == other }
 
-// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
-// the text codec for types that implement it, so TimeZoneID marshals and
-// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
-// map key too.
+// MarshalText implements encoding.TextMarshaler; the zero TimeZoneID has no text form.
 func (timeZoneID TimeZoneID) MarshalText() ([]byte, error) {
 	if timeZoneID.IsZero() {
-		return nil, fmt.Errorf("vogue: cannot marshal the zero TimeZoneID: %w", validation.ErrZeroValue)
+		return nil, fmt.Errorf("cannot marshal the zero TimeZoneID: %w", errors.ErrUnsupported)
 	}
 
 	return []byte(timeZoneID.value), nil
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
-// no payload can produce a TimeZoneID the constructor would have rejected.
+// UnmarshalText implements encoding.TextUnmarshaler and validates like the constructor.
 func (timeZoneID *TimeZoneID) UnmarshalText(data []byte) error {
 	parsed, err := NewTimeZoneID(string(data))
 	if err != nil {
@@ -612,43 +383,7 @@ func (timeZoneID *TimeZoneID) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements json.Marshaler. The zero TimeZoneID is null, which is
-// what keeps an unset field from being written as a value that would read back
-// as a constructed one; anything else is the JSON string of its text form.
-func (timeZoneID TimeZoneID) MarshalJSON() ([]byte, error) {
-	if timeZoneID.IsZero() {
-		return textjson.Null(), nil
-	}
-
-	text, err := timeZoneID.MarshalText()
-	if err != nil {
-		return nil, err
-	}
-
-	return textjson.Quote(text), nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
-// TimeZoneID; a JSON string goes through UnmarshalText, so it is validated.
-func (timeZoneID *TimeZoneID) UnmarshalJSON(data []byte) error {
-	text, isNull, err := textjson.Unquote(data)
-	if err != nil {
-		return fmt.Errorf("vogue: cannot decode TimeZoneID: %w", err)
-	}
-
-	if isNull {
-		var zero TimeZoneID
-
-		*timeZoneID = zero
-
-		return nil
-	}
-
-	return timeZoneID.UnmarshalText(text)
-}
-
-// Value implements driver.Valuer. The zero TimeZoneID is stored as NULL, which
-// Scan reads back as the zero TimeZoneID.
+// Value implements driver.Valuer; the zero TimeZoneID is stored as NULL.
 func (timeZoneID TimeZoneID) Value() (driver.Value, error) {
 	if !timeZoneID.set {
 		// A nil driver.Value is SQL NULL.
@@ -660,9 +395,7 @@ func (timeZoneID TimeZoneID) Value() (driver.Value, error) {
 	return timeZoneID.value, nil
 }
 
-// Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a validation error
-// instead of an invalid value object.
+// Scan implements sql.Scanner and validates like the constructor.
 func (timeZoneID *TimeZoneID) Scan(src any) error {
 	switch source := src.(type) {
 	case nil:
@@ -676,12 +409,11 @@ func (timeZoneID *TimeZoneID) Scan(src any) error {
 	case []byte:
 		return timeZoneID.UnmarshalText(source)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into TimeZoneID: %w", src, validation.ErrUnsupportedSource)
+		return fmt.Errorf("cannot scan %T into TimeZoneID: %w", src, errors.ErrUnsupported)
 	}
 }
 
-// isTimeZone implements the timezone rule of NewTimeZoneID: it reports whether
-// value is acceptable.
+// isTimeZone implements the timezone rule of NewTimeZoneID.
 //
 //nolint:funlen // the body lists data, every name the rule accepts, not logic.
 func (TimeZoneID) isTimeZone(value string) bool {
@@ -817,9 +549,6 @@ func (TimeZoneID) isTimeZone(value string) bool {
 
 // GeoNamesID identifies a GeoNames record.
 //
-// The value is held as an int64 so it survives every database driver and JSON
-// number without a widening conversion at the boundary.
-//
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type GeoNamesID struct {
 	value int64
@@ -827,56 +556,31 @@ type GeoNamesID struct {
 }
 
 // NewGeoNamesID validates raw and returns the GeoNamesID it describes.
-//
-// Rules are applied in the order they were declared, and every failure is
-// collected into one error rather than the first one aborting the rest.
 func NewGeoNamesID(raw int64) (GeoNamesID, error) {
-	var notification validation.Notification
+	var geoNamesID GeoNamesID // stays zero unless every rule passes
+	var failures validation.Validation
 
 	value := raw
 	if value <= 0 {
-		notification.Reject(
-			"geoNamesID",
-			"positive",
-			"",
-			strconv.FormatInt(value, 10),
-			"geoNamesID must be greater than zero",
-		)
+		failures.Add("geoNamesID", "positive", "must be greater than zero")
 	}
 
-	if notification.HasErrors() {
-		var zero GeoNamesID
-
-		// Only a rejected input escapes to the heap: the notification is
-		// copied here, so the happy path above allocates nothing.
-		failed := notification
-
-		return zero, &failed
+	err := failures.Err()
+	if err != nil {
+		return geoNamesID, err
 	}
 
 	return GeoNamesID{value: value, set: true}, nil
 }
 
-// NewGeoNamesIDFromString reads a base-10 representation and validates it. A
-// representation that is not a whole number is reported as a failure of the
-// "int" rule, so a caller handles it like every other rule.
+// NewGeoNamesIDFromString reads a base-10 whole number and validates it.
 func NewGeoNamesIDFromString(raw string) (GeoNamesID, error) {
 	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var (
-			zero         GeoNamesID
-			notification validation.Notification
-		)
+		var failures validation.Validation
+		failures.Add("geoNamesID", "int", "must be a whole number")
 
-		notification.Reject(
-			"geoNamesID",
-			"int",
-			"",
-			raw,
-			"geoNamesID must be a whole number",
-		)
-
-		return zero, &notification
+		return GeoNamesID{}, failures.Err()
 	}
 
 	return NewGeoNamesID(value)
@@ -885,32 +589,25 @@ func NewGeoNamesIDFromString(raw string) (GeoNamesID, error) {
 // Int64 returns the validated value.
 func (geoNamesID GeoNamesID) Int64() int64 { return geoNamesID.value }
 
-// String returns the base-10 representation of the value.
+// String returns the base-10 representation.
 func (geoNamesID GeoNamesID) String() string { return strconv.FormatInt(geoNamesID.value, 10) }
 
-// IsZero reports whether the receiver is the zero GeoNamesID: one that was never
-// constructed, as opposed to one constructed from 0. It is what
-// `json:",omitzero"` asks, and what Value stores as NULL.
+// IsZero reports whether the receiver was never constructed; `json:",omitzero"` asks it.
 func (geoNamesID GeoNamesID) IsZero() bool { return !geoNamesID.set }
 
-// Equal reports whether both value objects hold the same value.
-func (geoNamesID GeoNamesID) Equal(other GeoNamesID) bool {
-	return geoNamesID.value == other.value && geoNamesID.set == other.set
-}
+// Equal reports whether both hold the same value.
+func (geoNamesID GeoNamesID) Equal(other GeoNamesID) bool { return geoNamesID == other }
 
-// MarshalText implements encoding.TextMarshaler. encoding/json uses the text
-// codec when a type implements it, so GeoNamesID round-trips through JSON without
-// a MarshalJSON of its own.
+// MarshalText implements encoding.TextMarshaler; the zero GeoNamesID has no text form.
 func (geoNamesID GeoNamesID) MarshalText() ([]byte, error) {
 	if geoNamesID.IsZero() {
-		return nil, fmt.Errorf("vogue: cannot marshal the zero GeoNamesID: %w", validation.ErrZeroValue)
+		return nil, fmt.Errorf("cannot marshal the zero GeoNamesID: %w", errors.ErrUnsupported)
 	}
 
 	return []byte(geoNamesID.String()), nil
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
-// no payload can produce a GeoNamesID the constructor would have rejected.
+// UnmarshalText implements encoding.TextUnmarshaler and validates like the constructor.
 func (geoNamesID *GeoNamesID) UnmarshalText(data []byte) error {
 	parsed, err := NewGeoNamesIDFromString(string(data))
 	if err != nil {
@@ -922,43 +619,7 @@ func (geoNamesID *GeoNamesID) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements json.Marshaler. The zero GeoNamesID is null, which is
-// what keeps an unset field from being written as a value that would read back
-// as a constructed one; anything else is the JSON string of its text form.
-func (geoNamesID GeoNamesID) MarshalJSON() ([]byte, error) {
-	if geoNamesID.IsZero() {
-		return textjson.Null(), nil
-	}
-
-	text, err := geoNamesID.MarshalText()
-	if err != nil {
-		return nil, err
-	}
-
-	return textjson.Quote(text), nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
-// GeoNamesID; a JSON string goes through UnmarshalText, so it is validated.
-func (geoNamesID *GeoNamesID) UnmarshalJSON(data []byte) error {
-	text, isNull, err := textjson.Unquote(data)
-	if err != nil {
-		return fmt.Errorf("vogue: cannot decode GeoNamesID: %w", err)
-	}
-
-	if isNull {
-		var zero GeoNamesID
-
-		*geoNamesID = zero
-
-		return nil
-	}
-
-	return geoNamesID.UnmarshalText(text)
-}
-
-// Value implements driver.Valuer. The zero GeoNamesID is stored as NULL, which
-// Scan reads back as the zero GeoNamesID.
+// Value implements driver.Valuer; the zero GeoNamesID is stored as NULL.
 func (geoNamesID GeoNamesID) Value() (driver.Value, error) {
 	if !geoNamesID.set {
 		// A nil driver.Value is SQL NULL.
@@ -970,9 +631,7 @@ func (geoNamesID GeoNamesID) Value() (driver.Value, error) {
 	return geoNamesID.value, nil
 }
 
-// Scan implements sql.Scanner for integer and text columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a
-// validation error.
+// Scan implements sql.Scanner and validates like the constructor.
 func (geoNamesID *GeoNamesID) Scan(src any) error {
 	switch source := src.(type) {
 	case nil:
@@ -995,14 +654,11 @@ func (geoNamesID *GeoNamesID) Scan(src any) error {
 	case []byte:
 		return geoNamesID.UnmarshalText(source)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into GeoNamesID: %w", src, validation.ErrUnsupportedSource)
+		return fmt.Errorf("cannot scan %T into GeoNamesID: %w", src, errors.ErrUnsupported)
 	}
 }
 
 // Population is the number of inhabitants of a place.
-//
-// The value is held as an int64 so it survives every database driver and JSON
-// number without a widening conversion at the boundary.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type Population struct {
@@ -1011,56 +667,31 @@ type Population struct {
 }
 
 // NewPopulation validates raw and returns the Population it describes.
-//
-// Rules are applied in the order they were declared, and every failure is
-// collected into one error rather than the first one aborting the rest.
 func NewPopulation(raw int64) (Population, error) {
-	var notification validation.Notification
+	var population Population // stays zero unless every rule passes
+	var failures validation.Validation
 
 	value := raw
 	if value < 0 {
-		notification.Reject(
-			"population",
-			"nonneg",
-			"",
-			strconv.FormatInt(value, 10),
-			"population must not be negative",
-		)
+		failures.Add("population", "nonneg", "must not be negative")
 	}
 
-	if notification.HasErrors() {
-		var zero Population
-
-		// Only a rejected input escapes to the heap: the notification is
-		// copied here, so the happy path above allocates nothing.
-		failed := notification
-
-		return zero, &failed
+	err := failures.Err()
+	if err != nil {
+		return population, err
 	}
 
 	return Population{value: value, set: true}, nil
 }
 
-// NewPopulationFromString reads a base-10 representation and validates it. A
-// representation that is not a whole number is reported as a failure of the
-// "int" rule, so a caller handles it like every other rule.
+// NewPopulationFromString reads a base-10 whole number and validates it.
 func NewPopulationFromString(raw string) (Population, error) {
 	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var (
-			zero         Population
-			notification validation.Notification
-		)
+		var failures validation.Validation
+		failures.Add("population", "int", "must be a whole number")
 
-		notification.Reject(
-			"population",
-			"int",
-			"",
-			raw,
-			"population must be a whole number",
-		)
-
-		return zero, &notification
+		return Population{}, failures.Err()
 	}
 
 	return NewPopulation(value)
@@ -1069,32 +700,25 @@ func NewPopulationFromString(raw string) (Population, error) {
 // Int64 returns the validated value.
 func (population Population) Int64() int64 { return population.value }
 
-// String returns the base-10 representation of the value.
+// String returns the base-10 representation.
 func (population Population) String() string { return strconv.FormatInt(population.value, 10) }
 
-// IsZero reports whether the receiver is the zero Population: one that was never
-// constructed, as opposed to one constructed from 0. It is what
-// `json:",omitzero"` asks, and what Value stores as NULL.
+// IsZero reports whether the receiver was never constructed; `json:",omitzero"` asks it.
 func (population Population) IsZero() bool { return !population.set }
 
-// Equal reports whether both value objects hold the same value.
-func (population Population) Equal(other Population) bool {
-	return population.value == other.value && population.set == other.set
-}
+// Equal reports whether both hold the same value.
+func (population Population) Equal(other Population) bool { return population == other }
 
-// MarshalText implements encoding.TextMarshaler. encoding/json uses the text
-// codec when a type implements it, so Population round-trips through JSON without
-// a MarshalJSON of its own.
+// MarshalText implements encoding.TextMarshaler; the zero Population has no text form.
 func (population Population) MarshalText() ([]byte, error) {
 	if population.IsZero() {
-		return nil, fmt.Errorf("vogue: cannot marshal the zero Population: %w", validation.ErrZeroValue)
+		return nil, fmt.Errorf("cannot marshal the zero Population: %w", errors.ErrUnsupported)
 	}
 
 	return []byte(population.String()), nil
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
-// no payload can produce a Population the constructor would have rejected.
+// UnmarshalText implements encoding.TextUnmarshaler and validates like the constructor.
 func (population *Population) UnmarshalText(data []byte) error {
 	parsed, err := NewPopulationFromString(string(data))
 	if err != nil {
@@ -1106,43 +730,7 @@ func (population *Population) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements json.Marshaler. The zero Population is null, which is
-// what keeps an unset field from being written as a value that would read back
-// as a constructed one; anything else is the JSON string of its text form.
-func (population Population) MarshalJSON() ([]byte, error) {
-	if population.IsZero() {
-		return textjson.Null(), nil
-	}
-
-	text, err := population.MarshalText()
-	if err != nil {
-		return nil, err
-	}
-
-	return textjson.Quote(text), nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
-// Population; a JSON string goes through UnmarshalText, so it is validated.
-func (population *Population) UnmarshalJSON(data []byte) error {
-	text, isNull, err := textjson.Unquote(data)
-	if err != nil {
-		return fmt.Errorf("vogue: cannot decode Population: %w", err)
-	}
-
-	if isNull {
-		var zero Population
-
-		*population = zero
-
-		return nil
-	}
-
-	return population.UnmarshalText(text)
-}
-
-// Value implements driver.Valuer. The zero Population is stored as NULL, which
-// Scan reads back as the zero Population.
+// Value implements driver.Valuer; the zero Population is stored as NULL.
 func (population Population) Value() (driver.Value, error) {
 	if !population.set {
 		// A nil driver.Value is SQL NULL.
@@ -1154,9 +742,7 @@ func (population Population) Value() (driver.Value, error) {
 	return population.value, nil
 }
 
-// Scan implements sql.Scanner for integer and text columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a
-// validation error.
+// Scan implements sql.Scanner and validates like the constructor.
 func (population *Population) Scan(src any) error {
 	switch source := src.(type) {
 	case nil:
@@ -1179,14 +765,11 @@ func (population *Population) Scan(src any) error {
 	case []byte:
 		return population.UnmarshalText(source)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into Population: %w", src, validation.ErrUnsupportedSource)
+		return fmt.Errorf("cannot scan %T into Population: %w", src, errors.ErrUnsupported)
 	}
 }
 
 // Elevation is the height of a place above sea level, in metres.
-//
-// The value is held as an int64 so it survives every database driver and JSON
-// number without a widening conversion at the boundary.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type Elevation struct {
@@ -1195,70 +778,39 @@ type Elevation struct {
 }
 
 // NewElevation validates raw and returns the Elevation it describes.
-//
-// Rules are applied in the order they were declared, and every failure is
-// collected into one error rather than the first one aborting the rest.
 func NewElevation(raw int64) (Elevation, error) {
+	var elevation Elevation // stays zero unless every rule passes
+	var failures validation.Validation
+
 	const (
 		minimumParameter = -500
 		maximumParameter = 9000
 	)
 
-	var notification validation.Notification
-
 	value := raw
 	if value < minimumParameter {
-		notification.Reject(
-			"elevation",
-			"min",
-			"-500",
-			strconv.FormatInt(value, 10),
-			"elevation must be at least -500",
-		)
+		failures.Add("elevation", "min", "must be at least -500")
 	}
 	if value > maximumParameter {
-		notification.Reject(
-			"elevation",
-			"max",
-			"9000",
-			strconv.FormatInt(value, 10),
-			"elevation must be at most 9000",
-		)
+		failures.Add("elevation", "max", "must be at most 9000")
 	}
 
-	if notification.HasErrors() {
-		var zero Elevation
-
-		// Only a rejected input escapes to the heap: the notification is
-		// copied here, so the happy path above allocates nothing.
-		failed := notification
-
-		return zero, &failed
+	err := failures.Err()
+	if err != nil {
+		return elevation, err
 	}
 
 	return Elevation{value: value, set: true}, nil
 }
 
-// NewElevationFromString reads a base-10 representation and validates it. A
-// representation that is not a whole number is reported as a failure of the
-// "int" rule, so a caller handles it like every other rule.
+// NewElevationFromString reads a base-10 whole number and validates it.
 func NewElevationFromString(raw string) (Elevation, error) {
 	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var (
-			zero         Elevation
-			notification validation.Notification
-		)
+		var failures validation.Validation
+		failures.Add("elevation", "int", "must be a whole number")
 
-		notification.Reject(
-			"elevation",
-			"int",
-			"",
-			raw,
-			"elevation must be a whole number",
-		)
-
-		return zero, &notification
+		return Elevation{}, failures.Err()
 	}
 
 	return NewElevation(value)
@@ -1267,32 +819,25 @@ func NewElevationFromString(raw string) (Elevation, error) {
 // Int64 returns the validated value.
 func (elevation Elevation) Int64() int64 { return elevation.value }
 
-// String returns the base-10 representation of the value.
+// String returns the base-10 representation.
 func (elevation Elevation) String() string { return strconv.FormatInt(elevation.value, 10) }
 
-// IsZero reports whether the receiver is the zero Elevation: one that was never
-// constructed, as opposed to one constructed from 0. It is what
-// `json:",omitzero"` asks, and what Value stores as NULL.
+// IsZero reports whether the receiver was never constructed; `json:",omitzero"` asks it.
 func (elevation Elevation) IsZero() bool { return !elevation.set }
 
-// Equal reports whether both value objects hold the same value.
-func (elevation Elevation) Equal(other Elevation) bool {
-	return elevation.value == other.value && elevation.set == other.set
-}
+// Equal reports whether both hold the same value.
+func (elevation Elevation) Equal(other Elevation) bool { return elevation == other }
 
-// MarshalText implements encoding.TextMarshaler. encoding/json uses the text
-// codec when a type implements it, so Elevation round-trips through JSON without
-// a MarshalJSON of its own.
+// MarshalText implements encoding.TextMarshaler; the zero Elevation has no text form.
 func (elevation Elevation) MarshalText() ([]byte, error) {
 	if elevation.IsZero() {
-		return nil, fmt.Errorf("vogue: cannot marshal the zero Elevation: %w", validation.ErrZeroValue)
+		return nil, fmt.Errorf("cannot marshal the zero Elevation: %w", errors.ErrUnsupported)
 	}
 
 	return []byte(elevation.String()), nil
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
-// no payload can produce a Elevation the constructor would have rejected.
+// UnmarshalText implements encoding.TextUnmarshaler and validates like the constructor.
 func (elevation *Elevation) UnmarshalText(data []byte) error {
 	parsed, err := NewElevationFromString(string(data))
 	if err != nil {
@@ -1304,43 +849,7 @@ func (elevation *Elevation) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements json.Marshaler. The zero Elevation is null, which is
-// what keeps an unset field from being written as a value that would read back
-// as a constructed one; anything else is the JSON string of its text form.
-func (elevation Elevation) MarshalJSON() ([]byte, error) {
-	if elevation.IsZero() {
-		return textjson.Null(), nil
-	}
-
-	text, err := elevation.MarshalText()
-	if err != nil {
-		return nil, err
-	}
-
-	return textjson.Quote(text), nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
-// Elevation; a JSON string goes through UnmarshalText, so it is validated.
-func (elevation *Elevation) UnmarshalJSON(data []byte) error {
-	text, isNull, err := textjson.Unquote(data)
-	if err != nil {
-		return fmt.Errorf("vogue: cannot decode Elevation: %w", err)
-	}
-
-	if isNull {
-		var zero Elevation
-
-		*elevation = zero
-
-		return nil
-	}
-
-	return elevation.UnmarshalText(text)
-}
-
-// Value implements driver.Valuer. The zero Elevation is stored as NULL, which
-// Scan reads back as the zero Elevation.
+// Value implements driver.Valuer; the zero Elevation is stored as NULL.
 func (elevation Elevation) Value() (driver.Value, error) {
 	if !elevation.set {
 		// A nil driver.Value is SQL NULL.
@@ -1352,9 +861,7 @@ func (elevation Elevation) Value() (driver.Value, error) {
 	return elevation.value, nil
 }
 
-// Scan implements sql.Scanner for integer and text columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a
-// validation error.
+// Scan implements sql.Scanner and validates like the constructor.
 func (elevation *Elevation) Scan(src any) error {
 	switch source := src.(type) {
 	case nil:
@@ -1377,15 +884,11 @@ func (elevation *Elevation) Scan(src any) error {
 	case []byte:
 		return elevation.UnmarshalText(source)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into Elevation: %w", src, validation.ErrUnsupportedSource)
+		return fmt.Errorf("cannot scan %T into Elevation: %w", src, errors.ErrUnsupported)
 	}
 }
 
 // Latitude is a WGS 84 latitude in decimal degrees.
-//
-// The value is held as a decimal.Decimal: an exact base-10 number with no
-// binary float underneath, so a rate, a percentage or a fractional quantity
-// reads back as the value someone typed.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type Latitude struct {
@@ -1394,80 +897,43 @@ type Latitude struct {
 }
 
 // NewLatitude validates raw and returns the Latitude it describes.
-//
-// Rules are applied in the order they were declared, and every failure is
-// collected into one error rather than the first one aborting the rest.
 func NewLatitude(raw decimal.Decimal) (Latitude, error) {
+	var latitude Latitude // stays zero unless every rule passes
+	var failures validation.Validation
+
 	const (
 		minimumParameter = -90
 		maximumParameter = 90
 		scaleParameter   = 6
 	)
 
-	var notification validation.Notification
-
 	value := raw
 	if value.Cmp(decimal.MustNew(minimumParameter, 0)) < 0 {
-		notification.Reject(
-			"latitude",
-			"min",
-			"-90",
-			value.String(),
-			"latitude must be at least -90",
-		)
+		failures.Add("latitude", "min", "must be at least -90")
 	}
 	if value.Cmp(decimal.MustNew(maximumParameter, 0)) > 0 {
-		notification.Reject(
-			"latitude",
-			"max",
-			"90",
-			value.String(),
-			"latitude must be at most 90",
-		)
+		failures.Add("latitude", "max", "must be at most 90")
 	}
 	if value.Scale() > scaleParameter {
-		notification.Reject(
-			"latitude",
-			"scale",
-			"6",
-			value.String(),
-			"latitude must have at most 6 decimal places",
-		)
+		failures.Add("latitude", "scale", "must have at most 6 decimal places")
 	}
 
-	if notification.HasErrors() {
-		var zero Latitude
-
-		// Only a rejected input escapes to the heap: the notification is
-		// copied here, so the happy path above allocates nothing.
-		failed := notification
-
-		return zero, &failed
+	err := failures.Err()
+	if err != nil {
+		return latitude, err
 	}
 
 	return Latitude{value: value, set: true}, nil
 }
 
-// NewLatitudeFromString reads a decimal representation and validates it. A
-// representation decimal.Parse cannot read is reported as a failure of the
-// "decimal" rule, so a caller handles it the same way as every other rule.
+// NewLatitudeFromString reads an exact decimal number and validates it.
 func NewLatitudeFromString(raw string) (Latitude, error) {
 	value, err := decimal.Parse(raw)
 	if err != nil {
-		var (
-			zero         Latitude
-			notification validation.Notification
-		)
+		var failures validation.Validation
+		failures.Add("latitude", "decimal", "must be an exact decimal number")
 
-		notification.Reject(
-			"latitude",
-			"decimal",
-			"",
-			raw,
-			"latitude must be an exact decimal number",
-		)
-
-		return zero, &notification
+		return Latitude{}, failures.Err()
 	}
 
 	return NewLatitude(value)
@@ -1476,38 +942,27 @@ func NewLatitudeFromString(raw string) (Latitude, error) {
 // Decimal returns the validated value.
 func (latitude Latitude) Decimal() decimal.Decimal { return latitude.value }
 
-// String returns the canonical representation of the value, which keeps the
-// scale it was created with: 1.50 reads back as "1.50", not as "1.5".
+// String returns the canonical text, which keeps the scale: 1.50 stays "1.50".
 func (latitude Latitude) String() string { return latitude.value.String() }
 
-// IsZero reports whether the receiver is the zero Latitude: one that was never
-// constructed, as opposed to one constructed from 0. It is what
-// `json:",omitzero"` asks, and what Value stores as NULL.
+// IsZero reports whether the receiver was never constructed; `json:",omitzero"` asks it.
 func (latitude Latitude) IsZero() bool { return !latitude.set }
 
-// Equal reports whether both value objects hold the same number.
-//
-// It compares with Cmp rather than with ==, because a decimal carries its
-// scale: 1.5 and 1.50 are the same number written at two scales, and == would
-// call them different. Two Latitude values that compare equal here may therefore
-// still marshal to different text, which is what keeps a stored scale intact.
+// Equal reports whether both hold the same number, so 1.5 equals 1.50.
 func (latitude Latitude) Equal(other Latitude) bool {
 	return latitude.set == other.set && latitude.value.Cmp(other.value) == 0
 }
 
-// MarshalText implements encoding.TextMarshaler. encoding/json uses the text
-// codec when a type implements it, so Latitude crosses a JSON boundary as a
-// string and never as a float the receiver would have to round.
+// MarshalText implements encoding.TextMarshaler; the zero Latitude has no text form.
 func (latitude Latitude) MarshalText() ([]byte, error) {
 	if latitude.IsZero() {
-		return nil, fmt.Errorf("vogue: cannot marshal the zero Latitude: %w", validation.ErrZeroValue)
+		return nil, fmt.Errorf("cannot marshal the zero Latitude: %w", errors.ErrUnsupported)
 	}
 
 	return []byte(latitude.value.String()), nil
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
-// no payload can produce a Latitude the constructor would have rejected.
+// UnmarshalText implements encoding.TextUnmarshaler and validates like the constructor.
 func (latitude *Latitude) UnmarshalText(data []byte) error {
 	parsed, err := NewLatitudeFromString(string(data))
 	if err != nil {
@@ -1519,44 +974,8 @@ func (latitude *Latitude) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements json.Marshaler. The zero Latitude is null, which is
-// what keeps an unset field from being written as a value that would read back
-// as a constructed one; anything else is the JSON string of its text form.
-func (latitude Latitude) MarshalJSON() ([]byte, error) {
-	if latitude.IsZero() {
-		return textjson.Null(), nil
-	}
-
-	text, err := latitude.MarshalText()
-	if err != nil {
-		return nil, err
-	}
-
-	return textjson.Quote(text), nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
-// Latitude; a JSON string goes through UnmarshalText, so it is validated.
-func (latitude *Latitude) UnmarshalJSON(data []byte) error {
-	text, isNull, err := textjson.Unquote(data)
-	if err != nil {
-		return fmt.Errorf("vogue: cannot decode Latitude: %w", err)
-	}
-
-	if isNull {
-		var zero Latitude
-
-		*latitude = zero
-
-		return nil
-	}
-
-	return latitude.UnmarshalText(text)
-}
-
-// Value implements driver.Valuer, storing the canonical representation as
-// text. A PostgreSQL `numeric` column accepts it and keeps every digit, which
-// a float parameter would not. The zero Latitude is stored as NULL.
+// Value implements driver.Valuer, storing the canonical text, which a numeric
+// column keeps digit for digit. The zero Latitude is stored as NULL.
 func (latitude Latitude) Value() (driver.Value, error) {
 	if !latitude.set {
 		// A nil driver.Value is SQL NULL.
@@ -1568,15 +987,9 @@ func (latitude Latitude) Value() (driver.Value, error) {
 	return latitude.value.String(), nil
 }
 
-// Scan implements sql.Scanner for text and integer columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a
-// validation error.
-//
-// A float64 or float32 source is refused with [validation.ErrLossySource]
-// rather than converted: it has already lost digits by the time it arrives,
-// and accepting it would undo the reason this kind exists. A driver that
-// hands back a numeric column as a float is misconfigured; with pgx, the
-// numeric codec must deliver text.
+// Scan implements sql.Scanner and validates like the constructor. A binary
+// float is refused: it has already lost digits, so a driver must hand numeric
+// columns back as text.
 func (latitude *Latitude) Scan(src any) error {
 	switch source := src.(type) {
 	case nil:
@@ -1592,9 +1005,9 @@ func (latitude *Latitude) Scan(src any) error {
 	case int64:
 		return latitude.scanInt64(source)
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into Latitude: %w", src, validation.ErrLossySource)
+		return fmt.Errorf("cannot scan the binary float %T into Latitude: %w", src, errors.ErrUnsupported)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into Latitude: %w", src, validation.ErrUnsupportedSource)
+		return fmt.Errorf("cannot scan %T into Latitude: %w", src, errors.ErrUnsupported)
 	}
 }
 
@@ -1602,7 +1015,7 @@ func (latitude *Latitude) Scan(src any) error {
 func (latitude *Latitude) scanInt64(number int64) error {
 	whole, err := decimal.New(number, 0)
 	if err != nil {
-		return fmt.Errorf("vogue: cannot scan %d into Latitude: %w", number, err)
+		return fmt.Errorf("cannot scan %d into Latitude: %w", number, err)
 	}
 
 	parsed, err := NewLatitude(whole)
@@ -1617,10 +1030,6 @@ func (latitude *Latitude) scanInt64(number int64) error {
 
 // Longitude is a WGS 84 longitude in decimal degrees.
 //
-// The value is held as a decimal.Decimal: an exact base-10 number with no
-// binary float underneath, so a rate, a percentage or a fractional quantity
-// reads back as the value someone typed.
-//
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type Longitude struct {
 	value decimal.Decimal
@@ -1628,80 +1037,43 @@ type Longitude struct {
 }
 
 // NewLongitude validates raw and returns the Longitude it describes.
-//
-// Rules are applied in the order they were declared, and every failure is
-// collected into one error rather than the first one aborting the rest.
 func NewLongitude(raw decimal.Decimal) (Longitude, error) {
+	var longitude Longitude // stays zero unless every rule passes
+	var failures validation.Validation
+
 	const (
 		minimumParameter = -180
 		maximumParameter = 180
 		scaleParameter   = 6
 	)
 
-	var notification validation.Notification
-
 	value := raw
 	if value.Cmp(decimal.MustNew(minimumParameter, 0)) < 0 {
-		notification.Reject(
-			"longitude",
-			"min",
-			"-180",
-			value.String(),
-			"longitude must be at least -180",
-		)
+		failures.Add("longitude", "min", "must be at least -180")
 	}
 	if value.Cmp(decimal.MustNew(maximumParameter, 0)) > 0 {
-		notification.Reject(
-			"longitude",
-			"max",
-			"180",
-			value.String(),
-			"longitude must be at most 180",
-		)
+		failures.Add("longitude", "max", "must be at most 180")
 	}
 	if value.Scale() > scaleParameter {
-		notification.Reject(
-			"longitude",
-			"scale",
-			"6",
-			value.String(),
-			"longitude must have at most 6 decimal places",
-		)
+		failures.Add("longitude", "scale", "must have at most 6 decimal places")
 	}
 
-	if notification.HasErrors() {
-		var zero Longitude
-
-		// Only a rejected input escapes to the heap: the notification is
-		// copied here, so the happy path above allocates nothing.
-		failed := notification
-
-		return zero, &failed
+	err := failures.Err()
+	if err != nil {
+		return longitude, err
 	}
 
 	return Longitude{value: value, set: true}, nil
 }
 
-// NewLongitudeFromString reads a decimal representation and validates it. A
-// representation decimal.Parse cannot read is reported as a failure of the
-// "decimal" rule, so a caller handles it the same way as every other rule.
+// NewLongitudeFromString reads an exact decimal number and validates it.
 func NewLongitudeFromString(raw string) (Longitude, error) {
 	value, err := decimal.Parse(raw)
 	if err != nil {
-		var (
-			zero         Longitude
-			notification validation.Notification
-		)
+		var failures validation.Validation
+		failures.Add("longitude", "decimal", "must be an exact decimal number")
 
-		notification.Reject(
-			"longitude",
-			"decimal",
-			"",
-			raw,
-			"longitude must be an exact decimal number",
-		)
-
-		return zero, &notification
+		return Longitude{}, failures.Err()
 	}
 
 	return NewLongitude(value)
@@ -1710,38 +1082,27 @@ func NewLongitudeFromString(raw string) (Longitude, error) {
 // Decimal returns the validated value.
 func (longitude Longitude) Decimal() decimal.Decimal { return longitude.value }
 
-// String returns the canonical representation of the value, which keeps the
-// scale it was created with: 1.50 reads back as "1.50", not as "1.5".
+// String returns the canonical text, which keeps the scale: 1.50 stays "1.50".
 func (longitude Longitude) String() string { return longitude.value.String() }
 
-// IsZero reports whether the receiver is the zero Longitude: one that was never
-// constructed, as opposed to one constructed from 0. It is what
-// `json:",omitzero"` asks, and what Value stores as NULL.
+// IsZero reports whether the receiver was never constructed; `json:",omitzero"` asks it.
 func (longitude Longitude) IsZero() bool { return !longitude.set }
 
-// Equal reports whether both value objects hold the same number.
-//
-// It compares with Cmp rather than with ==, because a decimal carries its
-// scale: 1.5 and 1.50 are the same number written at two scales, and == would
-// call them different. Two Longitude values that compare equal here may therefore
-// still marshal to different text, which is what keeps a stored scale intact.
+// Equal reports whether both hold the same number, so 1.5 equals 1.50.
 func (longitude Longitude) Equal(other Longitude) bool {
 	return longitude.set == other.set && longitude.value.Cmp(other.value) == 0
 }
 
-// MarshalText implements encoding.TextMarshaler. encoding/json uses the text
-// codec when a type implements it, so Longitude crosses a JSON boundary as a
-// string and never as a float the receiver would have to round.
+// MarshalText implements encoding.TextMarshaler; the zero Longitude has no text form.
 func (longitude Longitude) MarshalText() ([]byte, error) {
 	if longitude.IsZero() {
-		return nil, fmt.Errorf("vogue: cannot marshal the zero Longitude: %w", validation.ErrZeroValue)
+		return nil, fmt.Errorf("cannot marshal the zero Longitude: %w", errors.ErrUnsupported)
 	}
 
 	return []byte(longitude.value.String()), nil
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler, re-running validation so
-// no payload can produce a Longitude the constructor would have rejected.
+// UnmarshalText implements encoding.TextUnmarshaler and validates like the constructor.
 func (longitude *Longitude) UnmarshalText(data []byte) error {
 	parsed, err := NewLongitudeFromString(string(data))
 	if err != nil {
@@ -1753,44 +1114,8 @@ func (longitude *Longitude) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements json.Marshaler. The zero Longitude is null, which is
-// what keeps an unset field from being written as a value that would read back
-// as a constructed one; anything else is the JSON string of its text form.
-func (longitude Longitude) MarshalJSON() ([]byte, error) {
-	if longitude.IsZero() {
-		return textjson.Null(), nil
-	}
-
-	text, err := longitude.MarshalText()
-	if err != nil {
-		return nil, err
-	}
-
-	return textjson.Quote(text), nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
-// Longitude; a JSON string goes through UnmarshalText, so it is validated.
-func (longitude *Longitude) UnmarshalJSON(data []byte) error {
-	text, isNull, err := textjson.Unquote(data)
-	if err != nil {
-		return fmt.Errorf("vogue: cannot decode Longitude: %w", err)
-	}
-
-	if isNull {
-		var zero Longitude
-
-		*longitude = zero
-
-		return nil
-	}
-
-	return longitude.UnmarshalText(text)
-}
-
-// Value implements driver.Valuer, storing the canonical representation as
-// text. A PostgreSQL `numeric` column accepts it and keeps every digit, which
-// a float parameter would not. The zero Longitude is stored as NULL.
+// Value implements driver.Valuer, storing the canonical text, which a numeric
+// column keeps digit for digit. The zero Longitude is stored as NULL.
 func (longitude Longitude) Value() (driver.Value, error) {
 	if !longitude.set {
 		// A nil driver.Value is SQL NULL.
@@ -1802,15 +1127,9 @@ func (longitude Longitude) Value() (driver.Value, error) {
 	return longitude.value.String(), nil
 }
 
-// Scan implements sql.Scanner for text and integer columns, re-running
-// validation so a row that no longer satisfies the rules surfaces as a
-// validation error.
-//
-// A float64 or float32 source is refused with [validation.ErrLossySource]
-// rather than converted: it has already lost digits by the time it arrives,
-// and accepting it would undo the reason this kind exists. A driver that
-// hands back a numeric column as a float is misconfigured; with pgx, the
-// numeric codec must deliver text.
+// Scan implements sql.Scanner and validates like the constructor. A binary
+// float is refused: it has already lost digits, so a driver must hand numeric
+// columns back as text.
 func (longitude *Longitude) Scan(src any) error {
 	switch source := src.(type) {
 	case nil:
@@ -1826,9 +1145,9 @@ func (longitude *Longitude) Scan(src any) error {
 	case int64:
 		return longitude.scanInt64(source)
 	case float64, float32:
-		return fmt.Errorf("vogue: cannot scan the binary float %T into Longitude: %w", src, validation.ErrLossySource)
+		return fmt.Errorf("cannot scan the binary float %T into Longitude: %w", src, errors.ErrUnsupported)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into Longitude: %w", src, validation.ErrUnsupportedSource)
+		return fmt.Errorf("cannot scan %T into Longitude: %w", src, errors.ErrUnsupported)
 	}
 }
 
@@ -1836,7 +1155,7 @@ func (longitude *Longitude) Scan(src any) error {
 func (longitude *Longitude) scanInt64(number int64) error {
 	whole, err := decimal.New(number, 0)
 	if err != nil {
-		return fmt.Errorf("vogue: cannot scan %d into Longitude: %w", number, err)
+		return fmt.Errorf("cannot scan %d into Longitude: %w", number, err)
 	}
 
 	parsed, err := NewLongitude(whole)
@@ -1851,10 +1170,8 @@ func (longitude *Longitude) scanInt64(number int64) error {
 
 // PlaceID identifies a place across services.
 //
-// It holds a uuid.UUID it does not expose for writing, so an identifier is
-// either minted, read from text or a row, or the zero value, and stays a
-// distinct type no other identifier can be assigned to. UUID returns the
-// underlying value for the code that needs one.
+// It wraps a uuid.UUID it does not expose for writing, so an identifier is
+// minted, read from text or a row, or zero, and stays a type of its own.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type PlaceID struct{ value uuid.UUID }
@@ -1863,52 +1180,28 @@ type PlaceID struct{ value uuid.UUID }
 func NewPlaceID() (PlaceID, error) {
 	id, err := uuid.NewV7()
 	if err != nil {
-		var zero PlaceID
-
-		return zero, fmt.Errorf("vogue: minting PlaceID: %w", err)
+		return PlaceID{}, fmt.Errorf("cannot mint PlaceID: %w", err)
 	}
 
 	return PlaceID{value: id}, nil
 }
 
 // NewPlaceIDFromString reads any RFC 4122 UUID, not only the version this type
-// mints, so identifiers written by an earlier schema stay readable. The nil
-// UUID is refused as a failure of the "required" rule: it is what an
-// unassigned identifier looks like, as zero is for an int64 one.
+// mints. The nil UUID is refused: it is what an unassigned identifier looks like.
 func NewPlaceIDFromString(raw string) (PlaceID, error) {
 	id, err := uuid.Parse(raw)
 	if err != nil {
-		var (
-			zero         PlaceID
-			notification validation.Notification
-		)
+		var failures validation.Validation
+		failures.Add("placeID", "uuid", "must be a valid UUID")
 
-		notification.Reject(
-			"placeID",
-			"uuid",
-			"",
-			raw,
-			"placeID must be a valid UUID",
-		)
-
-		return zero, &notification
+		return PlaceID{}, failures.Err()
 	}
 
 	if id == uuid.Nil {
-		var (
-			zero         PlaceID
-			notification validation.Notification
-		)
+		var failures validation.Validation
+		failures.Add("placeID", "required", "must not be the nil UUID")
 
-		notification.Reject(
-			"placeID",
-			"required",
-			"",
-			raw,
-			"placeID must not be the nil UUID",
-		)
-
-		return zero, &notification
+		return PlaceID{}, failures.Err()
 	}
 
 	return PlaceID{value: id}, nil
@@ -1917,28 +1210,25 @@ func NewPlaceIDFromString(raw string) (PlaceID, error) {
 // UUID returns the identifier as a uuid.UUID.
 func (placeID PlaceID) UUID() uuid.UUID { return placeID.value }
 
-// String returns the canonical text of the identifier.
+// String returns the canonical text.
 func (placeID PlaceID) String() string { return placeID.value.String() }
 
-// IsZero reports whether the receiver is the nil UUID, which is what an
-// unassigned identifier looks like.
+// IsZero reports whether the identifier is the nil UUID; `json:",omitzero"` asks it.
 func (placeID PlaceID) IsZero() bool { return placeID.value == uuid.Nil }
 
-// Equal reports whether both identifiers refer to the same entity.
-func (placeID PlaceID) Equal(other PlaceID) bool { return placeID.value == other.value }
+// Equal reports whether both identify the same entity.
+func (placeID PlaceID) Equal(other PlaceID) bool { return placeID == other }
 
-// MarshalText implements encoding.TextMarshaler, which encoding/json also
-// uses, so the identifier crosses a JSON boundary as its canonical string.
+// MarshalText implements encoding.TextMarshaler; the zero PlaceID has no text form.
 func (placeID PlaceID) MarshalText() ([]byte, error) {
 	if placeID.IsZero() {
-		return nil, fmt.Errorf("vogue: cannot marshal the zero PlaceID: %w", validation.ErrZeroValue)
+		return nil, fmt.Errorf("cannot marshal the zero PlaceID: %w", errors.ErrUnsupported)
 	}
 
 	return []byte(placeID.value.String()), nil
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler through
-// NewPlaceIDFromString.
+// UnmarshalText implements encoding.TextUnmarshaler through NewPlaceIDFromString.
 func (placeID *PlaceID) UnmarshalText(data []byte) error {
 	parsed, err := NewPlaceIDFromString(string(data))
 	if err != nil {
@@ -1950,45 +1240,10 @@ func (placeID *PlaceID) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements json.Marshaler. The zero PlaceID is null, which is
-// what keeps an unset field from being written as a value that would read back
-// as a constructed one; anything else is the JSON string of its text form.
-func (placeID PlaceID) MarshalJSON() ([]byte, error) {
-	if placeID.IsZero() {
-		return textjson.Null(), nil
-	}
-
-	text, err := placeID.MarshalText()
-	if err != nil {
-		return nil, err
-	}
-
-	return textjson.Quote(text), nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
-// PlaceID; a JSON string goes through UnmarshalText, so it is validated.
-func (placeID *PlaceID) UnmarshalJSON(data []byte) error {
-	text, isNull, err := textjson.Unquote(data)
-	if err != nil {
-		return fmt.Errorf("vogue: cannot decode PlaceID: %w", err)
-	}
-
-	if isNull {
-		var zero PlaceID
-
-		*placeID = zero
-
-		return nil
-	}
-
-	return placeID.UnmarshalText(text)
-}
-
-// Value implements driver.Valuer, storing the canonical text. An unassigned
+// Value implements driver.Valuer, storing the canonical text; an unassigned
 // identifier is stored as NULL.
 func (placeID PlaceID) Value() (driver.Value, error) {
-	if placeID.value == uuid.Nil {
+	if placeID.IsZero() {
 		// A nil driver.Value is SQL NULL.
 		var null driver.Value
 
@@ -2012,12 +1267,11 @@ func (placeID *PlaceID) Scan(src any) error {
 	case []byte:
 		return placeID.scanBytes(source)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into PlaceID: %w", src, validation.ErrUnsupportedSource)
+		return fmt.Errorf("cannot scan %T into PlaceID: %w", src, errors.ErrUnsupported)
 	}
 }
 
-// scanBytes reads a uuid column, which a driver hands back either as its text
-// or as its 16 raw bytes.
+// scanBytes reads a uuid column, which a driver hands back as text or as 16 raw bytes.
 func (placeID *PlaceID) scanBytes(raw []byte) error {
 	const rawLength = 16
 
@@ -2027,65 +1281,41 @@ func (placeID *PlaceID) scanBytes(raw []byte) error {
 
 	id, err := uuid.FromBytes(raw)
 	if err != nil {
-		return fmt.Errorf("vogue: cannot scan %d bytes into PlaceID: %w", len(raw), err)
+		return fmt.Errorf("cannot scan %d bytes into PlaceID: %w", len(raw), err)
 	}
 
-	// Through the text form, so the nil UUID is refused here as it is
-	// everywhere else.
+	// Through the text form, so the nil UUID is refused here as everywhere else.
 	return placeID.UnmarshalText([]byte(id.String()))
 }
 
 // ImportRunID is the sequence number of a GeoNames import run.
 //
-// The value is assigned by the database, so this type has no generator: an
-// identifier is either read from a row or a payload, or built from a number the
-// database already handed out with NewImportRunIDFromInt64.
+// The database assigns the value, so this type has no generator: read it from a
+// row or a payload, or wrap a number with NewImportRunIDFromInt64.
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 type ImportRunID struct{ value int64 }
 
-// NewImportRunIDFromInt64 wraps a database-assigned identifier. Identifiers are
-// positive by definition, so zero and negative values are rejected rather than
-// quietly producing an identifier equal to the zero value.
+// NewImportRunIDFromInt64 wraps a database-assigned identifier, which is positive.
 func NewImportRunIDFromInt64(raw int64) (ImportRunID, error) {
 	if raw <= 0 {
-		var (
-			zero         ImportRunID
-			notification validation.Notification
-		)
+		var failures validation.Validation
+		failures.Add("importRunID", "positive", "must be a positive identifier")
 
-		notification.Reject(
-			"importRunID",
-			"positive",
-			"",
-			strconv.FormatInt(raw, 10),
-			"importRunID must be a positive identifier",
-		)
-
-		return zero, &notification
+		return ImportRunID{}, failures.Err()
 	}
 
 	return ImportRunID{value: raw}, nil
 }
 
-// NewImportRunIDFromString reads a base-10 representation of an identifier.
+// NewImportRunIDFromString reads a base-10 identifier.
 func NewImportRunIDFromString(raw string) (ImportRunID, error) {
 	value, err := strconv.ParseInt(raw, 10, 64)
 	if err != nil {
-		var (
-			zero         ImportRunID
-			notification validation.Notification
-		)
+		var failures validation.Validation
+		failures.Add("importRunID", "int", "must be a whole number")
 
-		notification.Reject(
-			"importRunID",
-			"int",
-			"",
-			raw,
-			"importRunID must be a whole number",
-		)
-
-		return zero, &notification
+		return ImportRunID{}, failures.Err()
 	}
 
 	return NewImportRunIDFromInt64(value)
@@ -2094,28 +1324,26 @@ func NewImportRunIDFromString(raw string) (ImportRunID, error) {
 // Int64 returns the identifier as the database holds it.
 func (importRunID ImportRunID) Int64() int64 { return importRunID.value }
 
-// String returns the base-10 representation of the identifier.
+// String returns the base-10 representation.
 func (importRunID ImportRunID) String() string { return strconv.FormatInt(importRunID.value, 10) }
 
-// IsZero reports whether the receiver is an unassigned identifier.
+// IsZero reports whether the identifier is unassigned; `json:",omitzero"` asks it.
 func (importRunID ImportRunID) IsZero() bool { return importRunID.value == 0 }
 
-// Equal reports whether both identifiers refer to the same entity.
-func (importRunID ImportRunID) Equal(other ImportRunID) bool { return importRunID.value == other.value }
+// Equal reports whether both identify the same entity.
+func (importRunID ImportRunID) Equal(other ImportRunID) bool { return importRunID == other }
 
-// MarshalText implements encoding.TextMarshaler, which encoding/json also
-// uses, so the identifier crosses a JSON boundary as a string and keeps its
-// full precision in a JavaScript client.
+// MarshalText implements encoding.TextMarshaler, so JSON carries the identifier
+// as a string that keeps its precision in a JavaScript client.
 func (importRunID ImportRunID) MarshalText() ([]byte, error) {
 	if importRunID.IsZero() {
-		return nil, fmt.Errorf("vogue: cannot marshal the zero ImportRunID: %w", validation.ErrZeroValue)
+		return nil, fmt.Errorf("cannot marshal the zero ImportRunID: %w", errors.ErrUnsupported)
 	}
 
 	return []byte(importRunID.String()), nil
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler through
-// NewImportRunIDFromString.
+// UnmarshalText implements encoding.TextUnmarshaler through NewImportRunIDFromString.
 func (importRunID *ImportRunID) UnmarshalText(data []byte) error {
 	parsed, err := NewImportRunIDFromString(string(data))
 	if err != nil {
@@ -2127,45 +1355,9 @@ func (importRunID *ImportRunID) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements json.Marshaler. The zero ImportRunID is null, which is
-// what keeps an unset field from being written as a value that would read back
-// as a constructed one; anything else is the JSON string of its text form.
-func (importRunID ImportRunID) MarshalJSON() ([]byte, error) {
-	if importRunID.IsZero() {
-		return textjson.Null(), nil
-	}
-
-	text, err := importRunID.MarshalText()
-	if err != nil {
-		return nil, err
-	}
-
-	return textjson.Quote(text), nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
-// ImportRunID; a JSON string goes through UnmarshalText, so it is validated.
-func (importRunID *ImportRunID) UnmarshalJSON(data []byte) error {
-	text, isNull, err := textjson.Unquote(data)
-	if err != nil {
-		return fmt.Errorf("vogue: cannot decode ImportRunID: %w", err)
-	}
-
-	if isNull {
-		var zero ImportRunID
-
-		*importRunID = zero
-
-		return nil
-	}
-
-	return importRunID.UnmarshalText(text)
-}
-
-// Value implements driver.Valuer. An unassigned identifier is stored as
-// NULL.
+// Value implements driver.Valuer; an unassigned identifier is stored as NULL.
 func (importRunID ImportRunID) Value() (driver.Value, error) {
-	if importRunID.value == 0 {
+	if importRunID.IsZero() {
 		// A nil driver.Value is SQL NULL.
 		var null driver.Value
 
@@ -2198,6 +1390,6 @@ func (importRunID *ImportRunID) Scan(src any) error {
 	case []byte:
 		return importRunID.UnmarshalText(source)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into ImportRunID: %w", src, validation.ErrUnsupportedSource)
+		return fmt.Errorf("cannot scan %T into ImportRunID: %w", src, errors.ErrUnsupported)
 	}
 }

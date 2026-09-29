@@ -3,39 +3,109 @@
 package place
 
 import (
+	"errors"
+	"regexp"
 	"testing"
-
-	"github.com/MathiasHilgert/vogue/voguetest"
+	"unicode/utf8"
 )
 
-// TestPlaceKind runs the enum suite: the catalogue lists the members the
-// directive declares, in order, parses each of them and nothing else, and
-// round-trips them. The expected list is generated from the same directive, so
-// it proves the catalogue is consistent with the directive, not that the
-// directive is right; pin the members in a hand-written test when a change to
-// them must be deliberate.
-func TestPlaceKind(t *testing.T) {
+// TestPlaceKind_ListsItsMembers checks that PlaceKinds lists the members the directive
+// declares, in order. The expected list is generated from the same directive,
+// so it proves the catalogue is consistent with it, not that the directive is
+// right.
+func TestPlaceKind_ListsItsMembers(t *testing.T) {
 	t.Parallel()
 
-	voguetest.Enum[PlaceKind, *PlaceKind]{
-		Field: "placeKind",
-		All:   PlaceKinds{}.All(),
-		Parse: PlaceKinds{}.Parse,
-		Want: []string{
-			"country",
-			"subdivision",
-			"city",
-		},
-	}.Run(t)
+	want := []string{"country", "subdivision", "city"}
+	members := PlaceKinds{}.All()
+	if len(members) != len(want) {
+		t.Fatalf("PlaceKinds{}.All() lists %d members, want %d", len(members), len(want))
+	}
+
+	for index, member := range members {
+		if member.String() != want[index] || member.IsZero() {
+			t.Errorf("PlaceKinds{}.All()[%d] = %q, want %q", index, member, want[index])
+		}
+	}
 }
 
-// TestCountryCode runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestCountryCode(t *testing.T) {
+// TestPlaceKind_ParsesItsMembersAndNothingElse checks PlaceKinds.Parse.
+func TestPlaceKind_ParsesItsMembersAndNothingElse(t *testing.T) {
+	t.Parallel()
+
+	members := PlaceKinds{}.All()
+	for _, member := range members {
+		got, err := PlaceKinds{}.Parse(member.String())
+		if err != nil || !got.Equal(member) {
+			t.Errorf("PlaceKinds{}.Parse(%q) = %v, %v, want the member", member, got, err)
+		}
+	}
+
+	for _, raw := range []string{"not-a-member", ""} {
+		got, err := PlaceKinds{}.Parse(raw)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !failed.Has("placeKind", "oneof") || !got.IsZero() {
+			t.Errorf("PlaceKinds{}.Parse(%q) = %v, %v, want a %q failure and the zero PlaceKind", raw, got, err, "oneof")
+		}
+	}
+}
+
+// TestPlaceKind_RoundTripsText checks that every member survives its text.
+func TestPlaceKind_RoundTripsText(t *testing.T) {
 	const (
-		exampleTortilla                              = "Tortilla"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	members := PlaceKinds{}.All()
+	for _, member := range members {
+		text, err := member.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, member, err)
+		}
+
+		var decoded PlaceKind
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(member) {
+			t.Errorf(exampleVBecameVVThroughItsText, member, decoded, err)
+		}
+	}
+}
+
+// TestPlaceKind_ZeroIsNoMember checks that the zero PlaceKind is no member and has no text.
+func TestPlaceKind_ZeroIsNoMember(t *testing.T) {
+	t.Parallel()
+
+	var zero PlaceKind
+
+	_, err := zero.MarshalText()
+	if !zero.IsZero() || !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero PlaceKind marshaled: %v", err)
+	}
+}
+
+// TestCountryCode_AcceptsItsExamples checks the values the directive declares valid.
+func TestCountryCode_AcceptsItsExamples(t *testing.T) {
+	t.Parallel()
+
+	for _, input := range []string{"AR"} {
+		got, err := NewCountryCode(input)
+		if err != nil || got.IsZero() {
+			t.Errorf("NewCountryCode(%q) = %v, %v, want a constructed value", input, got, err)
+		}
+	}
+}
+
+// TestCountryCode_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestCountryCode_Normalizes(t *testing.T) {
+	const (
 		exampleTheBlanksAroundAPastedValueAreDropped = "the blanks around a pasted value are dropped"
 		exampleTortilla2                             = "  Tortilla  "
+		exampleTortilla                              = "Tortilla"
 		exampleTabsAndNewlinesCountAsWhitespaceToo   = "tabs and newlines count as whitespace too"
 		exampleTortilla3                             = "\tTortilla\n"
 		exampleAnAlreadyCleanValueIsLeftAlone        = "an already clean value is left alone"
@@ -44,98 +114,218 @@ func TestCountryCode(t *testing.T) {
 
 	t.Parallel()
 
-	voguetest.Scalar[CountryCode, *CountryCode, string]{
-		Field:      "countryCode",
-		New:        NewCountryCode,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   []string{"AR"},
-		Candidates: []string{exampleTortilla, " "},
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  exampleTheBlanksAroundAPastedValueAreDropped,
-				Input: exampleTortilla2,
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  exampleTabsAndNewlinesCountAsWhitespaceToo,
-				Input: exampleTortilla3,
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  exampleAnAlreadyCleanValueIsLeftAlone,
-				Input: exampleTortilla,
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  "a currency code is shouted the way the standard writes it",
-				Input: "eur",
-				Out:   exampleEUR,
-			},
-			{
-				Name:  "digits and punctuation are left untouched",
-				Input: "sku-12",
-				Out:   "SKU-12",
-			},
-			{
-				Name:  "a value already in upper case is left alone",
-				Input: exampleEUR,
-				Out:   exampleEUR,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{exampleTheBlanksAroundAPastedValueAreDropped, exampleTortilla2, exampleTortilla},
+		{exampleTabsAndNewlinesCountAsWhitespaceToo, exampleTortilla3, exampleTortilla},
+		{exampleAnAlreadyCleanValueIsLeftAlone, exampleTortilla, exampleTortilla},
+		{"a currency code is shouted the way the standard writes it", "eur", exampleEUR},
+		{"digits and punctuation are left untouched", "sku-12", "SKU-12"},
+		{"a value already in upper case is left alone", exampleEUR, exampleEUR},
+	} {
+		want, err := NewCountryCode(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewCountryCode(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewCountryCode(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
 }
 
-// TestPlaceName runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestPlaceName(t *testing.T) {
+// TestCountryCode_RoundTripsText checks what the directive accepts survives its text.
+func TestCountryCode_RoundTripsText(t *testing.T) {
 	const (
-		exampleTortilla          = "Tortilla"
-		exampleTortillaDePatatas = "Tortilla de patatas"
+		exampleTortilla                = "Tortilla"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[PlaceName, *PlaceName, string]{
-		Field:      "placeName",
-		New:        NewPlaceName,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleTortilla, " ", "a"},
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  "a run of spaces becomes one",
-				Input: "Tortilla   de  patatas",
-				Out:   exampleTortillaDePatatas,
-			},
-			{
-				Name:  "the ends are trimmed as well",
-				Input: "  Tortilla de patatas  ",
-				Out:   exampleTortillaDePatatas,
-			},
-			{
-				Name:  "a tab and a newline become plain spaces",
-				Input: "Tortilla\tde\npatatas",
-				Out:   exampleTortillaDePatatas,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	for _, input := range []string{"AR", exampleTortilla, " "} {
+		value, err := NewCountryCode(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded CountryCode
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
 }
 
-// TestTimeZoneID runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestTimeZoneID(t *testing.T) {
+// TestCountryCode_ZeroHasNoText checks that the zero CountryCode cannot be marshaled.
+func TestCountryCode_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero CountryCode
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero CountryCode marshaled: %v", err)
+	}
+}
+
+// TestCountryCode_JSONSchemaDescribesItsSamples checks its samples satisfy its JSON Schema.
+func TestCountryCode_JSONSchemaDescribesItsSamples(t *testing.T) {
 	const (
-		exampleTortilla                              = "Tortilla"
+		exampleTortilla                          = "Tortilla"
+		examplePattern                           = "pattern"
+		exampleQDoesNotMatchTheSchemaPatternQ    = "%q does not match the schema pattern %q"
+		exampleMinLength                         = "minLength"
+		exampleQIsShorterThanTheSchemaMinLengthD = "%q is shorter than the schema minLength %d"
+		exampleMaxLength                         = "maxLength"
+		exampleQIsLongerThanTheSchemaMaxLengthD  = "%q is longer than the schema maxLength %d"
+	)
+
+	t.Parallel()
+
+	var subject CountryCode
+
+	schema := subject.JSONSchema()
+	for _, input := range []string{"AR", exampleTortilla, " "} {
+		value, err := NewCountryCode(input)
+		if err != nil {
+			continue
+		}
+
+		text := value.String()
+		if pattern, _ := schema[examplePattern].(string); !regexp.MustCompile(pattern).MatchString(text) {
+			t.Errorf(exampleQDoesNotMatchTheSchemaPatternQ, text, pattern)
+		}
+		if minimum, _ := schema[exampleMinLength].(int); utf8.RuneCountInString(text) < minimum {
+			t.Errorf(exampleQIsShorterThanTheSchemaMinLengthD, text, minimum)
+		}
+		if maximum, _ := schema[exampleMaxLength].(int); utf8.RuneCountInString(text) > maximum {
+			t.Errorf(exampleQIsLongerThanTheSchemaMaxLengthD, text, maximum)
+		}
+	}
+}
+
+// TestPlaceName_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestPlaceName_Normalizes(t *testing.T) {
+	const exampleTortillaDePatatas = "Tortilla de patatas"
+
+	t.Parallel()
+
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{"a run of spaces becomes one", "Tortilla   de  patatas", exampleTortillaDePatatas},
+		{"the ends are trimmed as well", "  Tortilla de patatas  ", exampleTortillaDePatatas},
+		{"a tab and a newline become plain spaces", "Tortilla\tde\npatatas", exampleTortillaDePatatas},
+	} {
+		want, err := NewPlaceName(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewPlaceName(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewPlaceName(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
+}
+
+// TestPlaceName_RoundTripsText checks what the directive accepts survives its text.
+func TestPlaceName_RoundTripsText(t *testing.T) {
+	const (
+		exampleTortilla                = "Tortilla"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{exampleTortilla, " ", "a"} {
+		value, err := NewPlaceName(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded PlaceName
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestPlaceName_ZeroHasNoText checks that the zero PlaceName cannot be marshaled.
+func TestPlaceName_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero PlaceName
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero PlaceName marshaled: %v", err)
+	}
+}
+
+// TestPlaceName_JSONSchemaDescribesItsSamples checks its samples satisfy its JSON Schema.
+func TestPlaceName_JSONSchemaDescribesItsSamples(t *testing.T) {
+	const (
+		exampleTortilla                          = "Tortilla"
+		exampleMinLength                         = "minLength"
+		exampleQIsShorterThanTheSchemaMinLengthD = "%q is shorter than the schema minLength %d"
+		exampleMaxLength                         = "maxLength"
+		exampleQIsLongerThanTheSchemaMaxLengthD  = "%q is longer than the schema maxLength %d"
+	)
+
+	t.Parallel()
+
+	var subject PlaceName
+
+	schema := subject.JSONSchema()
+	for _, input := range []string{exampleTortilla, " ", "a"} {
+		value, err := NewPlaceName(input)
+		if err != nil {
+			continue
+		}
+
+		text := value.String()
+		if minimum, _ := schema[exampleMinLength].(int); utf8.RuneCountInString(text) < minimum {
+			t.Errorf(exampleQIsShorterThanTheSchemaMinLengthD, text, minimum)
+		}
+		if maximum, _ := schema[exampleMaxLength].(int); utf8.RuneCountInString(text) > maximum {
+			t.Errorf(exampleQIsLongerThanTheSchemaMaxLengthD, text, maximum)
+		}
+	}
+}
+
+// TestTimeZoneID_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestTimeZoneID_Normalizes(t *testing.T) {
+	const (
 		exampleTheBlanksAroundAPastedValueAreDropped = "the blanks around a pasted value are dropped"
 		exampleTortilla2                             = "  Tortilla  "
+		exampleTortilla                              = "Tortilla"
 		exampleTabsAndNewlinesCountAsWhitespaceToo   = "tabs and newlines count as whitespace too"
 		exampleTortilla3                             = "\tTortilla\n"
 		exampleAnAlreadyCleanValueIsLeftAlone        = "an already clean value is left alone"
@@ -143,183 +333,749 @@ func TestTimeZoneID(t *testing.T) {
 
 	t.Parallel()
 
-	voguetest.Scalar[TimeZoneID, *TimeZoneID, string]{
-		Field:      "timeZoneID",
-		New:        NewTimeZoneID,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleTortilla, " ", "America/Argentina/Buenos_Aires", "UTC"},
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  exampleTheBlanksAroundAPastedValueAreDropped,
-				Input: exampleTortilla2,
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  exampleTabsAndNewlinesCountAsWhitespaceToo,
-				Input: exampleTortilla3,
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  exampleAnAlreadyCleanValueIsLeftAlone,
-				Input: exampleTortilla,
-				Out:   exampleTortilla,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{exampleTheBlanksAroundAPastedValueAreDropped, exampleTortilla2, exampleTortilla},
+		{exampleTabsAndNewlinesCountAsWhitespaceToo, exampleTortilla3, exampleTortilla},
+		{exampleAnAlreadyCleanValueIsLeftAlone, exampleTortilla, exampleTortilla},
+	} {
+		want, err := NewTimeZoneID(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewTimeZoneID(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewTimeZoneID(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
 }
 
-// TestGeoNamesID runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestGeoNamesID(t *testing.T) {
-	const exampleInt = "int"
+// TestTimeZoneID_RoundTripsText checks what the directive accepts survives its text.
+func TestTimeZoneID_RoundTripsText(t *testing.T) {
+	const (
+		exampleTortilla                = "Tortilla"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
 
 	t.Parallel()
 
-	voguetest.Scalar[GeoNamesID, *GeoNamesID, int64]{
-		Field:      "geoNamesID",
-		New:        NewGeoNamesID,
-		Get:        GeoNamesID.Int64,
-		FromString: NewGeoNamesIDFromString,
-		ParseRule:  exampleInt,
-		Examples:   nil,
-		Candidates: []int64{1, 42},
-		Rejected: []voguetest.Rejection[int64]{
-			{
-				Name:      "rejects zero, which is not positive",
-				Input:     0,
-				Rules:     []string{"positive"},
-				Described: true,
-			},
-			{
-				Name:      "rejects a negative count",
-				Input:     -1,
-				Rules:     []string{"positive"},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, input := range []string{exampleTortilla, " ", "America/Argentina/Buenos_Aires", "UTC"} {
+		value, err := NewTimeZoneID(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded TimeZoneID
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
 }
 
-// TestPopulation runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestPopulation(t *testing.T) {
-	const exampleInt = "int"
+// TestTimeZoneID_ZeroHasNoText checks that the zero TimeZoneID cannot be marshaled.
+func TestTimeZoneID_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero TimeZoneID
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero TimeZoneID marshaled: %v", err)
+	}
+}
+
+// TestTimeZoneID_JSONSchemaDescribesItsSamples checks its samples satisfy its JSON Schema.
+func TestTimeZoneID_JSONSchemaDescribesItsSamples(t *testing.T) {
+	const (
+		exampleTortilla                          = "Tortilla"
+		exampleMinLength                         = "minLength"
+		exampleQIsShorterThanTheSchemaMinLengthD = "%q is shorter than the schema minLength %d"
+	)
 
 	t.Parallel()
 
-	voguetest.Scalar[Population, *Population, int64]{
-		Field:      "population",
-		New:        NewPopulation,
-		Get:        Population.Int64,
-		FromString: NewPopulationFromString,
-		ParseRule:  exampleInt,
-		Examples:   nil,
-		Candidates: []int64{0, 7},
-		Rejected: []voguetest.Rejection[int64]{
-			{
-				Name:      "rejects one below the floor",
-				Input:     -1,
-				Rules:     []string{"nonneg"},
-				Described: true,
-			},
-			{
-				Name:      "rejects a quantity nobody can have",
-				Input:     -100,
-				Rules:     []string{"nonneg"},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	var subject TimeZoneID
+
+	schema := subject.JSONSchema()
+	for _, input := range []string{exampleTortilla, " ", "America/Argentina/Buenos_Aires", "UTC"} {
+		value, err := NewTimeZoneID(input)
+		if err != nil {
+			continue
+		}
+
+		text := value.String()
+		if minimum, _ := schema[exampleMinLength].(int); utf8.RuneCountInString(text) < minimum {
+			t.Errorf(exampleQIsShorterThanTheSchemaMinLengthD, text, minimum)
+		}
+	}
 }
 
-// TestElevation runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestElevation(t *testing.T) {
-	const exampleInt = "int"
+// TestGeoNamesID_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestGeoNamesID_RejectsInvalidInput(t *testing.T) {
+	const examplePositive = "positive"
 
 	t.Parallel()
 
-	voguetest.Scalar[Elevation, *Elevation, int64]{
-		Field:        "elevation",
-		New:          NewElevation,
-		Get:          Elevation.Int64,
-		FromString:   NewElevationFromString,
-		ParseRule:    exampleInt,
-		Examples:     []int64{25},
-		Candidates:   nil,
-		Rejected:     nil,
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note  string
+		rules []string
+		input int64
+	}{
+		{"rejects zero, which is not positive", []string{examplePositive}, 0},
+		{"rejects a negative count", []string{examplePositive}, -1},
+	} {
+		got, err := NewGeoNamesID(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewGeoNamesID(%v) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("geoNamesID", rule) {
+				t.Errorf("NewGeoNamesID(%v) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
 }
 
-// TestLatitude runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestLatitude(t *testing.T) {
+// TestGeoNamesID_RoundTripsText checks what the directive accepts survives its text.
+func TestGeoNamesID_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
 	t.Parallel()
 
-	voguetest.Scalar[Latitude, *Latitude, string]{
-		Field:        "latitude",
-		New:          NewLatitudeFromString,
-		Get:          nil,
-		FromString:   NewLatitudeFromString,
-		ParseRule:    "decimal",
-		Examples:     []string{"-34.603722"},
-		Candidates:   nil,
-		Rejected:     nil,
-		Normalized:   nil,
-		RefusesFloat: true,
-	}.Run(t)
+	for _, input := range []int64{1, 42} {
+		value, err := NewGeoNamesID(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded GeoNamesID
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
 }
 
-// TestLongitude runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestLongitude(t *testing.T) {
+// TestGeoNamesID_RejectsUnreadableText checks text that is no int fails the "int" rule.
+func TestGeoNamesID_RejectsUnreadableText(t *testing.T) {
+	const (
+		exampleNotANumber = "not-a-number"
+		exampleInt        = "int"
+	)
+
 	t.Parallel()
 
-	voguetest.Scalar[Longitude, *Longitude, string]{
-		Field:        "longitude",
-		New:          NewLongitudeFromString,
-		Get:          nil,
-		FromString:   NewLongitudeFromString,
-		ParseRule:    "decimal",
-		Examples:     []string{"-58.381592"},
-		Candidates:   nil,
-		Rejected:     nil,
-		Normalized:   nil,
-		RefusesFloat: true,
-	}.Run(t)
+	_, err := NewGeoNamesIDFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("geoNamesID", exampleInt) {
+		t.Errorf("NewGeoNamesIDFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleInt)
+	}
 }
 
-// TestPlaceID runs the identifier suite: fresh UUIDv7 mints, and any
-// RFC 4122 UUID read back.
-func TestPlaceID(t *testing.T) {
+// TestGeoNamesID_ZeroHasNoText checks that the zero GeoNamesID cannot be marshaled.
+func TestGeoNamesID_ZeroHasNoText(t *testing.T) {
 	t.Parallel()
 
-	voguetest.UUID[PlaceID, *PlaceID]{
-		Field:      "placeID",
-		New:        NewPlaceID,
-		FromString: NewPlaceIDFromString,
-		Version:    7,
-	}.Run(t)
+	var zero GeoNamesID
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero GeoNamesID marshaled: %v", err)
+	}
 }
 
-// TestImportRunID runs the database-assigned identifier suite.
-func TestImportRunID(t *testing.T) {
+// TestGeoNamesID_JSONSchemaDescribesItsSamples checks its samples satisfy its JSON Schema.
+func TestGeoNamesID_JSONSchemaDescribesItsSamples(t *testing.T) {
+	const (
+		examplePattern                        = "pattern"
+		exampleQDoesNotMatchTheSchemaPatternQ = "%q does not match the schema pattern %q"
+	)
+
 	t.Parallel()
 
-	voguetest.Int64ID[ImportRunID, *ImportRunID]{
-		Field:      "importRunID",
-		FromInt64:  NewImportRunIDFromInt64,
-		FromString: NewImportRunIDFromString,
-	}.Run(t)
+	var subject GeoNamesID
+
+	schema := subject.JSONSchema()
+	for _, input := range []int64{1, 42} {
+		value, err := NewGeoNamesID(input)
+		if err != nil {
+			continue
+		}
+
+		text := value.String()
+		if pattern, _ := schema[examplePattern].(string); !regexp.MustCompile(pattern).MatchString(text) {
+			t.Errorf(exampleQDoesNotMatchTheSchemaPatternQ, text, pattern)
+		}
+	}
+}
+
+// TestPopulation_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestPopulation_RejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		note  string
+		rules []string
+		input int64
+	}{
+		{"rejects one below the floor", []string{"nonneg"}, -1},
+		{"rejects a quantity nobody can have", []string{"nonneg"}, -100},
+	} {
+		got, err := NewPopulation(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewPopulation(%v) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("population", rule) {
+				t.Errorf("NewPopulation(%v) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestPopulation_RoundTripsText checks what the directive accepts survives its text.
+func TestPopulation_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []int64{0, 7} {
+		value, err := NewPopulation(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded Population
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestPopulation_RejectsUnreadableText checks text that is no int fails the "int" rule.
+func TestPopulation_RejectsUnreadableText(t *testing.T) {
+	const (
+		exampleNotANumber = "not-a-number"
+		exampleInt        = "int"
+	)
+
+	t.Parallel()
+
+	_, err := NewPopulationFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("population", exampleInt) {
+		t.Errorf("NewPopulationFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleInt)
+	}
+}
+
+// TestPopulation_ZeroHasNoText checks that the zero Population cannot be marshaled.
+func TestPopulation_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero Population
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero Population marshaled: %v", err)
+	}
+}
+
+// TestPopulation_JSONSchemaDescribesItsSamples checks its samples satisfy its JSON Schema.
+func TestPopulation_JSONSchemaDescribesItsSamples(t *testing.T) {
+	const (
+		examplePattern                        = "pattern"
+		exampleQDoesNotMatchTheSchemaPatternQ = "%q does not match the schema pattern %q"
+	)
+
+	t.Parallel()
+
+	var subject Population
+
+	schema := subject.JSONSchema()
+	for _, input := range []int64{0, 7} {
+		value, err := NewPopulation(input)
+		if err != nil {
+			continue
+		}
+
+		text := value.String()
+		if pattern, _ := schema[examplePattern].(string); !regexp.MustCompile(pattern).MatchString(text) {
+			t.Errorf(exampleQDoesNotMatchTheSchemaPatternQ, text, pattern)
+		}
+	}
+}
+
+// TestElevation_AcceptsItsExamples checks the values the directive declares valid.
+func TestElevation_AcceptsItsExamples(t *testing.T) {
+	t.Parallel()
+
+	for _, input := range []int64{25} {
+		got, err := NewElevation(input)
+		if err != nil || got.IsZero() {
+			t.Errorf("NewElevation(%v) = %v, %v, want a constructed value", input, got, err)
+		}
+
+		if got.Int64() != input {
+			t.Errorf("NewElevation(%v) holds %v, want it unchanged", input, got)
+		}
+	}
+}
+
+// TestElevation_RoundTripsText checks what the directive accepts survives its text.
+func TestElevation_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []int64{25} {
+		value, err := NewElevation(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded Elevation
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestElevation_RejectsUnreadableText checks text that is no int fails the "int" rule.
+func TestElevation_RejectsUnreadableText(t *testing.T) {
+	const (
+		exampleNotANumber = "not-a-number"
+		exampleInt        = "int"
+	)
+
+	t.Parallel()
+
+	_, err := NewElevationFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("elevation", exampleInt) {
+		t.Errorf("NewElevationFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleInt)
+	}
+}
+
+// TestElevation_ZeroHasNoText checks that the zero Elevation cannot be marshaled.
+func TestElevation_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero Elevation
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero Elevation marshaled: %v", err)
+	}
+}
+
+// TestElevation_JSONSchemaDescribesItsSamples checks its samples satisfy its JSON Schema.
+func TestElevation_JSONSchemaDescribesItsSamples(t *testing.T) {
+	const (
+		examplePattern                        = "pattern"
+		exampleQDoesNotMatchTheSchemaPatternQ = "%q does not match the schema pattern %q"
+	)
+
+	t.Parallel()
+
+	var subject Elevation
+
+	schema := subject.JSONSchema()
+	for _, input := range []int64{25} {
+		value, err := NewElevation(input)
+		if err != nil {
+			continue
+		}
+
+		text := value.String()
+		if pattern, _ := schema[examplePattern].(string); !regexp.MustCompile(pattern).MatchString(text) {
+			t.Errorf(exampleQDoesNotMatchTheSchemaPatternQ, text, pattern)
+		}
+	}
+}
+
+// TestLatitude_AcceptsItsExamples checks the values the directive declares valid.
+func TestLatitude_AcceptsItsExamples(t *testing.T) {
+	t.Parallel()
+
+	for _, input := range []string{"-34.603722"} {
+		got, err := NewLatitudeFromString(input)
+		if err != nil || got.IsZero() {
+			t.Errorf("NewLatitudeFromString(%q) = %v, %v, want a constructed value", input, got, err)
+		}
+	}
+}
+
+// TestLatitude_RoundTripsText checks what the directive accepts survives its text.
+func TestLatitude_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"-34.603722"} {
+		value, err := NewLatitudeFromString(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded Latitude
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestLatitude_RejectsUnreadableText checks text that is no decimal fails the "decimal" rule.
+func TestLatitude_RejectsUnreadableText(t *testing.T) {
+	const (
+		exampleNotANumber = "not-a-number"
+		exampleDecimal    = "decimal"
+	)
+
+	t.Parallel()
+
+	_, err := NewLatitudeFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("latitude", exampleDecimal) {
+		t.Errorf("NewLatitudeFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleDecimal)
+	}
+}
+
+// TestLatitude_ZeroHasNoText checks that the zero Latitude cannot be marshaled.
+func TestLatitude_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero Latitude
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero Latitude marshaled: %v", err)
+	}
+}
+
+// TestLongitude_AcceptsItsExamples checks the values the directive declares valid.
+func TestLongitude_AcceptsItsExamples(t *testing.T) {
+	t.Parallel()
+
+	for _, input := range []string{"-58.381592"} {
+		got, err := NewLongitudeFromString(input)
+		if err != nil || got.IsZero() {
+			t.Errorf("NewLongitudeFromString(%q) = %v, %v, want a constructed value", input, got, err)
+		}
+	}
+}
+
+// TestLongitude_RoundTripsText checks what the directive accepts survives its text.
+func TestLongitude_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"-58.381592"} {
+		value, err := NewLongitudeFromString(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded Longitude
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestLongitude_RejectsUnreadableText checks text that is no decimal fails the "decimal" rule.
+func TestLongitude_RejectsUnreadableText(t *testing.T) {
+	const (
+		exampleNotANumber = "not-a-number"
+		exampleDecimal    = "decimal"
+	)
+
+	t.Parallel()
+
+	_, err := NewLongitudeFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("longitude", exampleDecimal) {
+		t.Errorf("NewLongitudeFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleDecimal)
+	}
+}
+
+// TestLongitude_ZeroHasNoText checks that the zero Longitude cannot be marshaled.
+func TestLongitude_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero Longitude
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero Longitude marshaled: %v", err)
+	}
+}
+
+// TestPlaceID_MintsFreshIdentifiers checks that PlaceID mints distinct UUIDv7 identifiers.
+func TestPlaceID_MintsFreshIdentifiers(t *testing.T) {
+	t.Parallel()
+
+	first, firstErr := NewPlaceID()
+	second, secondErr := NewPlaceID()
+	if firstErr != nil || secondErr != nil || first.IsZero() || first.Equal(second) {
+		t.Fatalf("NewPlaceID() twice = %v, %v and %v, %v, want two distinct identifiers", first, firstErr, second, secondErr)
+	}
+
+	version := first.UUID().Version()
+	if version != 7 {
+		t.Errorf("NewPlaceID() minted a version %d UUID, want 7", version)
+	}
+}
+
+// TestPlaceID_ReadsAnyRFC4122UUID checks that NewPlaceIDFromString reads UUIDs of
+// other versions than the one it mints, so identifiers written earlier stay readable.
+func TestPlaceID_ReadsAnyRFC4122UUID(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{"018ff1d4-9c2a-7b3e-9f6a-6c1d2e3f4a5b", "3f333df6-90a4-4fda-8dd3-9485d27cee36"} {
+		got, err := NewPlaceIDFromString(raw)
+		if err != nil || got.String() != raw {
+			t.Errorf("NewPlaceIDFromString(%q) = %v, %v, want it unchanged", raw, got, err)
+		}
+	}
+}
+
+// TestPlaceID_RejectsWhatIsNoIdentifier checks that text that is no UUID, and the nil UUID, are refused.
+func TestPlaceID_RejectsWhatIsNoIdentifier(t *testing.T) {
+	t.Parallel()
+
+	for raw, rule := range map[string]string{
+		"not-a-uuid":                           "uuid",
+		"":                                     "uuid",
+		"00000000-0000-0000-0000-000000000000": "required",
+	} {
+		got, err := NewPlaceIDFromString(raw)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !failed.Has("placeID", rule) || !got.IsZero() {
+			t.Errorf("NewPlaceIDFromString(%q) = %v, %v, want a %q failure and the zero PlaceID", raw, got, err, rule)
+		}
+	}
+}
+
+// TestPlaceID_RoundTripsText checks that a minted identifier survives its text.
+func TestPlaceID_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	value, err := NewPlaceID()
+	if err != nil {
+		t.Fatalf("NewPlaceID() = %v", err)
+	}
+
+	text, err := value.MarshalText()
+	if err != nil {
+		t.Fatalf(exampleVMarshalTextV, value, err)
+	}
+
+	var decoded PlaceID
+
+	err = decoded.UnmarshalText(text)
+	if err != nil || !decoded.Equal(value) {
+		t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+	}
+}
+
+// TestPlaceID_ZeroHasNoText checks that the unassigned PlaceID cannot be marshaled.
+func TestPlaceID_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero PlaceID
+
+	_, err := zero.MarshalText()
+	if !zero.IsZero() || !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero PlaceID marshaled: %v", err)
+	}
+}
+
+// TestImportRunID_AcceptsWhatASequenceHandsOut checks that a positive number, even
+// one above the largest integer a JavaScript number holds, is an identifier.
+func TestImportRunID_AcceptsWhatASequenceHandsOut(t *testing.T) {
+	t.Parallel()
+
+	const aboveJavaScriptPrecision = 9007199254740993
+
+	for _, input := range []int64{1, aboveJavaScriptPrecision} {
+		got, err := NewImportRunIDFromInt64(input)
+		if err != nil || got.IsZero() || got.Int64() != input {
+			t.Errorf("NewImportRunIDFromInt64(%d) = %v, %v, want the identifier", input, got, err)
+		}
+	}
+}
+
+// TestImportRunID_RejectsWhatNoSequenceHandsOut checks that zero and negative numbers are refused.
+func TestImportRunID_RejectsWhatNoSequenceHandsOut(t *testing.T) {
+	const examplePositive = "positive"
+
+	t.Parallel()
+
+	for _, input := range []int64{0, -1} {
+		got, err := NewImportRunIDFromInt64(input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !failed.Has("importRunID", examplePositive) || !got.IsZero() {
+			t.Errorf("NewImportRunIDFromInt64(%d) = %v, %v, want a %q failure and the zero ImportRunID",
+				input, got, err, examplePositive)
+		}
+	}
+}
+
+// TestImportRunID_ReadsItsText checks NewImportRunIDFromString on a number, on text that is
+// none, and on zero.
+func TestImportRunID_ReadsItsText(t *testing.T) {
+	const (
+		exampleNotANumber = "not-a-number"
+		exampleInt        = "int"
+		examplePositive   = "positive"
+	)
+
+	t.Parallel()
+
+	got, err := NewImportRunIDFromString("42")
+	if err != nil || got.String() != "42" {
+		t.Errorf("NewImportRunIDFromString(%q) = %v, %v, want 42", "42", got, err)
+	}
+
+	for raw, rule := range map[string]string{exampleNotANumber: exampleInt, "0": examplePositive} {
+		_, err := NewImportRunIDFromString(raw)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !failed.Has("importRunID", rule) {
+			t.Errorf("NewImportRunIDFromString(%q) = %v, want a %q failure", raw, err, rule)
+		}
+	}
+}
+
+// TestImportRunID_RoundTripsText checks that an identifier survives its text.
+func TestImportRunID_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	value, err := NewImportRunIDFromInt64(42)
+	if err != nil {
+		t.Fatalf("NewImportRunIDFromInt64(42) = %v", err)
+	}
+
+	text, err := value.MarshalText()
+	if err != nil {
+		t.Fatalf(exampleVMarshalTextV, value, err)
+	}
+
+	var decoded ImportRunID
+
+	err = decoded.UnmarshalText(text)
+	if err != nil || !decoded.Equal(value) {
+		t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+	}
+}
+
+// TestImportRunID_ZeroHasNoText checks that the unassigned ImportRunID cannot be marshaled.
+func TestImportRunID_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero ImportRunID
+
+	_, err := zero.MarshalText()
+	if !zero.IsZero() || !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero ImportRunID marshaled: %v", err)
+	}
 }

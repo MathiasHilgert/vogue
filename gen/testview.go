@@ -16,18 +16,18 @@ import (
 
 // Import paths only the generated tests need.
 const (
-	importTesting   = "testing"
-	importVoguetest = "github.com/MathiasHilgert/vogue/voguetest"
+	importTesting = "testing"
+	importRegexp  = "regexp"
+	importSlices  = "slices"
+	importUTF8    = "unicode/utf8"
 )
 
-// caseView is one rejected row of a generated table: the input, the rules
-// expected to reject it, and the name the subtest runs under.
+// caseView is one rejected row of a generated table: what the row says about
+// the input, the input, and the rules expected to reject it.
 type caseView struct {
-	Name  string
+	Note  string
 	Lit   string
 	Rules []string
-	// Described marks a row the JSON schema of the value object rejects too.
-	Described bool
 }
 
 // normCaseView is one rewrite a normalizer performs, as the generated test
@@ -45,34 +45,39 @@ type testView struct {
 	// under.
 	Name, Field string
 
-	// InType is the Go type the table feeds Ctor.
-	InType string
+	// InType is the Go type the table feeds Ctor, and Verb the fmt verb that
+	// prints one of its values in a failure message.
+	InType, Verb string
 	// Ctor is the constructor the table drives. It is New<Name> for every kind
 	// whose constructor takes a Go literal the table can write; the decimal
 	// kind takes a decimal.Decimal, which no literal can spell, so its table
 	// is written in the text New<Name>FromString reads.
 	Ctor string
-	// Get is the method expression reading the value back as Ctor took it,
-	// empty when an accepted input may legitimately be held differently.
-	Get string
-	// FromString is the textual constructor the suite proves, and ParseRule
+	// Read is the accessor returning the value as Ctor took it, empty when an
+	// accepted input may legitimately be held differently.
+	Read string
+	// FromString is the textual constructor the tests prove, and ParseRule
 	// the rule it reports an unreadable representation under. Both are empty
 	// for the string kind, whose New already takes text.
 	FromString, ParseRule string
-	// RefusesFloat marks a kind whose Scan refuses a binary float outright.
-	RefusesFloat bool
 	// Examples are the literals of the directive's own example= tokens, and
-	// Candidates the literals the rules of the directive declare valid.
-	Examples, Candidates []string
+	// Samples those followed by the literals the rules of the directive
+	// declare valid, each for itself: the constructor decides which of them
+	// the whole directive accepts, when the test runs.
+	Examples, Samples []string
+	// SQL marks a value object with the database/sql codec, and Schema one
+	// with a JSONSchema method.
+	SQL    bool
+	Schema *schemaView
 	// Cases are the rejected rows.
 	Cases []caseView
 	// Normalizations are the rewrites the normalizers of the directive declare.
 	Normalizations []normCaseView
 
-	// Catalogue, Members and MemberParam describe an enum.
-	Catalogue   string
-	Members     []memberView
-	MemberParam string
+	// Catalogue, Members and Field describe an enum; Field is also the name
+	// every value object reports its failures under.
+	Catalogue string
+	Members   []memberView
 
 	// Version is the UUID version an id value object mints.
 	Version int
@@ -82,7 +87,7 @@ type testView struct {
 func (g *Generator) testFile(file parse.File) ([]byte, error) {
 	var bodies bytes.Buffer
 	for _, directive := range file.Directives {
-		view, name, err := newTestView(directive)
+		view, name, err := g.newTestView(directive)
 		if err != nil {
 			return nil, err
 		}
@@ -112,12 +117,15 @@ func (g *Generator) testFile(file parse.File) ([]byte, error) {
 }
 
 // testImports returns the imports the rendered test bodies reference: testing
-// always, and the suites.
+// always, and the standard-library packages the checks of a schema use.
 func testImports(body []byte) (*importSet, error) {
 	imports := newImportSet("")
 	for _, want := range []struct{ selector, path string }{
 		{"testing.", importTesting},
-		{"voguetest.", importVoguetest},
+		{"errors.", importErrors},
+		{"regexp.", importRegexp},
+		{"slices.", importSlices},
+		{"utf8.", importUTF8},
 	} {
 		if !bytes.Contains(body, []byte(want.selector)) {
 			continue
@@ -131,39 +139,39 @@ func testImports(body []byte) (*importSet, error) {
 
 // newTestView builds the test data of one directive and names the template
 // that renders it.
-func newTestView(d parse.Directive) (testView, string, error) {
-	v := testView{Name: d.Name, Field: d.Field, Ctor: "New" + d.Name}
+func (g *Generator) newTestView(d parse.Directive) (testView, string, error) {
+	v := testView{Name: d.Name, Field: d.Field, Ctor: "New" + d.Name, SQL: g.opts.SQL}
+	if g.opts.Schema {
+		v.Schema = newSchemaView(d)
+	}
 
 	switch d.Kind {
 	case vogue.String:
-		v.InType, v.Get = "string", d.Name+".String"
+		v.InType, v.Verb, v.Read = "string", "%q", "String"
 		fillScalar(&v, d)
 		return v, "test_scalar", nil
 
 	case vogue.Int:
-		v.InType, v.Get = "int64", d.Name+".Int64"
+		v.InType, v.Verb, v.Read = "int64", "%v", "Int64"
 		v.FromString, v.ParseRule = "New"+d.Name+"FromString", "int"
 		fillScalar(&v, d)
 		return v, "test_scalar", nil
 
 	case vogue.Decimal:
-		v.InType, v.Ctor = "string", "New"+d.Name+"FromString"
+		v.InType, v.Verb, v.Ctor = "string", "%q", "New"+d.Name+"FromString"
 		v.FromString, v.ParseRule = "New"+d.Name+"FromString", "decimal"
-		v.RefusesFloat = true
 		fillScalar(&v, d)
 		// A decimal row is written as text and read back as text, and the
 		// two need not match: "+1" and "1" are the same number, and only the
 		// second is what String reports.
-		v.Get = ""
+		v.Read = ""
 		return v, "test_scalar", nil
 
 	case vogue.Enum:
-		values := make([]string, len(d.Values))
-		for i, member := range d.Values {
+		for _, member := range d.Values {
 			v.Members = append(v.Members, memberView{Method: member.Method, Value: member.Value})
-			values[i] = member.Value
 		}
-		v.Catalogue, v.MemberParam = d.Catalogue, strings.Join(values, ",")
+		v.Catalogue = d.Catalogue
 		return v, "test_enum", nil
 
 	case vogue.ID:
@@ -193,7 +201,7 @@ func fillScalar(v *testView, d parse.Directive) {
 	rejected := rejections(d)
 	for _, use := range d.Rules {
 		if use.Rule.Normalize {
-			v.Get = ""
+			v.Read = ""
 			v.Normalizations = append(v.Normalizations, normalizations(d, use)...)
 		}
 	}
@@ -203,16 +211,9 @@ func fillScalar(v *testView, d parse.Directive) {
 			v.Examples = append(v.Examples, lit)
 		}
 	}
-	v.Candidates = candidates(d, rejected)
-
-	modeled := newSchemaView(d).modeled
-	normalizes := len(v.Normalizations) > 0 || slices.ContainsFunc(d.Rules, func(use parse.RuleUse) bool { return use.Rule.Normalize })
+	v.Samples = slices.Concat(v.Examples, candidates(d, rejected))
 	for _, row := range rejected {
-		described := !normalizes
-		for _, rule := range row.rules {
-			described = described && modeled[rule]
-		}
-		v.Cases = append(v.Cases, caseView{Name: row.name, Lit: row.lit, Rules: row.rules, Described: described})
+		v.Cases = append(v.Cases, caseView{Note: row.name, Lit: row.lit, Rules: row.rules})
 	}
 }
 
@@ -266,9 +267,25 @@ func rejections(d parse.Directive) []rejection {
 	}
 
 	for i := range rows {
+		rows[i].rules = untilPrecondition(d, rows[i].rules)
 		rows[i].name = rejectionName(rows[i])
 	}
 	return rows
+}
+
+// untilPrecondition drops the rules a failing precondition keeps from running:
+// an empty input fails `required` and would fail `len=2` too, but the
+// constructor returns after the first, so only the first is reported. rules
+// are in directive order.
+func untilPrecondition(d parse.Directive, rules []string) []string {
+	for i, name := range rules {
+		for _, use := range d.Rules {
+			if use.Rule.Name == name && use.Rule.Precondition {
+				return rules[:i+1]
+			}
+		}
+	}
+	return rules
 }
 
 // rejectionName names a rejected row after the note its example carries, or

@@ -3,178 +3,886 @@
 package fixture
 
 import (
+	"errors"
 	"testing"
-
-	"github.com/MathiasHilgert/vogue/voguetest"
 )
 
-// TestTitle runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestTitle(t *testing.T) {
+// TestTitle_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestTitle_RejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 
-	voguetest.Scalar[Title, *Title, string]{
-		Field:      "title",
-		New:        NewTitle,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{"a", "a tab name", "abc"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects the empty string",
-				Input:     "",
-				Rules:     []string{"required"},
-				Described: false,
-			},
-		},
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  "trim removes the blanks around a value",
-				Input: "  a  ",
-				Out:   "a",
-			},
-			{
-				Name:  "lower folds an upper-case value",
-				Input: "A",
-				Out:   "a",
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects the empty string", "", []string{"required"}},
+	} {
+		got, err := NewTitle(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewTitle(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("title", rule) {
+				t.Errorf("NewTitle(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
 }
 
-// TestCovers runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestCovers(t *testing.T) {
+// TestTitle_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestTitle_Normalizes(t *testing.T) {
 	t.Parallel()
 
-	voguetest.Scalar[Covers, *Covers, int64]{
-		Field:      "covers",
-		New:        NewCovers,
-		Get:        Covers.Int64,
-		FromString: NewCoversFromString,
-		ParseRule:  "int",
-		Examples:   nil,
-		Candidates: []int64{1, 200},
-		Rejected: []voguetest.Rejection[int64]{
-			{
-				Name:      "rejects a table with nobody at it",
-				Input:     0,
-				Rules:     []string{"min"},
-				Described: true,
-			},
-			{
-				Name:      "rejects one guest more than the house holds",
-				Input:     201,
-				Rules:     []string{"max"},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{"trim removes the blanks around a value", "  a  ", "a"},
+		{"lower folds an upper-case value", "A", "a"},
+	} {
+		want, err := NewTitle(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewTitle(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewTitle(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
 }
 
-// TestTabStatus runs the enum suite: the catalogue lists the members the
-// directive declares, in order, parses each of them and nothing else, and
-// round-trips them. The expected list is generated from the same directive, so
-// it proves the catalogue is consistent with the directive, not that the
-// directive is right; pin the members in a hand-written test when a change to
-// them must be deliberate.
-func TestTabStatus(t *testing.T) {
+// TestTitle_RoundTripsText checks what the directive accepts survives its text.
+func TestTitle_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
 	t.Parallel()
 
-	voguetest.Enum[TabStatus, *TabStatus]{
-		Field: "tabStatus",
-		All:   TabStatuses{}.All(),
-		Parse: TabStatuses{}.Parse,
-		Want: []string{
-			"open",
-			"in_progress",
-			"closed",
-		},
-	}.Run(t)
+	for _, input := range []string{"a", "a tab name", "abc"} {
+		value, err := NewTitle(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded Title
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
 }
 
-// TestTabID runs the identifier suite: fresh UUIDv7 mints, and any
-// RFC 4122 UUID read back.
-func TestTabID(t *testing.T) {
+// TestTitle_ZeroHasNoText checks that the zero Title cannot be marshaled.
+func TestTitle_ZeroHasNoText(t *testing.T) {
 	t.Parallel()
 
-	voguetest.UUID[TabID, *TabID]{
-		Field:      "tabID",
-		New:        NewTabID,
-		FromString: NewTabIDFromString,
-		Version:    7,
-	}.Run(t)
+	var zero Title
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero Title marshaled: %v", err)
+	}
 }
 
-// TestInvoiceNumber runs the database-assigned identifier suite.
-func TestInvoiceNumber(t *testing.T) {
+// TestTitle_RoundTripsSQL checks what the directive accepts survives the database.
+func TestTitle_RoundTripsSQL(t *testing.T) {
+	const (
+		exampleVValueV                     = "%v.Value() = %v"
+		exampleVBecameVVThroughTheDatabase = "%v became %v, %v through the database"
+	)
+
 	t.Parallel()
 
-	voguetest.Int64ID[InvoiceNumber, *InvoiceNumber]{
-		Field:      "invoiceNumber",
-		FromInt64:  NewInvoiceNumberFromInt64,
-		FromString: NewInvoiceNumberFromString,
-	}.Run(t)
+	for _, input := range []string{"a", "a tab name", "abc"} {
+		value, err := NewTitle(input)
+		if err != nil {
+			continue
+		}
+
+		stored, err := value.Value()
+		if err != nil {
+			t.Fatalf(exampleVValueV, value, err)
+		}
+
+		var scanned Title
+
+		err = scanned.Scan(stored)
+		if err != nil || !scanned.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughTheDatabase, value, scanned, err)
+		}
+	}
 }
 
-// TestSlug runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestSlug(t *testing.T) {
+// TestTitle_SQLKeepsTheZeroAsNull checks NULL and the sources Scan refuses.
+func TestTitle_SQLKeepsTheZeroAsNull(t *testing.T) {
+	const exampleScanStructVWantErrorsErrUnsupported = "Scan(struct{}{}) = %v, want errors.ErrUnsupported"
+
 	t.Parallel()
 
-	voguetest.Scalar[Slug, *Slug, string]{
-		Field:      "slug",
-		New:        NewSlug,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: nil,
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  "lower folds an upper-case value",
-				Input: "A",
-				Out:   "a",
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	var zero Title
+
+	stored, err := zero.Value()
+	if stored != nil || err != nil {
+		t.Errorf("the zero Title stored %v, %v, want NULL", stored, err)
+	}
+
+	var scanned Title
+
+	err = scanned.Scan(nil)
+	if err != nil || !scanned.IsZero() {
+		t.Errorf("Scan(nil) = %v, %v, want the zero Title", scanned, err)
+	}
+
+	err = scanned.Scan(struct{}{})
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf(exampleScanStructVWantErrorsErrUnsupported, err)
+	}
 }
 
-// TestWeight runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestWeight(t *testing.T) {
+// TestCovers_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestCovers_RejectsInvalidInput(t *testing.T) {
 	t.Parallel()
 
-	voguetest.Scalar[Weight, *Weight, string]{
-		Field:      "weight",
-		New:        NewWeightFromString,
-		Get:        nil,
-		FromString: NewWeightFromString,
-		ParseRule:  "decimal",
-		Examples:   nil,
-		Candidates: []string{"1.5", "1.25"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects a weight below zero",
-				Input:     "-0.25",
-				Rules:     []string{"min"},
-				Described: true,
-			},
-			{
-				Name:      "rejects four decimal places do not",
-				Input:     "0.1234",
-				Rules:     []string{"scale"},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: true,
-	}.Run(t)
+	for _, test := range []struct {
+		note  string
+		rules []string
+		input int64
+	}{
+		{"rejects a table with nobody at it", []string{"min"}, 0},
+		{"rejects one guest more than the house holds", []string{"max"}, 201},
+	} {
+		got, err := NewCovers(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewCovers(%v) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("covers", rule) {
+				t.Errorf("NewCovers(%v) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestCovers_RoundTripsText checks what the directive accepts survives its text.
+func TestCovers_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []int64{1, 200} {
+		value, err := NewCovers(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded Covers
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestCovers_RejectsUnreadableText checks text that is no int fails the "int" rule.
+func TestCovers_RejectsUnreadableText(t *testing.T) {
+	const (
+		exampleNotANumber = "not-a-number"
+		exampleInt        = "int"
+	)
+
+	t.Parallel()
+
+	_, err := NewCoversFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("covers", exampleInt) {
+		t.Errorf("NewCoversFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleInt)
+	}
+}
+
+// TestCovers_ZeroHasNoText checks that the zero Covers cannot be marshaled.
+func TestCovers_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero Covers
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero Covers marshaled: %v", err)
+	}
+}
+
+// TestCovers_RoundTripsSQL checks what the directive accepts survives the database.
+func TestCovers_RoundTripsSQL(t *testing.T) {
+	const (
+		exampleVValueV                     = "%v.Value() = %v"
+		exampleVBecameVVThroughTheDatabase = "%v became %v, %v through the database"
+	)
+
+	t.Parallel()
+
+	for _, input := range []int64{1, 200} {
+		value, err := NewCovers(input)
+		if err != nil {
+			continue
+		}
+
+		stored, err := value.Value()
+		if err != nil {
+			t.Fatalf(exampleVValueV, value, err)
+		}
+
+		var scanned Covers
+
+		err = scanned.Scan(stored)
+		if err != nil || !scanned.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughTheDatabase, value, scanned, err)
+		}
+	}
+}
+
+// TestCovers_SQLKeepsTheZeroAsNull checks NULL and the sources Scan refuses.
+func TestCovers_SQLKeepsTheZeroAsNull(t *testing.T) {
+	const exampleScanStructVWantErrorsErrUnsupported = "Scan(struct{}{}) = %v, want errors.ErrUnsupported"
+
+	t.Parallel()
+
+	var zero Covers
+
+	stored, err := zero.Value()
+	if stored != nil || err != nil {
+		t.Errorf("the zero Covers stored %v, %v, want NULL", stored, err)
+	}
+
+	var scanned Covers
+
+	err = scanned.Scan(nil)
+	if err != nil || !scanned.IsZero() {
+		t.Errorf("Scan(nil) = %v, %v, want the zero Covers", scanned, err)
+	}
+
+	err = scanned.Scan(struct{}{})
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf(exampleScanStructVWantErrorsErrUnsupported, err)
+	}
+}
+
+// TestTabStatus_ListsItsMembers checks that TabStatuses lists the members the directive
+// declares, in order. The expected list is generated from the same directive,
+// so it proves the catalogue is consistent with it, not that the directive is
+// right.
+func TestTabStatus_ListsItsMembers(t *testing.T) {
+	t.Parallel()
+
+	want := []string{"open", "in_progress", "closed"}
+	members := TabStatuses{}.All()
+	if len(members) != len(want) {
+		t.Fatalf("TabStatuses{}.All() lists %d members, want %d", len(members), len(want))
+	}
+
+	for index, member := range members {
+		if member.String() != want[index] || member.IsZero() {
+			t.Errorf("TabStatuses{}.All()[%d] = %q, want %q", index, member, want[index])
+		}
+	}
+}
+
+// TestTabStatus_ParsesItsMembersAndNothingElse checks TabStatuses.Parse.
+func TestTabStatus_ParsesItsMembersAndNothingElse(t *testing.T) {
+	t.Parallel()
+
+	members := TabStatuses{}.All()
+	for _, member := range members {
+		got, err := TabStatuses{}.Parse(member.String())
+		if err != nil || !got.Equal(member) {
+			t.Errorf("TabStatuses{}.Parse(%q) = %v, %v, want the member", member, got, err)
+		}
+	}
+
+	for _, raw := range []string{"not-a-member", ""} {
+		got, err := TabStatuses{}.Parse(raw)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !failed.Has("tabStatus", "oneof") || !got.IsZero() {
+			t.Errorf("TabStatuses{}.Parse(%q) = %v, %v, want a %q failure and the zero TabStatus", raw, got, err, "oneof")
+		}
+	}
+}
+
+// TestTabStatus_RoundTripsText checks that every member survives its text.
+func TestTabStatus_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	members := TabStatuses{}.All()
+	for _, member := range members {
+		text, err := member.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, member, err)
+		}
+
+		var decoded TabStatus
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(member) {
+			t.Errorf(exampleVBecameVVThroughItsText, member, decoded, err)
+		}
+	}
+}
+
+// TestTabStatus_ZeroIsNoMember checks that the zero TabStatus is no member and has no text.
+func TestTabStatus_ZeroIsNoMember(t *testing.T) {
+	t.Parallel()
+
+	var zero TabStatus
+
+	_, err := zero.MarshalText()
+	if !zero.IsZero() || !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero TabStatus marshaled: %v", err)
+	}
+}
+
+// TestTabStatus_RoundTripsSQL checks every member survives the database, and NULL.
+func TestTabStatus_RoundTripsSQL(t *testing.T) {
+	const (
+		exampleVValueV                             = "%v.Value() = %v"
+		exampleVBecameVVThroughTheDatabase         = "%v became %v, %v through the database"
+		exampleScanStructVWantErrorsErrUnsupported = "Scan(struct{}{}) = %v, want errors.ErrUnsupported"
+	)
+
+	t.Parallel()
+
+	members := TabStatuses{}.All()
+	for _, member := range members {
+		stored, err := member.Value()
+		if err != nil {
+			t.Fatalf(exampleVValueV, member, err)
+		}
+
+		var scanned TabStatus
+
+		err = scanned.Scan(stored)
+		if err != nil || !scanned.Equal(member) {
+			t.Errorf(exampleVBecameVVThroughTheDatabase, member, scanned, err)
+		}
+	}
+
+	var zero TabStatus
+
+	stored, err := zero.Value()
+	if stored != nil || err != nil {
+		t.Errorf("the zero TabStatus stored %v, %v, want NULL", stored, err)
+	}
+
+	err = zero.Scan(struct{}{})
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf(exampleScanStructVWantErrorsErrUnsupported, err)
+	}
+}
+
+// TestTabID_MintsFreshIdentifiers checks that TabID mints distinct UUIDv7 identifiers.
+func TestTabID_MintsFreshIdentifiers(t *testing.T) {
+	t.Parallel()
+
+	first, firstErr := NewTabID()
+	second, secondErr := NewTabID()
+	if firstErr != nil || secondErr != nil || first.IsZero() || first.Equal(second) {
+		t.Fatalf("NewTabID() twice = %v, %v and %v, %v, want two distinct identifiers", first, firstErr, second, secondErr)
+	}
+
+	version := first.UUID().Version()
+	if version != 7 {
+		t.Errorf("NewTabID() minted a version %d UUID, want 7", version)
+	}
+}
+
+// TestTabID_ReadsAnyRFC4122UUID checks that NewTabIDFromString reads UUIDs of
+// other versions than the one it mints, so identifiers written earlier stay readable.
+func TestTabID_ReadsAnyRFC4122UUID(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{"018ff1d4-9c2a-7b3e-9f6a-6c1d2e3f4a5b", "3f333df6-90a4-4fda-8dd3-9485d27cee36"} {
+		got, err := NewTabIDFromString(raw)
+		if err != nil || got.String() != raw {
+			t.Errorf("NewTabIDFromString(%q) = %v, %v, want it unchanged", raw, got, err)
+		}
+	}
+}
+
+// TestTabID_RejectsWhatIsNoIdentifier checks that text that is no UUID, and the nil UUID, are refused.
+func TestTabID_RejectsWhatIsNoIdentifier(t *testing.T) {
+	t.Parallel()
+
+	for raw, rule := range map[string]string{
+		"not-a-uuid":                           "uuid",
+		"":                                     "uuid",
+		"00000000-0000-0000-0000-000000000000": "required",
+	} {
+		got, err := NewTabIDFromString(raw)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !failed.Has("tabID", rule) || !got.IsZero() {
+			t.Errorf("NewTabIDFromString(%q) = %v, %v, want a %q failure and the zero TabID", raw, got, err, rule)
+		}
+	}
+}
+
+// TestTabID_RoundTripsText checks that a minted identifier survives its text.
+func TestTabID_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	value, err := NewTabID()
+	if err != nil {
+		t.Fatalf("NewTabID() = %v", err)
+	}
+
+	text, err := value.MarshalText()
+	if err != nil {
+		t.Fatalf(exampleVMarshalTextV, value, err)
+	}
+
+	var decoded TabID
+
+	err = decoded.UnmarshalText(text)
+	if err != nil || !decoded.Equal(value) {
+		t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+	}
+}
+
+// TestTabID_ZeroHasNoText checks that the unassigned TabID cannot be marshaled.
+func TestTabID_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero TabID
+
+	_, err := zero.MarshalText()
+	if !zero.IsZero() || !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero TabID marshaled: %v", err)
+	}
+}
+
+// TestTabID_RoundTripsSQL checks Value and Scan, and that NULL is the zero TabID.
+func TestTabID_RoundTripsSQL(t *testing.T) {
+	const (
+		exampleVValueV                             = "%v.Value() = %v"
+		exampleVBecameVVThroughTheDatabase         = "%v became %v, %v through the database"
+		exampleScanStructVWantErrorsErrUnsupported = "Scan(struct{}{}) = %v, want errors.ErrUnsupported"
+	)
+
+	t.Parallel()
+
+	value, err := NewTabID()
+	if err != nil {
+		t.Fatalf("NewTabID() = %v", err)
+	}
+
+	stored, err := value.Value()
+	if err != nil {
+		t.Fatalf(exampleVValueV, value, err)
+	}
+
+	var scanned TabID
+
+	err = scanned.Scan(stored)
+	if err != nil || !scanned.Equal(value) {
+		t.Errorf(exampleVBecameVVThroughTheDatabase, value, scanned, err)
+	}
+
+	err = scanned.Scan(nil)
+	if err != nil || !scanned.IsZero() {
+		t.Errorf("Scan(nil) = %v, %v, want the zero TabID", scanned, err)
+	}
+
+	err = scanned.Scan(struct{}{})
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf(exampleScanStructVWantErrorsErrUnsupported, err)
+	}
+}
+
+// TestInvoiceNumber_AcceptsWhatASequenceHandsOut checks that a positive number, even
+// one above the largest integer a JavaScript number holds, is an identifier.
+func TestInvoiceNumber_AcceptsWhatASequenceHandsOut(t *testing.T) {
+	t.Parallel()
+
+	const aboveJavaScriptPrecision = 9007199254740993
+
+	for _, input := range []int64{1, aboveJavaScriptPrecision} {
+		got, err := NewInvoiceNumberFromInt64(input)
+		if err != nil || got.IsZero() || got.Int64() != input {
+			t.Errorf("NewInvoiceNumberFromInt64(%d) = %v, %v, want the identifier", input, got, err)
+		}
+	}
+}
+
+// TestInvoiceNumber_RejectsWhatNoSequenceHandsOut checks that zero and negative numbers are refused.
+func TestInvoiceNumber_RejectsWhatNoSequenceHandsOut(t *testing.T) {
+	const examplePositive = "positive"
+
+	t.Parallel()
+
+	for _, input := range []int64{0, -1} {
+		got, err := NewInvoiceNumberFromInt64(input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !failed.Has("invoiceNumber", examplePositive) || !got.IsZero() {
+			t.Errorf("NewInvoiceNumberFromInt64(%d) = %v, %v, want a %q failure and the zero InvoiceNumber",
+				input, got, err, examplePositive)
+		}
+	}
+}
+
+// TestInvoiceNumber_ReadsItsText checks NewInvoiceNumberFromString on a number, on text that is
+// none, and on zero.
+func TestInvoiceNumber_ReadsItsText(t *testing.T) {
+	const (
+		exampleNotANumber = "not-a-number"
+		exampleInt        = "int"
+		examplePositive   = "positive"
+	)
+
+	t.Parallel()
+
+	got, err := NewInvoiceNumberFromString("42")
+	if err != nil || got.String() != "42" {
+		t.Errorf("NewInvoiceNumberFromString(%q) = %v, %v, want 42", "42", got, err)
+	}
+
+	for raw, rule := range map[string]string{exampleNotANumber: exampleInt, "0": examplePositive} {
+		_, err := NewInvoiceNumberFromString(raw)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !failed.Has("invoiceNumber", rule) {
+			t.Errorf("NewInvoiceNumberFromString(%q) = %v, want a %q failure", raw, err, rule)
+		}
+	}
+}
+
+// TestInvoiceNumber_RoundTripsText checks that an identifier survives its text.
+func TestInvoiceNumber_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	value, err := NewInvoiceNumberFromInt64(42)
+	if err != nil {
+		t.Fatalf("NewInvoiceNumberFromInt64(42) = %v", err)
+	}
+
+	text, err := value.MarshalText()
+	if err != nil {
+		t.Fatalf(exampleVMarshalTextV, value, err)
+	}
+
+	var decoded InvoiceNumber
+
+	err = decoded.UnmarshalText(text)
+	if err != nil || !decoded.Equal(value) {
+		t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+	}
+}
+
+// TestInvoiceNumber_ZeroHasNoText checks that the unassigned InvoiceNumber cannot be marshaled.
+func TestInvoiceNumber_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero InvoiceNumber
+
+	_, err := zero.MarshalText()
+	if !zero.IsZero() || !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero InvoiceNumber marshaled: %v", err)
+	}
+}
+
+// TestInvoiceNumber_RoundTripsSQL checks Value and Scan, and that NULL is the zero InvoiceNumber.
+func TestInvoiceNumber_RoundTripsSQL(t *testing.T) {
+	const (
+		exampleVValueV                             = "%v.Value() = %v"
+		exampleVBecameVVThroughTheDatabase         = "%v became %v, %v through the database"
+		exampleScanStructVWantErrorsErrUnsupported = "Scan(struct{}{}) = %v, want errors.ErrUnsupported"
+	)
+
+	t.Parallel()
+
+	value, err := NewInvoiceNumberFromInt64(42)
+	if err != nil {
+		t.Fatalf("NewInvoiceNumberFromInt64(42) = %v", err)
+	}
+
+	stored, err := value.Value()
+	if err != nil {
+		t.Fatalf(exampleVValueV, value, err)
+	}
+
+	var scanned InvoiceNumber
+
+	err = scanned.Scan(stored)
+	if err != nil || !scanned.Equal(value) {
+		t.Errorf(exampleVBecameVVThroughTheDatabase, value, scanned, err)
+	}
+
+	err = scanned.Scan(nil)
+	if err != nil || !scanned.IsZero() {
+		t.Errorf("Scan(nil) = %v, %v, want the zero InvoiceNumber", scanned, err)
+	}
+
+	err = scanned.Scan(struct{}{})
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf(exampleScanStructVWantErrorsErrUnsupported, err)
+	}
+}
+
+// TestSlug_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestSlug_Normalizes(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{"lower folds an upper-case value", "A", "a"},
+	} {
+		want, err := NewSlug(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewSlug(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewSlug(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
+}
+
+// TestSlug_ZeroHasNoText checks that the zero Slug cannot be marshaled.
+func TestSlug_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero Slug
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero Slug marshaled: %v", err)
+	}
+}
+
+// TestSlug_SQLKeepsTheZeroAsNull checks NULL and the sources Scan refuses.
+func TestSlug_SQLKeepsTheZeroAsNull(t *testing.T) {
+	const exampleScanStructVWantErrorsErrUnsupported = "Scan(struct{}{}) = %v, want errors.ErrUnsupported"
+
+	t.Parallel()
+
+	var zero Slug
+
+	stored, err := zero.Value()
+	if stored != nil || err != nil {
+		t.Errorf("the zero Slug stored %v, %v, want NULL", stored, err)
+	}
+
+	var scanned Slug
+
+	err = scanned.Scan(nil)
+	if err != nil || !scanned.IsZero() {
+		t.Errorf("Scan(nil) = %v, %v, want the zero Slug", scanned, err)
+	}
+
+	err = scanned.Scan(struct{}{})
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf(exampleScanStructVWantErrorsErrUnsupported, err)
+	}
+}
+
+// TestWeight_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestWeight_RejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects a weight below zero", "-0.25", []string{"min"}},
+		{"rejects four decimal places do not", "0.1234", []string{"scale"}},
+	} {
+		got, err := NewWeightFromString(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewWeightFromString(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("weight", rule) {
+				t.Errorf("NewWeightFromString(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestWeight_RoundTripsText checks what the directive accepts survives its text.
+func TestWeight_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"1.5", "1.25"} {
+		value, err := NewWeightFromString(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded Weight
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestWeight_RejectsUnreadableText checks text that is no decimal fails the "decimal" rule.
+func TestWeight_RejectsUnreadableText(t *testing.T) {
+	const exampleNotANumber = "not-a-number"
+
+	t.Parallel()
+
+	_, err := NewWeightFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("weight", "decimal") {
+		t.Errorf("NewWeightFromString(%q) = %v, want a %q failure", exampleNotANumber, err, "decimal")
+	}
+}
+
+// TestWeight_ZeroHasNoText checks that the zero Weight cannot be marshaled.
+func TestWeight_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero Weight
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero Weight marshaled: %v", err)
+	}
+}
+
+// TestWeight_RoundTripsSQL checks what the directive accepts survives the database.
+func TestWeight_RoundTripsSQL(t *testing.T) {
+	const (
+		exampleVValueV                     = "%v.Value() = %v"
+		exampleVBecameVVThroughTheDatabase = "%v became %v, %v through the database"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"1.5", "1.25"} {
+		value, err := NewWeightFromString(input)
+		if err != nil {
+			continue
+		}
+
+		stored, err := value.Value()
+		if err != nil {
+			t.Fatalf(exampleVValueV, value, err)
+		}
+
+		var scanned Weight
+
+		err = scanned.Scan(stored)
+		if err != nil || !scanned.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughTheDatabase, value, scanned, err)
+		}
+	}
+}
+
+// TestWeight_SQLKeepsTheZeroAsNull checks NULL and the sources Scan refuses.
+func TestWeight_SQLKeepsTheZeroAsNull(t *testing.T) {
+	const exampleScanStructVWantErrorsErrUnsupported = "Scan(struct{}{}) = %v, want errors.ErrUnsupported"
+
+	t.Parallel()
+
+	var zero Weight
+
+	stored, err := zero.Value()
+	if stored != nil || err != nil {
+		t.Errorf("the zero Weight stored %v, %v, want NULL", stored, err)
+	}
+
+	var scanned Weight
+
+	err = scanned.Scan(nil)
+	if err != nil || !scanned.IsZero() {
+		t.Errorf("Scan(nil) = %v, %v, want the zero Weight", scanned, err)
+	}
+
+	err = scanned.Scan(struct{}{})
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf(exampleScanStructVWantErrorsErrUnsupported, err)
+	}
 }

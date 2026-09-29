@@ -21,7 +21,7 @@ func TestGenerator_FileNames(t *testing.T) {
 		pkg := parseSource(t, twoDirectives, testrules.Set(testrulesPath))
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg})
 
 		// Assert
 		require.NoError(t, err)
@@ -33,7 +33,7 @@ func TestGenerator_FileNames(t *testing.T) {
 		pkg := parseSource(t, twoDirectives, testrules.Set(testrulesPath))
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Suffix: "_gen"})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Suffix: "_gen"})
 
 		// Assert
 		require.NoError(t, err)
@@ -45,7 +45,7 @@ func TestGenerator_FileNames(t *testing.T) {
 		pkg := parseSource(t, twoDirectives, testrules.Set(testrulesPath))
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, PerValueObject: true})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, PerValueObject: true})
 
 		// Assert
 		require.NoError(t, err)
@@ -54,7 +54,7 @@ func TestGenerator_FileNames(t *testing.T) {
 		}, baseNames(files))
 		assert.Contains(t, string(files[0].Content), "type CountryCode struct")
 		assert.NotContains(t, string(files[0].Content), "GeoNamesID")
-		assert.Contains(t, string(files[3].Content), "func TestGeoNamesID(")
+		assert.Contains(t, string(files[3].Content), "func TestGeoNamesID_ZeroHasNoText(")
 	})
 }
 

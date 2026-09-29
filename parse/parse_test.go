@@ -425,3 +425,50 @@ func TestFilesRejectsUnterminatedQuote(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, at(t, src, "//vogue:string")+": unterminated quoted parameter", err.Error())
 }
+
+func TestFilesRegexMessage(t *testing.T) {
+	t.Parallel()
+
+	t.Run("collects the message apart from the rules", func(t *testing.T) {
+		t.Parallel()
+
+		// Act.
+		pkg, err := parseSrc(t, "package tab\n//vogue:string Code regex=^[A-Z]{2}$ regex_message=\"must be a two-letter code\"\n")
+
+		// Assert.
+		require.NoError(t, err)
+		d := pkg.Files[0].Directives[0]
+		assert.Equal(t, []string{"regex=^[A-Z]{2}$"}, ruleUses(d))
+		assert.Equal(t, "must be a two-letter code", d.RegexMessage)
+	})
+
+	t.Run("has no message unless one is written", func(t *testing.T) {
+		t.Parallel()
+
+		// Act.
+		pkg, err := parseSrc(t, "package tab\n//vogue:string Code regex=^[A-Z]{2}$\n")
+
+		// Assert.
+		require.NoError(t, err)
+		assert.Empty(t, pkg.Files[0].Directives[0].RegexMessage)
+	})
+
+	for name, tc := range map[string]struct{ src, want string }{
+		"without a value":         {`//vogue:string Code regex=^a$ regex_message`, "regex_message requires a message"},
+		"with an empty value":     {`//vogue:string Code regex=^a$ regex_message=""`, "regex_message requires a message"},
+		"twice":                   {`//vogue:string Code regex=^a$ regex_message="one" regex_message="two"`, "duplicate regex_message"},
+		"without a regex rule":    {`//vogue:string Code required regex_message="one"`, "regex_message needs a regex rule"},
+		"on a kind with no rules": {`//vogue:int Covers min=1 regex_message="one"`, "regex_message needs a regex rule"},
+	} {
+		t.Run("rejects it "+name, func(t *testing.T) {
+			t.Parallel()
+
+			// Act.
+			_, err := parseSrc(t, "package tab\n"+tc.src+"\n")
+
+			// Assert.
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), tc.want)
+		})
+	}
+}

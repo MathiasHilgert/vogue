@@ -1,36 +1,29 @@
 {{/*
-The body every validating constructor shares: the constants its rules
-declared, the rules in directive order, and the failure branch. The template
-is rendered with the voView of the value object; ValueExpr renders the working
-value as the text a FieldError carries.
+The body every validating constructor shares: the result that stays zero unless
+every rule passes, the failures, the constants the rules declared, the rules in
+directive order and the way out. The template is rendered with the voView of
+the value object.
 */}}
-{{define "validate"}}{{range .Locals}}	{{.}}
-
-{{end}}{{if .Methods}}	var {{.Recv}} {{.Name}}
-
-{{end}}	var notification validation.Notification
-
+{{define "validate"}}	var {{.Recv}} {{.Name}} // stays zero unless every rule passes
+	var failures {{.Failures}}
+{{range .Locals}}
+	{{.}}
+{{end}}
 	value := raw
 {{range .Steps}}{{if .Normalize}}	{{.Code}}
 {{else}}	if {{.Failed}} {
-		notification.Reject(
-			{{q .Field}},
-			{{q .Rule}},
-			{{q .Param}},
-			{{$.ValueExpr}},
-			{{q .Message}},
-		)
-	}
+		failures.Add({{q .Field}}, {{q .Rule}}, {{q .Message}})
+{{if .Halt}}
+		return {{$.Recv}}, failures.Err()
+{{end}}	}
 {{end}}{{end}}
-	if notification.HasErrors() {
-		var zero {{.Name}}
-
-		// Only a rejected input escapes to the heap: the notification is
-		// copied here, so the happy path above allocates nothing.
-		failed := notification
-
-		return zero, &failed
+	err := failures.Err()
+	if err != nil {
+		return {{.Recv}}, err
 	}
+
+	return {{.Name}}{value: value, set: true}, nil
+}
 {{end}}
 
 {{/*
@@ -38,8 +31,7 @@ The unexported methods the rules of a value object asked for, written after
 its exported ones. The receiver is unnamed: a check reads nothing from it.
 */}}
 {{define "rulemethods"}}{{range .Methods}}
-// {{.Name}} implements the {{.Rule}} rule of New{{$.Name}}: it reports whether
-// value is acceptable.
+// {{.Name}} implements the {{.Rule}} rule of New{{$.Name}}.
 {{- if .Long}}
 //
 //nolint:funlen // the body lists data, every name the rule accepts, not logic.

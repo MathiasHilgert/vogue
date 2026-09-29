@@ -257,6 +257,12 @@ type Rule struct {
 	Param ParamSpec
 	// Message is the failure message template rendered with [MessageData].
 	Message string
+	// Precondition marks a check the rules written after it depend on, such as
+	// `required`: when it fails, the constructor returns at once with the
+	// failures recorded so far, and the rules after it do not run. Without it
+	// an empty input would be reported once for every rule that also rejects
+	// the empty string. A normalizer cannot be a precondition.
+	Precondition bool
 	// Normalize marks the rule as a normalizer rather than a check: its [Rule.Emit]
 	// returns a Go statement that rewrites the working variable, and it produces
 	// no failure. Normalizers run in the order they are written, so every rule
@@ -349,6 +355,9 @@ func (r Rule) Validate() error {
 	}
 	if r.Local != nil && r.Emit == nil {
 		return fmt.Errorf("vogue: rule %q: Local requires Emit, a rule without an expression declares nothing", r.Name)
+	}
+	if r.Precondition && r.Normalize {
+		return fmt.Errorf("vogue: rule %q: a normalizing rule records no failure, so it cannot be a precondition", r.Name)
 	}
 	if r.Method != nil && r.Normalize {
 		return fmt.Errorf("vogue: rule %q: a normalizing rule must emit a statement, Method is not supported", r.Name)

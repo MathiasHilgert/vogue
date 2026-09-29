@@ -28,9 +28,9 @@ var strictVariants = []struct {
 	// domain is what a hexagonal domain package holds: no database/sql/driver,
 	// which the consumer's depguard forbids there, and the JSONSchema method
 	// the HTTP adapter publishes.
-	{dir: "domain", opts: gen.Options{OmitSQL: true, Schema: true}},
+	{dir: "domain", opts: gen.Options{Validation: testValidation, Schema: true}},
 	// persistence is the same directives with the SQL codec.
-	{dir: "persistence", opts: gen.Options{}},
+	{dir: "persistence", opts: gen.Options{Validation: testValidation, SQL: true}},
 }
 
 func TestGenerate_Strict(t *testing.T) {

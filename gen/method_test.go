@@ -44,7 +44,7 @@ func TestGenerator_RuleMethods(t *testing.T) {
 		pkg := parseSource(t, "//vogue:string Code method\n", set)
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: set})
 
 		// Assert
 		require.NoError(t, err)
@@ -52,7 +52,7 @@ func TestGenerator_RuleMethods(t *testing.T) {
 		assert.Contains(t, code, "func (Code) containsLetterA(value string) bool {")
 		assert.Contains(t, code, "\treturn strings.Contains(value, \"a\")\n}")
 		assert.Contains(t, code, "if !code.containsLetterA(value) {")
-		assert.Contains(t, code, "var code Code")
+		assert.Contains(t, code, "var code Code // stays zero unless every rule passes")
 		assert.Contains(t, code, "\t\"strings\"\n")
 		assert.Less(t, strings.Index(code, "func (code Code) MarshalText"), strings.Index(code, "func (Code) containsLetterA"),
 			"exported methods come before unexported ones")
@@ -64,7 +64,7 @@ func TestGenerator_RuleMethods(t *testing.T) {
 		pkg := parseSource(t, "//vogue:string Code method\n\n//vogue:string Other method\n", set)
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: set})
 
 		// Assert
 		require.NoError(t, err)
@@ -79,7 +79,7 @@ func TestGenerator_RuleMethods(t *testing.T) {
 		pkg := parseSource(t, "//vogue:int Count method\n", set)
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: set})
 
 		// Assert
 		require.NoError(t, err)
@@ -92,24 +92,11 @@ func TestGenerator_RuleMethods(t *testing.T) {
 		pkg := parseSource(t, "//vogue:decimal Price method\n", set)
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: set})
 
 		// Assert
 		require.NoError(t, err)
 		assert.Contains(t, string(files[0].Content), "func (Price) isPositive(value decimal.Decimal) bool {")
-	})
-
-	t.Run("does not declare the receiver when no rule uses a method", func(t *testing.T) {
-		// Arrange
-		set := methodSet(t, methodRule("containsLetterA", body, vogue.Kinds(vogue.String)))
-		pkg := parseSource(t, "//vogue:string Code\n", set)
-
-		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
-
-		// Assert
-		require.NoError(t, err)
-		assert.NotContains(t, string(files[0].Content), "var code Code")
 	})
 
 	for name, method := range map[string]string{
@@ -126,7 +113,7 @@ func TestGenerator_RuleMethods(t *testing.T) {
 			pkg := parseSource(t, "//vogue:string Code method\n", set)
 
 			// Act
-			_, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+			_, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: set})
 
 			// Assert
 			require.Error(t, err)
@@ -141,7 +128,7 @@ func TestGenerator_RuleMethods(t *testing.T) {
 		pkg := parseSource(t, "//vogue:string Code method\n", set)
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: set})
 
 		// Assert
 		require.NoError(t, err)
@@ -154,7 +141,7 @@ func TestGenerator_RuleMethods(t *testing.T) {
 		pkg := parseSource(t, "//vogue:string Code method\n", set)
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: set})
 
 		// Assert
 		require.NoError(t, err)

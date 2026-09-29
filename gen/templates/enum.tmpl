@@ -1,79 +1,58 @@
 {{$n := .Name}}{{$r := .Recv}}{{$c := .Catalogue}}{{$k := .CatalogueRecv}}
 {{range .DocLines}}// {{.}}
 {{end}}//
-// The members are returned by the methods of [{{$c}}]: {{$c}}{}.{{(index .Members 0).Method}}() and
-// its siblings. The type stays a struct with an unexported field so its zero
-// value is not a member: an uninitialised {{$n}} reports IsZero and can never
-// be mistaken for a meaningful state.
+// Its members are the methods of [{{$c}}], spelled {{$c}}{}.{{(index .Members 0).Method}}(). The zero {{$n}} is no member.
 {{- if .SQL}}
 //
 //nolint:recvcheck // Scan implements sql.Scanner and needs a pointer receiver.
 {{- end}}
 type {{$n}} struct{ value string }
 
-// {{$c}} is the catalogue of the members of {{$n}}. It holds nothing: its zero
-// value is the whole catalogue, so a member is spelled {{$c}}{}.{{(index .Members 0).Method}}().
+// {{$c}} is the catalogue of the members of {{$n}}; its zero value is all of it.
 type {{$c}} struct{}
 {{range .Members}}
 // {{.Method}} returns the {{q .Value}} member of {{$n}}.
 func ({{$c}}) {{.Method}}() {{$n}} { return {{$n}}{value: {{q .Value}}} }
 {{end}}
-// All returns every member in declaration order, so code that must handle every
-// member — a test, a lookup table — can range over it instead of listing them.
+// All returns every member in declaration order.
 func ({{$k}} {{$c}}) All() []{{$n}} {
 	return []{{$n}}{
 {{range .Members}}		{{$k}}.{{.Method}}(),
 {{end}}	}
 }
 
-// Parse resolves the wire representation of a member, rejecting anything else
-// as a failure of the "oneof" rule. It compares against the members' own
-// values, so no wire string is written twice and nothing is allocated.
+// Parse returns the member whose wire value is raw, or a "oneof" failure.
 func ({{$k}} {{$c}}) Parse(raw string) ({{$n}}, error) {
 	switch raw {
-{{range .Members}}	case {{$k}}.{{.Method}}().value:
+{{range .Members}}	case {{q .Value}}:
 		return {{$k}}.{{.Method}}(), nil
 {{end}}	}
 
-	var (
-		zero {{$n}}
-		notification validation.Notification
-	)
+	var failures {{.Failures}}
+	failures.Add({{q .Field}}, "oneof", {{q .Message}})
 
-	notification.Reject(
-		{{q .Field}},
-		"oneof",
-		{{q .MemberParam}},
-		raw,
-		"{{.Field}} must be one of: {{.MemberList}}",
-	)
-
-	return zero, &notification
+	return {{$n}}{}, failures.Err()
 }
 
-// String returns the wire representation of the member, empty for the zero
-// value.
+// String returns the wire value, empty for the zero {{$n}}.
 func ({{$r}} {{$n}}) String() string { return {{$r}}.value }
 
-// IsZero reports whether the receiver is the zero {{$n}} rather than one of
-// its members.
+// IsZero reports whether the receiver is no member; `json:",omitzero"` asks it.
 func ({{$r}} {{$n}}) IsZero() bool { return {{$r}}.value == "" }
 
-// Equal reports whether both value objects hold the same member.
-func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.value == other.value }
+// Equal reports whether both are the same member.
+func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}} == other }
 
-// MarshalText implements encoding.TextMarshaler, which is also what
-// encoding/json uses, so a member marshals as its wire string.
+// MarshalText implements encoding.TextMarshaler; the zero {{$n}} has no text form.
 func ({{$r}} {{$n}}) MarshalText() ([]byte, error) {
 	if {{$r}}.IsZero() {
-		return nil, fmt.Errorf("vogue: cannot marshal the zero {{$n}}: %w", validation.ErrZeroValue)
+		return nil, fmt.Errorf("cannot marshal the zero {{$n}}: %w", errors.ErrUnsupported)
 	}
 
 	return []byte({{$r}}.value), nil
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler through {{$c}}.Parse, so
-// an unknown member is rejected rather than accepted as a new state.
+// UnmarshalText implements encoding.TextUnmarshaler through {{$c}}.Parse.
 func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 	parsed, err := {{$c}}{}.Parse(string(data))
 	if err != nil {
@@ -84,12 +63,10 @@ func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 
 	return nil
 }
-{{template "json" .}}
 {{if .SQL}}
-// Value implements driver.Valuer. The zero {{$n}}, which is no member, is
-// stored as NULL.
+// Value implements driver.Valuer; the zero {{$n}} is stored as NULL.
 func ({{$r}} {{$n}}) Value() (driver.Value, error) {
-	if {{$r}}.value == "" {
+	if {{$r}}.IsZero() {
 		// A nil driver.Value is SQL NULL.
 		var null driver.Value
 
@@ -99,8 +76,7 @@ func ({{$r}} {{$n}}) Value() (driver.Value, error) {
 	return {{$r}}.value, nil
 }
 
-// Scan implements sql.Scanner for text columns, rejecting a stored value that
-// is no longer a member.
+// Scan implements sql.Scanner and rejects a stored value that is no longer a member.
 func ({{$r}} *{{$n}}) Scan(src any) error {
 	switch source := src.(type) {
 	case nil:
@@ -114,7 +90,7 @@ func ({{$r}} *{{$n}}) Scan(src any) error {
 	case []byte:
 		return {{$r}}.UnmarshalText(source)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into {{$n}}: %w", src, validation.ErrUnsupportedSource)
+		return fmt.Errorf("cannot scan %T into {{$n}}: %w", src, errors.ErrUnsupported)
 	}
 }
 {{end}}

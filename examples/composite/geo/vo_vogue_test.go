@@ -3,45 +3,136 @@
 package geo
 
 import (
+	"errors"
 	"testing"
-
-	"github.com/MathiasHilgert/vogue/voguetest"
 )
 
-// TestLatitude runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestLatitude(t *testing.T) {
+// TestLatitude_AcceptsItsExamples checks the values the directive declares valid.
+func TestLatitude_AcceptsItsExamples(t *testing.T) {
 	t.Parallel()
 
-	voguetest.Scalar[Latitude, *Latitude, string]{
-		Field:        "latitude",
-		New:          NewLatitudeFromString,
-		Get:          nil,
-		FromString:   NewLatitudeFromString,
-		ParseRule:    "decimal",
-		Examples:     []string{"-34.603722"},
-		Candidates:   nil,
-		Rejected:     nil,
-		Normalized:   nil,
-		RefusesFloat: true,
-	}.Run(t)
+	for _, input := range []string{"-34.603722"} {
+		got, err := NewLatitudeFromString(input)
+		if err != nil || got.IsZero() {
+			t.Errorf("NewLatitudeFromString(%q) = %v, %v, want a constructed value", input, got, err)
+		}
+	}
 }
 
-// TestLongitude runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestLongitude(t *testing.T) {
+// TestLatitude_RoundTripsText checks what the directive accepts survives its text.
+func TestLatitude_RoundTripsText(t *testing.T) {
 	t.Parallel()
 
-	voguetest.Scalar[Longitude, *Longitude, string]{
-		Field:        "longitude",
-		New:          NewLongitudeFromString,
-		Get:          nil,
-		FromString:   NewLongitudeFromString,
-		ParseRule:    "decimal",
-		Examples:     []string{"-58.381592"},
-		Candidates:   nil,
-		Rejected:     nil,
-		Normalized:   nil,
-		RefusesFloat: true,
-	}.Run(t)
+	for _, input := range []string{"-34.603722"} {
+		value, err := NewLatitudeFromString(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf("%v.MarshalText() = %v", value, err)
+		}
+
+		var decoded Latitude
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf("%v became %v, %v through its text", value, decoded, err)
+		}
+	}
+}
+
+// TestLatitude_RejectsUnreadableText checks text that is no decimal fails the "decimal" rule.
+func TestLatitude_RejectsUnreadableText(t *testing.T) {
+	const (
+		exampleNotANumber = "not-a-number"
+		exampleDecimal    = "decimal"
+	)
+
+	t.Parallel()
+
+	_, err := NewLatitudeFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("latitude", exampleDecimal) {
+		t.Errorf("NewLatitudeFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleDecimal)
+	}
+}
+
+// TestLatitude_ZeroHasNoText checks that the zero Latitude cannot be marshaled.
+func TestLatitude_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero Latitude
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero Latitude marshaled: %v", err)
+	}
+}
+
+// TestLongitude_AcceptsItsExamples checks the values the directive declares valid.
+func TestLongitude_AcceptsItsExamples(t *testing.T) {
+	t.Parallel()
+
+	for _, input := range []string{"-58.381592"} {
+		got, err := NewLongitudeFromString(input)
+		if err != nil || got.IsZero() {
+			t.Errorf("NewLongitudeFromString(%q) = %v, %v, want a constructed value", input, got, err)
+		}
+	}
+}
+
+// TestLongitude_RoundTripsText checks what the directive accepts survives its text.
+func TestLongitude_RoundTripsText(t *testing.T) {
+	t.Parallel()
+
+	for _, input := range []string{"-58.381592"} {
+		value, err := NewLongitudeFromString(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf("%v.MarshalText() = %v", value, err)
+		}
+
+		var decoded Longitude
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf("%v became %v, %v through its text", value, decoded, err)
+		}
+	}
+}
+
+// TestLongitude_RejectsUnreadableText checks text that is no decimal fails the "decimal" rule.
+func TestLongitude_RejectsUnreadableText(t *testing.T) {
+	const (
+		exampleNotANumber = "not-a-number"
+		exampleDecimal    = "decimal"
+	)
+
+	t.Parallel()
+
+	_, err := NewLongitudeFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("longitude", exampleDecimal) {
+		t.Errorf("NewLongitudeFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleDecimal)
+	}
+}
+
+// TestLongitude_ZeroHasNoText checks that the zero Longitude cannot be marshaled.
+func TestLongitude_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero Longitude
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero Longitude marshaled: %v", err)
+	}
 }

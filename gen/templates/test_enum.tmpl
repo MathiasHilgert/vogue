@@ -1,19 +1,107 @@
-{{$n := .Name}}
-// Test{{$n}} runs the enum suite: the catalogue lists the members the
-// directive declares, in order, parses each of them and nothing else, and
-// round-trips them. The expected list is generated from the same directive, so
-// it proves the catalogue is consistent with the directive, not that the
-// directive is right; pin the members in a hand-written test when a change to
-// them must be deliberate.
-func Test{{$n}}(t *testing.T) {
+{{$n := .Name}}{{$c := .Catalogue}}
+// Test{{$n}}_ListsItsMembers checks that {{$c}} lists the members the directive
+// declares, in order. The expected list is generated from the same directive,
+// so it proves the catalogue is consistent with it, not that the directive is
+// right.
+func Test{{$n}}_ListsItsMembers(t *testing.T) {
 	t.Parallel()
 
-	voguetest.Enum[{{$n}}, *{{$n}}]{
-		Field: {{q .Field}},
-		All:   {{.Catalogue}}{}.All(),
-		Parse: {{.Catalogue}}{}.Parse,
-		Want: []string{
-{{range .Members}}			{{q .Value}},
-{{end}}		},
-	}.Run(t)
+	want := []string{ {{- range $i, $m := .Members}}{{if $i}}, {{end}}{{q $m.Value}}{{end -}} }
+	members := {{$c}}{}.All()
+	if len(members) != len(want) {
+		t.Fatalf("{{$c}}{}.All() lists %d members, want %d", len(members), len(want))
+	}
+
+	for index, member := range members {
+		if member.String() != want[index] || member.IsZero() {
+			t.Errorf("{{$c}}{}.All()[%d] = %q, want %q", index, member, want[index])
+		}
+	}
 }
+
+// Test{{$n}}_ParsesItsMembersAndNothingElse checks {{$c}}.Parse.
+func Test{{$n}}_ParsesItsMembersAndNothingElse(t *testing.T) {
+	t.Parallel()
+
+	members := {{$c}}{}.All()
+	for _, member := range members {
+		got, err := {{$c}}{}.Parse(member.String())
+		if err != nil || !got.Equal(member) {
+			t.Errorf("{{$c}}{}.Parse(%q) = %v, %v, want the member", member, got, err)
+		}
+	}
+
+	for _, raw := range []string{"not-a-member", ""} {
+		got, err := {{$c}}{}.Parse(raw)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !failed.Has({{q .Field}}, "oneof") || !got.IsZero() {
+			t.Errorf("{{$c}}{}.Parse(%q) = %v, %v, want a %q failure and the zero {{$n}}", raw, got, err, "oneof")
+		}
+	}
+}
+
+// Test{{$n}}_RoundTripsText checks that every member survives its text.
+func Test{{$n}}_RoundTripsText(t *testing.T) {
+	t.Parallel()
+
+	members := {{$c}}{}.All()
+	for _, member := range members {
+		text, err := member.MarshalText()
+		if err != nil {
+			t.Fatalf("%v.MarshalText() = %v", member, err)
+		}
+
+		var decoded {{$n}}
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(member) {
+			t.Errorf("%v became %v, %v through its text", member, decoded, err)
+		}
+	}
+}
+
+// Test{{$n}}_ZeroIsNoMember checks that the zero {{$n}} is no member and has no text.
+func Test{{$n}}_ZeroIsNoMember(t *testing.T) {
+	t.Parallel()
+
+	var zero {{$n}}
+
+	_, err := zero.MarshalText()
+	if !zero.IsZero() || !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero {{$n}} marshaled: %v", err)
+	}
+}
+{{if .SQL}}
+// Test{{$n}}_RoundTripsSQL checks every member survives the database, and NULL.
+func Test{{$n}}_RoundTripsSQL(t *testing.T) {
+	t.Parallel()
+
+	members := {{$c}}{}.All()
+	for _, member := range members {
+		stored, err := member.Value()
+		if err != nil {
+			t.Fatalf("%v.Value() = %v", member, err)
+		}
+
+		var scanned {{$n}}
+
+		err = scanned.Scan(stored)
+		if err != nil || !scanned.Equal(member) {
+			t.Errorf("%v became %v, %v through the database", member, scanned, err)
+		}
+	}
+
+	var zero {{$n}}
+
+	stored, err := zero.Value()
+	if stored != nil || err != nil {
+		t.Errorf("the zero {{$n}} stored %v, %v, want NULL", stored, err)
+	}
+
+	err = zero.Scan(struct{}{})
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("Scan(struct{}{}) = %v, want errors.ErrUnsupported", err)
+	}
+}
+{{end}}

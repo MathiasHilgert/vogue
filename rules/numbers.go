@@ -19,7 +19,7 @@ var Positive = vogue.Rule{
 		"quantity that only means something when there is at least some of the thing: a party at " +
 		"a table, a line on an order, a weight on a scale. Zero is rejected; when zero is a " +
 		"legitimate value use `nonneg`, and when the floor is something else use `min`.",
-	Message: "{{.Field}} must be greater than zero",
+	Message: "must be greater than zero",
 	Emit:    func(c vogue.EmitContext) string { return signCompare(c, ">") },
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
@@ -45,7 +45,7 @@ var NonNeg = vogue.Rule{
 		"legitimately be nothing — a stock level, a discount, a number of no-shows — where zero is " +
 		"a real answer and a negative number is a mistake. It is `min=0` said in a way the " +
 		"directive can be read out loud.",
-	Message: "{{.Field}} must not be negative",
+	Message: "must not be negative",
 	Emit:    func(c vogue.EmitContext) string { return signCompare(c, ">=") },
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
@@ -73,7 +73,7 @@ var MultipleOf = vogue.Rule{
 		"multiple of 15 as 30 is; add `positive` or `nonneg` when they should not be. " +
 		"`multipleof=0` accepts only zero, which is the mathematically honest reading of it.",
 	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamInt},
-	Message: "{{.Field}} must be a multiple of {{.Param}}",
+	Message: "must be a multiple of {{.Param}}",
 	Emit: func(c vogue.EmitContext) string {
 		// A modulo by a constant zero does not compile, so the degenerate
 		// parameter is answered directly: zero is the only multiple of zero.
@@ -114,7 +114,7 @@ var Scale = vogue.Rule{
 		"forgot. The scale compared is the scale of the value as written, so \"0.5000\" carries " +
 		"four decimal places even though \"0.5\" is the same number.",
 	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamInt},
-	Message: "{{.Field}} must have at most {{.Param}} decimal places",
+	Message: "must have at most {{.Param}} decimal places",
 	Emit:    func(c vogue.EmitContext) string { return c.Var + ".Scale() <= " + c.Ident },
 	Local:   func(c vogue.EmitContext) string { return "const " + c.Ident + " = " + integer(c.Param) },
 	Examples: vogue.Examples{
@@ -142,7 +142,7 @@ var NonZero = vogue.Rule{
 		"holding zero is indistinguishable from the zero value of its type, so a field that may " +
 		"legitimately be zero is better modelled as a pointer or an optional than talked out of " +
 		"it by a rule.",
-	Message: "{{.Field}} must not be zero",
+	Message: "must not be zero",
 	Emit:    func(c vogue.EmitContext) string { return "!" + c.Var + ".IsZero()" },
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{

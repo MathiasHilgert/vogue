@@ -2,9 +2,9 @@ package fixture_test
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
-	"github.com/MathiasHilgert/vogue"
 	"github.com/MathiasHilgert/vogue/gen/internal/fixture"
 	"github.com/govalues/decimal"
 	"github.com/stretchr/testify/assert"
@@ -43,7 +43,7 @@ func TestWeight(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		require.ErrorIs(t, err, vogue.FieldError{Field: "weight", Rule: "min"})
+		assert.True(t, rejectedBy(err, "weight", "min"), "%v", err)
 		assert.True(t, got.IsZero())
 	})
 
@@ -55,7 +55,7 @@ func TestWeight(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "weight", Rule: "scale"})
+		assert.True(t, rejectedBy(err, "weight", "scale"), "%v", err)
 	})
 
 	t.Run("an unreadable representation fails the decimal rule", func(t *testing.T) {
@@ -66,7 +66,7 @@ func TestWeight(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "weight", Rule: "decimal"})
+		assert.True(t, rejectedBy(err, "weight", "decimal"), "%v", err)
 	})
 
 	t.Run("equality compares the number and not the scale it was written at", func(t *testing.T) {
@@ -139,6 +139,7 @@ func TestWeight(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
+		require.ErrorIs(t, err, errors.ErrUnsupported)
 		assert.Contains(t, err.Error(), "binary float")
 		assert.True(t, got.IsZero())
 	})

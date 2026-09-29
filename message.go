@@ -8,10 +8,20 @@ import (
 )
 
 // MessageData is the data available to a rule message template. Templates use
-// text/template syntax and may reference {{.Field}}, {{.Param}} and {{.Value}}.
+// text/template syntax and may reference {{.Field}}, {{.Param}}, {{.Value}}
+// and {{.Kind}}.
+//
+// The built-in messages do not name the field: a failure already carries it,
+// so a message reads as what is wrong with it, "is required" or "must be a
+// valid email address". Field stays available for a custom rule that wants it.
 type MessageData struct {
 	// Field is the value-object field name the rule was applied to.
 	Field string
+	// Kind is the kind of the value object the rule was applied to, so one
+	// rule spanning several kinds can word its message for each, as `max`
+	// does for a length and for a number. It is compared as text:
+	// {{if eq .Kind.String "string"}}.
+	Kind Kind
 	// Param is the rule parameter as written in the directive.
 	Param string
 	// Value is the offending input rendered as text.

@@ -1,32 +1,215 @@
-{{$n := .Name}}
-// Test{{$n}} runs the value-object suite against the examples the directive
-// and its rules declare.
-func Test{{$n}}(t *testing.T) {
+{{$n := .Name}}{{$inputs := .InType}}
+{{if .Examples}}
+// Test{{$n}}_AcceptsItsExamples checks the values the directive declares valid.
+func Test{{$n}}_AcceptsItsExamples(t *testing.T) {
 	t.Parallel()
 
-	voguetest.Scalar[{{$n}}, *{{$n}}, {{.InType}}]{
-		Field:      {{q .Field}},
-		New:        {{.Ctor}},
-		Get:        {{or .Get "nil"}},
-		FromString: {{or .FromString "nil"}},
-		ParseRule:  {{q .ParseRule}},
-		Examples:   {{if .Examples}}[]{{.InType}}{ {{- range $i, $e := .Examples}}{{if $i}}, {{end}}{{$e}}{{end -}} }{{else}}nil{{end}},
-		Candidates: {{if .Candidates}}[]{{.InType}}{ {{- range $i, $e := .Candidates}}{{if $i}}, {{end}}{{$e}}{{end -}} }{{else}}nil{{end}},
-		Rejected: {{if .Cases}}[]voguetest.Rejection[{{.InType}}]{
-{{range .Cases}}			{
-				Name:  {{q .Name}},
-				Input: {{.Lit}},
-				Rules: []string{ {{- range $i, $rule := .Rules}}{{if $i}}, {{end}}{{q $rule}}{{end -}} },
-				Described: {{.Described}},
-			},
-{{end}}		}{{else}}nil{{end}},
-		Normalized: {{if .Normalizations}}[]voguetest.Normalization[{{.InType}}]{
-{{range .Normalizations}}			{
-				Name: {{q .Name}},
-				Input: {{.In}},
-				Out:  {{.Out}},
-			},
-{{end}}		}{{else}}nil{{end}},
-		RefusesFloat: {{.RefusesFloat}},
-	}.Run(t)
+	for _, input := range []{{$inputs}}{ {{- range $i, $e := .Examples}}{{if $i}}, {{end}}{{$e}}{{end -}} } {
+		got, err := {{.Ctor}}(input)
+		if err != nil || got.IsZero() {
+			t.Errorf("{{.Ctor}}({{.Verb}}) = %v, %v, want a constructed value", input, got, err)
+		}
+{{- if .Read}}
+
+		if got.{{.Read}}() != input {
+			t.Errorf("{{.Ctor}}({{.Verb}}) holds %v, want it unchanged", input, got)
+		}
+{{- end}}
+	}
 }
+{{end}}{{if .Cases}}
+// Test{{$n}}_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func Test{{$n}}_RejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+{{- if eq .InType "string"}}
+		note, input string
+		rules       []string
+{{- else}}
+		note  string
+		rules []string
+		input {{$inputs}}
+{{- end}}
+	}{
+{{range .Cases}}		{ {{- q .Note}}, {{if eq $.InType "string"}}{{.Lit}}, []string{ {{- range $i, $rule := .Rules}}{{if $i}}, {{end}}{{q $rule}}{{end -}} }{{else}}[]string{ {{- range $i, $rule := .Rules}}{{if $i}}, {{end}}{{q $rule}}{{end -}} }, {{.Lit}}{{end}}},
+{{end}}	} {
+		got, err := {{.Ctor}}(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"{{.Ctor}}({{.Verb}}) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has({{q .Field}}, rule) {
+				t.Errorf("{{.Ctor}}({{.Verb}}) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+{{end}}{{if .Normalizations}}
+// Test{{$n}}_Normalizes checks the rewrites the normalizers of the directive declare.
+func Test{{$n}}_Normalizes(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		note      string
+		input, want {{$inputs}}
+	}{
+{{range .Normalizations}}		{ {{- q .Name}}, {{.In}}, {{.Out}} },
+{{end}}	} {
+		want, err := {{.Ctor}}(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := {{.Ctor}}(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("{{.Ctor}}({{.Verb}}) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
+}
+{{end}}{{if .Samples}}
+// Test{{$n}}_RoundTripsText checks what the directive accepts survives its text.
+func Test{{$n}}_RoundTripsText(t *testing.T) {
+	t.Parallel()
+
+	for _, input := range []{{$inputs}}{ {{- range $i, $e := .Samples}}{{if $i}}, {{end}}{{$e}}{{end -}} } {
+		value, err := {{.Ctor}}(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf("%v.MarshalText() = %v", value, err)
+		}
+
+		var decoded {{$n}}
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf("%v became %v, %v through its text", value, decoded, err)
+		}
+	}
+}
+{{end}}{{if .FromString}}
+// Test{{$n}}_RejectsUnreadableText checks text that is no {{.ParseRule}} fails the {{q .ParseRule}} rule.
+func Test{{$n}}_RejectsUnreadableText(t *testing.T) {
+	t.Parallel()
+
+	_, err := {{.FromString}}("not-a-number")
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has({{q .Field}}, {{q .ParseRule}}) {
+		t.Errorf("{{.FromString}}(%q) = %v, want a %q failure", "not-a-number", err, {{q .ParseRule}})
+	}
+}
+{{end}}
+// Test{{$n}}_ZeroHasNoText checks that the zero {{$n}} cannot be marshaled.
+func Test{{$n}}_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero {{$n}}
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero {{$n}} marshaled: %v", err)
+	}
+}
+{{if .SQL}}{{if .Samples}}
+// Test{{$n}}_RoundTripsSQL checks what the directive accepts survives the database.
+func Test{{$n}}_RoundTripsSQL(t *testing.T) {
+	t.Parallel()
+
+	for _, input := range []{{$inputs}}{ {{- range $i, $e := .Samples}}{{if $i}}, {{end}}{{$e}}{{end -}} } {
+		value, err := {{.Ctor}}(input)
+		if err != nil {
+			continue
+		}
+
+		stored, err := value.Value()
+		if err != nil {
+			t.Fatalf("%v.Value() = %v", value, err)
+		}
+
+		var scanned {{$n}}
+
+		err = scanned.Scan(stored)
+		if err != nil || !scanned.Equal(value) {
+			t.Errorf("%v became %v, %v through the database", value, scanned, err)
+		}
+	}
+}
+{{end}}
+// Test{{$n}}_SQLKeepsTheZeroAsNull checks NULL and the sources Scan refuses.
+func Test{{$n}}_SQLKeepsTheZeroAsNull(t *testing.T) {
+	t.Parallel()
+
+	var zero {{$n}}
+
+	stored, err := zero.Value()
+	if stored != nil || err != nil {
+		t.Errorf("the zero {{$n}} stored %v, %v, want NULL", stored, err)
+	}
+
+	var scanned {{$n}}
+
+	err = scanned.Scan(nil)
+	if err != nil || !scanned.IsZero() {
+		t.Errorf("Scan(nil) = %v, %v, want the zero {{$n}}", scanned, err)
+	}
+
+	err = scanned.Scan(struct{}{})
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("Scan(struct{}{}) = %v, want errors.ErrUnsupported", err)
+	}
+}
+{{end}}{{with .Schema}}{{if .Checkable}}
+// Test{{$n}}_JSONSchemaDescribesItsSamples checks its samples satisfy its JSON Schema.
+func Test{{$n}}_JSONSchemaDescribesItsSamples(t *testing.T) {
+	t.Parallel()
+
+	var subject {{$n}}
+
+	schema := subject.JSONSchema()
+	for _, input := range []{{$inputs}}{ {{- range $i, $e := $.Samples}}{{if $i}}, {{end}}{{$e}}{{end -}} } {
+		value, err := {{$.Ctor}}(input)
+		if err != nil {
+			continue
+		}
+
+		text := value.String()
+{{- if .Pattern}}
+		if pattern, _ := schema["pattern"].(string); !regexp.MustCompile(pattern).MatchString(text) {
+			t.Errorf("%q does not match the schema pattern %q", text, pattern)
+		}
+{{- end}}
+{{- if .MinLength.Set}}
+		if minimum, _ := schema["minLength"].(int); utf8.RuneCountInString(text) < minimum {
+			t.Errorf("%q is shorter than the schema minLength %d", text, minimum)
+		}
+{{- end}}
+{{- if .MaxLength.Set}}
+		if maximum, _ := schema["maxLength"].(int); utf8.RuneCountInString(text) > maximum {
+			t.Errorf("%q is longer than the schema maxLength %d", text, maximum)
+		}
+{{- end}}
+{{- if .Enum}}
+		if enum, _ := schema["enum"].([]string); !slices.Contains(enum, text) {
+			t.Errorf("%q is not in the schema enum %q", text, enum)
+		}
+{{- end}}
+	}
+}
+{{end}}{{end}}

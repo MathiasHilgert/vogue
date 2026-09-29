@@ -46,9 +46,9 @@ func TestGenerate_ReservedReceiverNames(t *testing.T) {
 			}
 			pkg := parseSource(t, body.String(), rules.MustSet())
 
-			for _, omitSQL := range []bool{false, true} {
+			for _, sql := range []bool{false, true} {
 				// Act
-				files, err := filesOf(t, gen.Options{Package: pkg, OmitSQL: omitSQL})
+				files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, SQL: sql})
 				require.NoError(t, err)
 
 				// Assert

@@ -103,6 +103,10 @@ type Directive struct {
 	// declare no example that survives all of them still gets a tested
 	// sample. It is empty for the enum and id kinds.
 	Examples []string
+	// RegexMessage replaces the generic message of the `regex` rule, written
+	// with a `regex_message="..."` token. It is empty when none was written
+	// and only legal on a directive that uses `regex`.
+	RegexMessage string
 	// Values are the members of an enum, in the order written. It is empty for
 	// every other kind.
 	Values []EnumValue

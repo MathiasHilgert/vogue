@@ -8,21 +8,20 @@
 //
 //   - its fields are unexported, so only its constructor builds a valid one;
 //   - the constructor validates every part and reports every failure at once,
-//     by folding each part's error into one [validation.Notification] with
-//     Collect;
-//   - a rule about the whole, rather than a part, is recorded on the same
-//     notification with Reject.
+//     by joining the error of each part with errors.Join;
+//   - a rule about the whole, rather than a part, is recorded on the failure
+//     type of the project, the one generated code records its failures on.
 //
 // Coordinates below is the whole pattern, written to the same strict lint
 // profile as the generated code next to it.
 package geo
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
-	"github.com/MathiasHilgert/vogue/textjson"
-	"github.com/MathiasHilgert/vogue/validation"
+	"github.com/MathiasHilgert/vogue/examples/validation"
 )
 
 // Coordinates is a WGS 84 point: a latitude and a longitude, each validated by
@@ -35,28 +34,12 @@ type Coordinates struct {
 // NewCoordinates validates both parts and returns the point they describe. The
 // error, when there is one, names every part that failed.
 func NewCoordinates(latitude, longitude string) (Coordinates, error) {
-	var (
-		zero         Coordinates
-		notification validation.Notification
-	)
-
 	parsedLatitude, latitudeErr := NewLatitudeFromString(latitude)
 	parsedLongitude, longitudeErr := NewLongitudeFromString(longitude)
 
-	// Collect hands back only an error that is not a validation failure,
-	// which a generated constructor never returns; it is wrapped all the same
-	// rather than assumed away.
-	for _, err := range []error{latitudeErr, longitudeErr} {
-		unexpected := notification.Collect(err)
-		if unexpected != nil {
-			return zero, fmt.Errorf("vogue: building coordinates: %w", unexpected)
-		}
-	}
-
-	if notification.HasErrors() {
-		failed := notification
-
-		return zero, &failed
+	err := errors.Join(latitudeErr, longitudeErr)
+	if err != nil {
+		return Coordinates{}, fmt.Errorf("invalid coordinates: %w", err)
 	}
 
 	return Coordinates{latitude: parsedLatitude, longitude: parsedLongitude}, nil
@@ -84,54 +67,23 @@ func (coordinates Coordinates) String() string {
 }
 
 // MarshalText implements encoding.TextMarshaler as "latitude,longitude". The
-// zero Coordinates has no text form, like every generated value object: it
-// wraps validation.ErrZeroValue.
+// zero Coordinates has no text form, like every generated value object.
 func (coordinates Coordinates) MarshalText() ([]byte, error) {
 	if coordinates.IsZero() {
-		return nil, fmt.Errorf("vogue: cannot marshal the zero Coordinates: %w", validation.ErrZeroValue)
+		return nil, fmt.Errorf("cannot marshal the zero Coordinates: %w", errors.ErrUnsupported)
 	}
 
 	return []byte(coordinates.String()), nil
-}
-
-// MarshalJSON implements json.Marshaler: null for the zero Coordinates, the
-// JSON string of its text form otherwise.
-func (coordinates Coordinates) MarshalJSON() ([]byte, error) {
-	if coordinates.IsZero() {
-		return textjson.Null(), nil
-	}
-
-	return textjson.Quote([]byte(coordinates.String())), nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler: null reads back as the zero
-// Coordinates, a JSON string through UnmarshalText.
-func (coordinates *Coordinates) UnmarshalJSON(data []byte) error {
-	text, isNull, err := textjson.Unquote(data)
-	if err != nil {
-		return fmt.Errorf("vogue: cannot decode Coordinates: %w", err)
-	}
-
-	if isNull {
-		var zero Coordinates
-
-		*coordinates = zero
-
-		return nil
-	}
-
-	return coordinates.UnmarshalText(text)
 }
 
 // UnmarshalText implements encoding.TextUnmarshaler, re-running validation.
 func (coordinates *Coordinates) UnmarshalText(data []byte) error {
 	latitude, longitude, ok := strings.Cut(string(data), ",")
 	if !ok {
-		var notification validation.Notification
+		var failures validation.Validation
+		failures.Add("coordinates", "pair", "must be written as latitude,longitude")
 
-		notification.Reject("coordinates", "pair", "", string(data), "coordinates must be written as latitude,longitude")
-
-		return &notification
+		return fmt.Errorf("invalid coordinates: %w", failures.Err())
 	}
 
 	parsed, err := NewCoordinates(latitude, longitude)

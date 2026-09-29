@@ -1,11 +1,117 @@
 {{$n := .Name}}
-// Test{{$n}} runs the database-assigned identifier suite.
-func Test{{$n}}(t *testing.T) {
+// Test{{$n}}_AcceptsWhatASequenceHandsOut checks that a positive number, even
+// one above the largest integer a JavaScript number holds, is an identifier.
+func Test{{$n}}_AcceptsWhatASequenceHandsOut(t *testing.T) {
 	t.Parallel()
 
-	voguetest.Int64ID[{{$n}}, *{{$n}}]{
-		Field:      {{q .Field}},
-		FromInt64:  New{{$n}}FromInt64,
-		FromString: New{{$n}}FromString,
-	}.Run(t)
+	const aboveJavaScriptPrecision = 9007199254740993
+
+	for _, input := range []int64{1, aboveJavaScriptPrecision} {
+		got, err := New{{$n}}FromInt64(input)
+		if err != nil || got.IsZero() || got.Int64() != input {
+			t.Errorf("New{{$n}}FromInt64(%d) = %v, %v, want the identifier", input, got, err)
+		}
+	}
 }
+
+// Test{{$n}}_RejectsWhatNoSequenceHandsOut checks that zero and negative numbers are refused.
+func Test{{$n}}_RejectsWhatNoSequenceHandsOut(t *testing.T) {
+	t.Parallel()
+
+	for _, input := range []int64{0, -1} {
+		got, err := New{{$n}}FromInt64(input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !failed.Has({{q .Field}}, "positive") || !got.IsZero() {
+			t.Errorf("New{{$n}}FromInt64(%d) = %v, %v, want a %q failure and the zero {{$n}}",
+				input, got, err, "positive")
+		}
+	}
+}
+
+// Test{{$n}}_ReadsItsText checks New{{$n}}FromString on a number, on text that is
+// none, and on zero.
+func Test{{$n}}_ReadsItsText(t *testing.T) {
+	t.Parallel()
+
+	got, err := New{{$n}}FromString("42")
+	if err != nil || got.String() != "42" {
+		t.Errorf("New{{$n}}FromString(%q) = %v, %v, want 42", "42", got, err)
+	}
+
+	for raw, rule := range map[string]string{"not-a-number": "int", "0": "positive"} {
+		_, err := New{{$n}}FromString(raw)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !failed.Has({{q .Field}}, rule) {
+			t.Errorf("New{{$n}}FromString(%q) = %v, want a %q failure", raw, err, rule)
+		}
+	}
+}
+
+// Test{{$n}}_RoundTripsText checks that an identifier survives its text.
+func Test{{$n}}_RoundTripsText(t *testing.T) {
+	t.Parallel()
+
+	value, err := New{{$n}}FromInt64(42)
+	if err != nil {
+		t.Fatalf("New{{$n}}FromInt64(42) = %v", err)
+	}
+
+	text, err := value.MarshalText()
+	if err != nil {
+		t.Fatalf("%v.MarshalText() = %v", value, err)
+	}
+
+	var decoded {{$n}}
+
+	err = decoded.UnmarshalText(text)
+	if err != nil || !decoded.Equal(value) {
+		t.Errorf("%v became %v, %v through its text", value, decoded, err)
+	}
+}
+
+// Test{{$n}}_ZeroHasNoText checks that the unassigned {{$n}} cannot be marshaled.
+func Test{{$n}}_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero {{$n}}
+
+	_, err := zero.MarshalText()
+	if !zero.IsZero() || !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero {{$n}} marshaled: %v", err)
+	}
+}
+{{if .SQL}}
+// Test{{$n}}_RoundTripsSQL checks Value and Scan, and that NULL is the zero {{$n}}.
+func Test{{$n}}_RoundTripsSQL(t *testing.T) {
+	t.Parallel()
+
+	value, err := New{{$n}}FromInt64(42)
+	if err != nil {
+		t.Fatalf("New{{$n}}FromInt64(42) = %v", err)
+	}
+
+	stored, err := value.Value()
+	if err != nil {
+		t.Fatalf("%v.Value() = %v", value, err)
+	}
+
+	var scanned {{$n}}
+
+	err = scanned.Scan(stored)
+	if err != nil || !scanned.Equal(value) {
+		t.Errorf("%v became %v, %v through the database", value, scanned, err)
+	}
+
+	err = scanned.Scan(nil)
+	if err != nil || !scanned.IsZero() {
+		t.Errorf("Scan(nil) = %v, %v, want the zero {{$n}}", scanned, err)
+	}
+
+	err = scanned.Scan(struct{}{})
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("Scan(struct{}{}) = %v, want errors.ErrUnsupported", err)
+	}
+}
+{{end}}

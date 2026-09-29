@@ -170,16 +170,19 @@ func TestMessages(t *testing.T) {
 	cases := []struct {
 		name  string
 		rule  string
+		kind  vogue.Kind
 		param string
 		want  string
 	}{
-		{name: "required", rule: "required", want: "title is required"},
-		{name: "min on a string", rule: "min", param: "3", want: "title must be at least 3"},
-		{name: "max on a string", rule: "max", param: "120", want: "title must be at most 120"},
-		{name: "len", rule: "len", param: "3", want: "title must be exactly 3 characters long"},
-		{name: "email", rule: "email", want: "title must be a valid email address"},
-		{name: "oneof", rule: "oneof", param: "a,b", want: "title must be one of: a,b"},
-		{name: "prefix", rule: "prefix", param: "SKU-", want: `title must start with "SKU-"`},
+		{name: "required", rule: "required", kind: vogue.String, want: "is required"},
+		{name: "min on a string", rule: "min", kind: vogue.String, param: "3", want: "length must be at least 3"},
+		{name: "min on an int", rule: "min", kind: vogue.Int, param: "3", want: "must be at least 3"},
+		{name: "max on a string", rule: "max", kind: vogue.String, param: "120", want: "length must be at most 120"},
+		{name: "max on a decimal", rule: "max", kind: vogue.Decimal, param: "1.5", want: "must be at most 1.5"},
+		{name: "len", rule: "len", kind: vogue.String, param: "3", want: "must be exactly 3 characters long"},
+		{name: "email", rule: "email", kind: vogue.String, want: "must be a valid email address"},
+		{name: "oneof", rule: "oneof", kind: vogue.String, param: "a,b", want: "must be one of: a,b"},
+		{name: "prefix", rule: "prefix", kind: vogue.String, param: "SKU-", want: `must start with "SKU-"`},
 	}
 
 	set := rules.MustSet()
@@ -190,11 +193,27 @@ func TestMessages(t *testing.T) {
 			require.True(t, ok)
 
 			// Act
-			got, err := rule.RenderMessage(vogue.MessageData{Field: "title", Param: tc.param})
+			got, err := rule.RenderMessage(vogue.MessageData{Field: "title", Kind: tc.kind, Param: tc.param})
 
 			// Assert
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestMessages_DoNotNameTheField(t *testing.T) {
+	// Arrange
+	for _, rule := range rules.All() {
+		t.Run(rule.Name, func(t *testing.T) {
+			for _, kind := range rule.Kinds.Kinds() {
+				// Act
+				got, err := rule.RenderMessage(vogue.MessageData{Field: "thefield", Kind: kind, Param: "1"})
+
+				// Assert
+				require.NoError(t, err)
+				assert.NotContains(t, got, "thefield", "a failure already carries its field, so the message reads after it")
+			}
 		})
 	}
 }

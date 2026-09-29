@@ -17,7 +17,7 @@ func generateDecimal(t *testing.T, directive string) (code, test string) {
 
 	rules := testrules.Set("example.com/tab")
 	pkg := parseSource(t, directive, rules)
-	files, err := filesOf(t, gen.Options{Package: pkg, Rules: rules})
+	files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: rules, SQL: true})
 	require.NoError(t, err)
 	require.Len(t, files, 2)
 	require.Equal(t, gen.CodeFile, files[0].Kind)
@@ -69,7 +69,8 @@ func TestGenerateDecimal(t *testing.T) {
 		assert.Contains(t, code, "func (weight Weight) Value() (driver.Value, error) {")
 		assert.Contains(t, code, "return weight.value.String(), nil")
 		assert.Contains(t, code, "case float64, float32:")
-		assert.Contains(t, code, "cannot scan the binary float %T into Weight")
+		assert.Contains(t, code, "cannot scan the binary float %T into Weight: %w")
+		assert.Contains(t, code, "errors.ErrUnsupported")
 	})
 
 	t.Run("a bound is a constant local to the constructor, not a package-level variable", func(t *testing.T) {
@@ -91,8 +92,7 @@ func TestGenerateDecimal(t *testing.T) {
 		code, _ := generateDecimal(t, "//vogue:decimal Weight min=0\n")
 
 		// Assert
-		assert.Regexp(t, `notification\.Reject\(\s*"weight",\s*"decimal",\s*"",\s*raw,\s*"weight must be an exact decimal number",\s*\)`, code)
-		assert.Contains(t, code, "weight must be an exact decimal number")
+		assert.Contains(t, code, `failures.Add("weight", "decimal", "must be an exact decimal number")`)
 	})
 
 	t.Run("a scale bound compares the scale of the value", func(t *testing.T) {
@@ -113,9 +113,9 @@ func TestGenerateDecimal(t *testing.T) {
 		_, test := generateDecimal(t, "//vogue:decimal Weight min=0\n")
 
 		// Assert
-		assert.Contains(t, test, "voguetest.Scalar[Weight, *Weight, string]{")
-		assert.Regexp(t, `New:\s+NewWeightFromString,`, test)
-		assert.Regexp(t, `RefusesFloat: true,`, test)
+		assert.Contains(t, test, "NewWeightFromString(input)")
+		assert.NotContains(t, test, "NewWeight(input)", "no Go literal spells a decimal.Decimal")
+		assert.Contains(t, test, `failed.Has("weight", "decimal")`)
 	})
 
 	t.Run("a string directive does not import decimal", func(t *testing.T) {

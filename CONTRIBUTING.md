@@ -39,7 +39,7 @@
   golangci-lint run --config gen/testdata/strict/golangci.yml \
     ./gen/testdata/strict/domain/ ./gen/testdata/strict/persistence/ \
     ./rules/internal/catalogue/ ./examples/customrule/domain/ \
-    ./examples/composite/geo/
+    ./examples/composite/geo/ ./examples/validation/
   ```
 
 ## Commit messages
@@ -52,8 +52,14 @@ not obvious from the diff.
 ## Adding a rule
 
 A built-in rule lives in `rules/` and is a plain `vogue.Rule` value: a name,
-the kinds it applies to, its parameter contract, a message template,
-documentation, and examples. Its `Examples` become the generated test for
+the kinds it applies to, its parameter contract, a message template that reads
+after the field name (`is required`, not `title is required`), documentation,
+examples, and exactly one of `Emit` (an inline expression), `Method` (the body
+of an unexported method of the generated type, for a check too long to read
+inline) or `Call` (a predicate in a package that imports nothing of vogue).
+Generated code may import the standard library and nothing of vogue.
+
+Its `Examples` become the generated test for
 every value object that uses it, so a rule without examples has no test
 coverage of its own. See `rules/rules.go` for the shape and
 `examples/customrule` for a project-local rule that is not part of the
