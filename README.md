@@ -9,9 +9,11 @@
 Turns one-line directives into typed, validated, documented value objects and
 their tests. It reads like `go-playground/validator` — rule tags, descriptive
 field errors, custom rules — but resolves everything at generate time: the code
-it writes has no reflection, no runtime registry and no dynamic dispatch, only
-inlined expressions and static calls. A value object arrives with its
-constructor, its codecs and the table-driven test that proves it.
+it writes has no reflection, no runtime registry and no dynamic dispatch, and it
+imports nothing of vogue. It is plain Go you could have written: the standard
+library, the failure type of your own project, and `uuid` or `decimal` when a
+value object uses those kinds. A value object arrives with its constructor, its
+text codec and the table-driven test that proves it.
 
 ## Quick start
 
@@ -21,7 +23,7 @@ go install github.com/MathiasHilgert/vogue/cmd/vogue@latest
 
 ```go
 // vo.go
-//go:generate go run github.com/MathiasHilgert/vogue/cmd/vogue
+//go:generate go run github.com/MathiasHilgert/vogue/cmd/vogue -validation=example.com/app/fault.Validation
 package tab
 
 // Title is the name of a tab, as the waiter typed it.
@@ -37,14 +39,17 @@ package tab
 //vogue:id TabID
 ```
 
+`-validation` names the type the constructors record their failures on. It is
+yours, so the generated code does not import vogue; see [the error
+model](#the-error-model) for the ~30 lines to copy.
+
 ```sh
 go generate ./...
 ```
 
 ```go
 title, err := tab.NewTitle("  ")
-// err: 1 validation error:
-//   - title: title is required (rule "required")
+// err: invalid title: is required (required)
 
 covers, _ := tab.NewCovers(4)
 open := tab.TabStatuses{}.Open()
@@ -55,7 +60,7 @@ id, _ := tab.NewTabID()
 ## Usage
 
 ```go
-//go:generate go run github.com/MathiasHilgert/vogue/cmd/vogue
+//go:generate go run github.com/MathiasHilgert/vogue/cmd/vogue -validation=example.com/app/fault.Validation
 package tab
 
 // Title is the name of a tab, as the waiter typed it.
@@ -75,9 +80,16 @@ package tab
 Generated files carry the `// Code generated` header and are never read back as
 input, so a second run is a no-op.
 
-The command takes `-dir`, `-import-path`, `-tests`, `-suffix`, `-sql`,
-`-schema`, `-dry-run`, `-list` (the catalogue below) and `-version`. It exits 1 on a rejected
-directive and 2 when it is called wrongly.
+The command takes `-validation` (required), `-dir`, `-import-path`, `-tests`,
+`-suffix`, `-sql`, `-schema`, `-dry-run`, `-list` (the catalogue below) and
+`-version`. It exits 1 on a rejected directive and 2 when it is called wrongly,
+which includes a missing `-validation`: it then prints the contract and a
+reference implementation to copy.
+
+`-validation=<import path>.<Type>` (`generator.WithValidation(path, typeName)`)
+is split at the last dot after the last slash, and the type must be exported.
+When the path is the package being generated into (`-import-path`), the type is
+used unqualified.
 
 `-suffix` (`generator.WithSuffix`) names the generated files. It defaults to
 `_vogue`: `vo.go` generates `vo_vogue.go` and `vo_vogue_test.go`. `-suffix=`
@@ -96,37 +108,47 @@ package's files before running and opens each afterwards, so a deleted one
 would fail the run. It is emptied into a `//go:build ignore` stub instead, and
 the next run deletes it.
 
-`-sql=false` (`generator.WithSQL(false)`) leaves the `database/sql/driver`
-codec — `Value` and `Scan` — out of the generated code. That is what a
-hexagonal domain package needs when its linter forbids importing
+`-sql` (`generator.WithSQL(true)`) adds the `database/sql/driver` codec —
+`Value` and `Scan` — to every value object. It is off by default, which is what
+a hexagonal domain package needs when its linter forbids importing
 `database/sql/...` there: the persistence adapter converts through `String`,
-`Int64` or `Decimal` and the `New` constructors instead.
+`Int64` or `Decimal` and the `New` constructors instead. The codec uses the
+standard library only: a `Scan` handed a source it cannot read wraps
+`errors.ErrUnsupported`.
 
 ### OpenAPI
 
 `-schema` (`generator.WithSchema(true)`) adds a method to every value object:
 
 ```go
-func (CountryCode) JSONSchema() schema.Schema
+func (CountryCode) JSONSchema() map[string]any
 ```
 
-[`schema`](schema) is a standard-library-only package describing how the value
-crosses JSON: its type (always `string`, since every value object marshals as
-text), format (`email`, `uri`, `uuid`, `int64`, `decimal`), pattern, enum
-members, length limits and numeric limits, derived from the directive and its
-built-in rules. A custom rule adds nothing, because the generator cannot know
-what it accepts. The schema describes the canonical text `String` returns, so
-on a string only the checks written after the last normalizer contribute, and
-where several rules bound the same thing the tightest bound wins (`min=3
-len=2` is a length of at least 3 and at most 2; `required` makes a minimum
-length of at least 1; `min=-5 nonneg` is a minimum of 0).
+The map is keyed by JSON Schema keywords — `type` (always `"string"`, since
+every value object marshals as text), `format` (`email`, `uri`, `uuid`,
+`int64`, `decimal`), `pattern`, `enum`, `minLength`, `maxLength`, `minimum`,
+`maximum` and `exclusiveMinimum` — and holds only the ones the directive sets,
+derived from the directive and its built-in rules. A custom rule adds nothing,
+because the generator cannot know what it accepts. The schema describes the
+canonical text `String` returns, so on a string only the checks written after
+the last normalizer contribute, and where several rules bound the same thing
+the tightest bound wins (`min=3 len=2` is a length of at least 3 and at most
+2; `required` makes a minimum length of at least 1; `min=-5 nonneg` is a
+minimum of 0).
 
-The generated test checks the schema against the constructor in both
-directions: every example the directive or its rules declare that the
-constructor accepts satisfies the schema, and every rejected row whose rules
-the schema models (`required`, `len`, `min`, `max`, `positive`, `nonneg`,
-`oneof` and a published `regex`) fails it. A format (`email`, `uri`, `uuid`)
-is published but not checked by `schema.Schema.Accepts`.
+```go
+map[string]any{
+	"type":      "string",
+	"pattern":   `^[A-Z]{2}$`,
+	"minLength": 2,
+	"maxLength": 2,
+}
+```
+
+The generated test checks the schema against the constructor with `regexp`,
+`unicode/utf8` and `slices`: every example the directive or its rules declare
+that the constructor accepts must match the `pattern`, the length limits and
+the `enum` of its schema. A format is published but not checked.
 
 `regex` patterns are RE2, Go's dialect, while JSON Schema and OpenAPI patterns
 are ECMA-262. The two agree on the common core (classes, quantifiers, anchors
@@ -136,18 +158,18 @@ A pattern using an RE2-only construct — inline flags such as `(?i)`, `\A` and
 `\p{Greek}`, `\Q...\E` — is left out of the schema rather than published in a
 dialect a client would read differently; the constructor still enforces it.
 
-The method returns a neutral struct rather than implementing
-`huma.SchemaProvider` on purpose: that would make the domain package import an
-HTTP framework, which a hexagonal domain forbids. The adapter translates
-instead. With Huma v2, wrap the registry so every type that implements
-`schema.Provider` gets its schema from it:
+The method returns a plain map rather than implementing `huma.SchemaProvider`
+on purpose: that would make the domain package import an HTTP framework, which
+a hexagonal domain forbids. The adapter translates instead. With Huma v2, wrap
+the registry so every type that has a `JSONSchema` method gets its schema from
+it:
 
 ```go
 type voRegistry struct{ huma.Registry }
 
 func (r voRegistry) Schema(t reflect.Type, allowRef bool, hint string) *huma.Schema {
-	if p, ok := reflect.New(t).Elem().Interface().(schema.Provider); ok {
-		return toHuma(p.JSONSchema()) // Type, Format, Pattern, Enum, MinLength, ...
+	if p, ok := reflect.New(t).Elem().Interface().(interface{ JSONSchema() map[string]any }); ok {
+		return toHuma(p.JSONSchema()) // type, format, pattern, enum, minLength, ...
 	}
 	return r.Registry.Schema(t, allowRef, hint)
 }
@@ -164,16 +186,17 @@ field errors take its lower-camel form. The tokens depend on the kind:
 
 | Kind | Tokens | Generated |
 |------|--------|-----------|
-| `string` | rules and examples | `New<Name>(string)`, `String`, `Equal`, `IsZero`, text and SQL codecs |
+| `string` | rules, examples and `regex_message` | `New<Name>(string)`, `String`, `Equal`, `IsZero`, the text codec |
 | `int` | rules and examples | `New<Name>(int64)`, `New<Name>FromString`, `Int64`, the same methods |
 | `decimal` | rules and examples | `New<Name>(decimal.Decimal)`, `New<Name>FromString`, `Decimal`, the same methods |
 | `enum` | one comma-separated list of at least two lower-snake values | the catalogue `<Plural>` with `<Member>()`, `All()` and `Parse`, the same methods |
 | `id` | an optional strategy: `uuid7` (default), `uuid4`, `int64` | `New<Name>()` (uuid) or `New<Name>FromInt64` (int64), `New<Name>FromString`, the same methods |
 
 The generated API is methods only. The only package-level functions are the
-`New` constructors, and there are no package-level variables: parsing text is a
-`New<Name>FromString` constructor, and the members of an enum are methods of
-its catalogue, an empty struct named after the plural of the enum:
+`New` constructors, and the only package-level variables are the compiled
+patterns of `regex` rules, one unexported `<type>Pattern` per type: parsing
+text is a `New<Name>FromString` constructor, and the members of an enum are
+methods of its catalogue, an empty struct named after the plural of the enum:
 
 ```go
 kind := place.PlaceKinds{}.Country()
@@ -200,6 +223,21 @@ a tested sample:
 ```go
 //vogue:string CountryCode trim upper required len=2 regex=^[A-Z]{2}$ example=AR
 ```
+
+`regex_message="..."` replaces the generic message of the `regex` rule of the
+same directive, which would otherwise print the pattern. It takes a quoted
+value, and it is a generate-time error without a `regex` rule, twice, or empty:
+
+```go
+//vogue:string CountryCode trim upper required regex=^[A-Z]{2}$ regex_message="must be a two-letter code"
+```
+
+A message never names the field, because the failure carries it, and never
+carries the value.
+
+`required` is a precondition: when it fails the constructor returns at once, so
+an empty input is one failure and not one per rule that also rejects the empty
+string. Every other rule keeps accumulating.
 
 An unknown rule, a rule applied to the wrong kind, a malformed parameter, a
 duplicate name and a misspelled id strategy are all generate-time errors, each
@@ -253,21 +291,39 @@ binary:
 
 ```go
 func main() {
-	if err := generator.Run(generator.WithRules(cuit.Rule)); err != nil {
+	err := generator.Run(
+		generator.WithValidation("example.com/app/fault", "Validation"),
+		generator.WithRules(cuitrule.Rule),
+	)
+	if err != nil {
 		log.Fatal(err)
 	}
 }
 ```
 
 A rule is a plain value: a name, the kinds it applies to, its parameter
-contract, a message template, documentation, examples, and exactly one of
-`Emit` (an inline expression that is true when the value is valid) or `Call` (a
-static function the generated code calls). Its `Examples` become the generated
+contract, a message template, documentation, examples, and exactly one of:
+
+- `Emit`, an inline expression that is true when the value is valid;
+- `Method`, the name and body of an unexported method the generator writes once
+  on every type that uses the rule, for a check too long to read inline. It
+  replaces `Declare` for that purpose, and is how `email`, `url`, `uuid` and
+  `timezone` are written, with the standard library only;
+- `Call`, a static function of a package you own that the generated code calls.
+  The generated package imports that package, so it must not depend on vogue:
+  a `Call` into vogue, or into a package that depends on it (`go list -deps`),
+  is refused at generate time. Keep the predicate in one package and the
+  `vogue.Rule` value in another, as the example does.
+
+`Declare` still adds a package-level declaration, such as the compiled pattern
+of `regex`, and `Precondition` makes a rule stop the constructor when it fails,
+as `required` does. `EmitContext` carries the type name and the receiver the
+constructor calls its methods through. Its `Examples` become the generated
 test, so a rule that documents itself tests every value object that uses it.
 
 The worked example is [`examples/customrule`](examples/customrule): the
-Argentine CUIT, its generator, its directives and its committed output, checked
-for drift by an ordinary test.
+Argentine CUIT — the predicate in `cuit`, the rule in `cuitrule`, its generator,
+its directives and its committed output, checked for drift by an ordinary test.
 
 Extra rules are added on top of the catalogue; one whose name is already taken
 is refused rather than shadowing a built-in. `generator.WithoutBuiltins()`
@@ -275,47 +331,111 @@ replaces the catalogue instead of extending it.
 
 ## The error model
 
-Validation never stops at the first problem. A constructor collects failures in
-a `Notification` — Fowler's pattern — and returns them as one error:
+Validation never stops at the first problem, and the type that collects the
+failures is yours. Generated constructors record each failure on it and return
+its error, so a domain package built from generated value objects imports
+nothing of vogue: not the generator, not its templates, not its rule
+catalogue, not a runtime.
+
+The type needs a zero value that is ready to use and two methods:
 
 ```go
-title, err := NewTitle("")
-// 1 validation error:
-//   - title: title is required (rule "required")
+Add(field, rule, message string)   // records one failure
+Err() error                        // nil until something was added
 ```
 
-Generated code imports one runtime package,
-[`validation`](validation), and nothing else of vogue. It depends on the
-standard library only, so a domain package built from generated value objects
-does not link the generator, its templates or its rule catalogue.
-
-Each failure is a `validation.FieldError{Field, Rule, Param, Value, Message}`.
-`Error()` renders `<field>: <message> (rule "<rule>", param "<param>")`, and
-`Code()` returns the stable `<field>.<rule>` identifier for payloads and
-translation keys. `Notification` implements `Unwrap() []error`, so the
-standard library is the whole API:
+The error `Err` returns must also have `Has(field, rule string) bool`, which
+the generated tests use to check that the expected rule rejected an input. This
+is the reference implementation, also in
+[`examples/validation`](examples/validation); copy it into your own package and
+adapt it:
 
 ```go
-if errors.Is(err, validation.ErrInvalid) { ... }                   // any rule failed
-if errors.Is(err, validation.FieldError{Rule: "email"}) { ... }  // this one did
-if errors.Is(err, validation.Failure("email", "email")) { ... } // the same, exhaustruct-clean
+package fault
 
-var fe validation.FieldError
-if errors.As(err, &fe) { log.Println(fe.Code()) }
+import "strings"
+
+type failure struct{ field, rule, message string }
+
+type Validation struct{ failures []failure }
+
+func (validation *Validation) Add(field, rule, message string) {
+	validation.failures = append(validation.failures, failure{field, rule, message})
+}
+
+func (validation *Validation) Err() error {
+	if len(validation.failures) == 0 {
+		return nil
+	}
+	return &Error{failures: validation.failures}
+}
+
+type Error struct{ failures []failure }
+
+func (invalid *Error) Error() string {
+	messages := make([]string, len(invalid.failures))
+	for index, failed := range invalid.failures {
+		messages[index] = "invalid " + failed.field + ": " + failed.message + " (" + failed.rule + ")"
+	}
+	return strings.Join(messages, "; ")
+}
+
+func (invalid *Error) Has(field, rule string) bool {
+	for _, failed := range invalid.failures {
+		if failed.field == field && failed.rule == rule {
+			return true
+		}
+	}
+	return false
+}
 ```
 
-`validation.ErrInvalid` is matched by every failure however it was wrapped,
-which is what an HTTP adapter maps to a 422. A generated `Scan` handed a
-source it cannot read wraps `validation.ErrUnsupportedSource`, and a decimal
-handed a binary float wraps `validation.ErrLossySource`; neither is an
-`ErrInvalid`, because they describe a misconfigured driver rather than a value
-that broke a rule.
+`Err` builds the error only when there is a failure, so constructing a value
+object from valid input allocates nothing. The generated constructor reads:
 
-`vogue.FieldError`, `vogue.Notification` and `vogue.ErrInvalid` remain as
-aliases of the `validation` names, so code written against them keeps
-compiling.
+```go
+func NewSlug(raw string) (Slug, error) {
+	var slug Slug // stays zero unless every rule passes
+	var failures fault.Validation
 
-Mapping that to RFC 9457 `application/problem+json` is a loop, not a framework:
+	const maximumParameter = 120
+
+	value := raw
+	if value == "" {
+		failures.Add("slug", "required", "is required")
+
+		return slug, failures.Err()
+	}
+	if utf8.RuneCountInString(value) > maximumParameter {
+		failures.Add("slug", "max", "length must be at most 120")
+	}
+
+	err := failures.Err()
+	if err != nil {
+		return slug, err
+	}
+
+	return Slug{value: value, set: true}, nil
+}
+```
+
+and an empty slug is reported as:
+
+```
+invalid slug: is required (required)
+```
+
+A message reads after the field name, which the failure already carries, and
+never contains the offending value, so an error is safe to log. Callers use the
+standard library and whatever your type offers:
+
+```go
+var failed interface{ Has(field, rule string) bool }
+if errors.As(err, &failed) && failed.Has("slug", "required") { ... }
+```
+
+Mapping that to RFC 9457 `application/problem+json` is a loop over your own
+type's failures, not a framework:
 
 ```json
 {
@@ -323,20 +443,17 @@ Mapping that to RFC 9457 `application/problem+json` is a loop, not a framework:
   "title": "The request body is not valid",
   "status": 422,
   "errors": [
-    { "code": "title.required", "field": "title", "detail": "title is required" },
-    { "code": "covers.min",     "field": "covers", "detail": "covers must be at least 1" }
+    { "code": "title.required", "field": "title", "detail": "is required" },
+    { "code": "covers.min",     "field": "covers", "detail": "must be at least 1" }
   ]
 }
 ```
 
-`Value` is carried on the error but never rendered by `Error()`, so an
-offending value never reaches a log line by accident; a handler that wants it
-has to ask.
-
 ## Design notes
 
-**No reflection.** Every rule resolves at generate time into an expression or a
-static call, and every message is rendered into a string literal. That is why a
+**No reflection.** Every rule resolves at generate time into an expression, a
+call to a method of the type or a call to a predicate you own, and every
+message is rendered into a string literal. That is why a
 message template may not reference `{{.Value}}`: the value only exists at run
 time, and rendering it there would mean carrying a template engine into the
 domain layer.
@@ -354,40 +471,48 @@ drives every boundary:
 
 - `Value()` of the zero value returns `nil`, which `database/sql` writes as
   SQL `NULL`; any constructed value, `0` and `""` included, is written as
-  itself. An unassigned identifier and the zero enum are `NULL` too.
+  itself. An unassigned identifier and the zero enum are `NULL` too. The SQL
+  codec exists with `-sql`.
 - `Scan(nil)` — a `NULL` column — produces the zero value.
-- `MarshalJSON` of the zero value writes `null`, and `UnmarshalJSON(null)`
-  produces the zero value; a constructed value is the JSON string of its text.
-  The JSON methods use package [`textjson`](textjson), not `encoding/json`, so
-  a domain package that may not import `encoding/json` can hold them.
-- `MarshalText` of the zero value fails with `validation.ErrZeroValue`: no
-  text reads back as the zero value, since `""` or `"0"` would come back as a
-  constructed one. A zero value is therefore also not usable as a map key.
-- `json:",omitzero"` asks `IsZero`, so an optional field of a value-object type
-  is left out of a payload exactly when it was never set.
+- `MarshalText` of the zero value fails with a wrapped `errors.ErrUnsupported`:
+  no text reads back as the zero value, since `""` or `"0"` would come back as
+  a constructed one. A zero value is therefore also not usable as a map key.
+- There is no `MarshalJSON`: `encoding/json` uses the text codec, so a value
+  object is a JSON string. A field that may be unset says
+  `json:",omitzero"`, which asks `IsZero` and leaves the field out of the
+  payload exactly when it was never set; without it, marshaling the zero value
+  is an error (`encoding/json` reports it as a marshaler error, and does not
+  print the cause when it wraps `errors.ErrUnsupported`). A JSON `null` is
+  skipped by the decoder, so it leaves the field as it was.
 
 A nullable column is therefore a plain value-object field, not a pointer to
-one.
+one. A composite you write by hand must follow the same rule about `omitzero`.
 
 **Enums are structs.** An enum is a struct with an unexported field whose
 members are returned by the methods of its catalogue, not a defined string type
 with constants, so the zero value is outside the member set. The cost is that
-the `exhaustive` linter cannot check a switch over one; the catalogue's `All()`
-covers that instead: code that ranges over it handles a member the moment it
-is added.
+the `exhaustive` linter cannot check a switch over one, and there is no
+`Match` helper to stand in for it. The catalogue's `All()` covers that instead:
+code that ranges over it handles a member the moment it is added. `Parse` is a
+`switch raw { case "open": return TabStatuses{}.Open(), nil ... }`, which
+allocates nothing.
 
 **Strict lint, no exclusions.** Generated code is written to pass a strict
 golangci-lint configuration with nothing excluded for generated files:
 [`gen/testdata/strict/golangci.yml`](gen/testdata/strict/golangci.yml) is a
 real consumer's configuration with `default: all`, and CI lints the golden
-output, the whole rule catalogue and the custom-rule example with it. Bounds
-are named constants local to the constructor (`const maximumParameter = 120`), a
-failure is recorded with `Notification.Reject`, the negated check is written
-without a `!(...)` wrapper, `Scan` wraps a sentinel error, and a regular
-expression is compiled once into an unexported package-level `<type>Pattern`
-variable. The one directive the output carries is a `//nolint:recvcheck` on a
-type with `Scan`, which needs a pointer receiver while every other method keeps
-a value receiver; with `-sql=false` there is no `Scan` and no directive.
+output, the whole rule catalogue, the custom-rule example and the reference
+failure type with it. Bounds are named constants local to the constructor
+(`const maximumParameter = 120`), a failure is recorded with one
+`failures.Add` line, the negated check is written without a `!(...)` wrapper,
+`Scan` wraps `errors.ErrUnsupported`, and a regular expression is compiled once
+into an unexported package-level `<type>Pattern` variable, which
+`gochecknoglobals` exempts. The strict configuration also denies every import
+that is not the standard library, `uuid`, `decimal` or the failure type. The
+directives the output carries are a `//nolint:recvcheck` on a type with `Scan`,
+which needs a pointer receiver while every other method keeps a value receiver
+(there is none without `-sql`), and a `//nolint:funlen` on the `timezone`
+method, which is a list of names rather than logic.
 
 **Counting runes.** Every length bound counts runes, not bytes: `min=3` accepts
 `añó`. That is what a person filling in a form counts. A column declared
@@ -411,9 +536,9 @@ so a `numeric(10,4)` column reads back exactly as it was stored. `Value` writes
 the canonical text, which PostgreSQL accepts for a `numeric` column and which
 no float parameter could carry losslessly.
 
-`Scan` takes text, bytes and `int64`, and refuses `float64` and `float32`
-outright: a float source has already lost digits by the time it arrives, and
-converting it would undo the reason the kind exists. With pgx that means the
+With `-sql`, `Scan` takes text, bytes and `int64`, and refuses `float64` and
+`float32` outright: a float source has already lost digits by the time it
+arrives, and converting it would undo the reason the kind exists. With pgx that means the
 numeric codec must deliver text; a `pgtype.Numeric` source needs a helper of
 its own, which belongs with the bases rather than in generated code.
 
@@ -429,27 +554,24 @@ and not the constructor.
 value made of several — a point, an amount with its currency, a range — is
 composed from generated ones by hand, and stays a value object by keeping the
 same rules: unexported fields, one constructor that validates every part, and
-every failure reported at once. `Notification.Collect` folds each part's error
-into one notification, so the pattern is short:
+every failure reported at once. `errors.Join` folds each part's error into one,
+so the pattern is short:
 
 ```go
 func NewCoordinates(latitude, longitude string) (Coordinates, error) {
-	var notification validation.Notification
-
 	parsedLatitude, latitudeErr := NewLatitudeFromString(latitude)
 	parsedLongitude, longitudeErr := NewLongitudeFromString(longitude)
-	for _, err := range []error{latitudeErr, longitudeErr} {
-		if unexpected := notification.Collect(err); unexpected != nil {
-			return Coordinates{}, unexpected
-		}
+
+	err := errors.Join(latitudeErr, longitudeErr)
+	if err != nil {
+		return Coordinates{}, fmt.Errorf("invalid coordinates: %w", err)
 	}
-	if notification.HasErrors() {
-		return Coordinates{}, notification.ErrOrNil()
-	}
+
 	return Coordinates{latitude: parsedLatitude, longitude: parsedLongitude}, nil
 }
 ```
 
+A rule about the whole is recorded on your own failure type.
 [`examples/composite`](examples/composite) is the complete example, with its
 text codec and test, written to the same strict lint profile as the generated
 code.
@@ -473,20 +595,22 @@ A uuid identifier holds its `uuid.UUID` privately and exposes it through
 unsupported.
 
 **Generated tests are derived, never invented.** A row exists because a rule
-or the directive declared the example. The generated test states only what is
-particular to its value object and runs a suite from
-[`voguetest`](voguetest), so two value objects of the same kind do not generate
-the same assertions twice. The sample the round trips use is chosen when the
-test runs, as the first declared example the constructor accepts: a rule
+or the directive declared the example. The test uses `testing` and `errors`
+only, and is a handful of small functions per value object, one per concern
+(the directive's examples, the rejections, the normalizations, the text round
+trip, the zero value), so two value objects of the same kind do not generate
+the same long function twice. A rejection is checked through the `Has` method of
+your error, under the rule the example was written for: since `required` stops
+the constructor, a row it rejects names `required` alone. The round trips try
+every declared example and skip the ones the constructor rejects: a rule
 declares its examples for itself, and `len=2` says nothing about the value
-`required` declared valid, so only the constructor can tell. When none is
-accepted, the round trips skip with a message asking for an `example=`; a
-normalizer's rewrite is skipped, not failed, when the rest of the directive
-rejects the rewritten value.
+`required` declared valid, so only the constructor can tell. A normalizer's
+rewrite is skipped, not failed, when the rest of the directive rejects the
+rewritten value.
 
 ## Status
 
-vogue is beta. The generator, the runtime and the rule catalogue are exercised
+vogue is beta. The generator and the rule catalogue are exercised
 by the test suite and used as intended, but the API may still change before a
 1.0 release — directive syntax, generated method names and the `Rule` contract
 are the most likely places.
@@ -496,7 +620,7 @@ Not there yet:
 - Multi-field value objects (`Money`, `Quantity`, `Coordinates`) stay
   hand-written, composed from generated ones as described above; vogue only
   generates single-field kinds.
-- Message translation: `FieldError.Message` is English only, and there is no
-  hook to localize it.
+- Message translation: the rendered messages are English only, and there is no
+  hook to localize them; your failure type sees the rule name and can map it.
 - `pgtype.Numeric` scanning for the `decimal` kind; `Scan` accepts text, bytes
   and `int64` but not the pgx-native numeric type.

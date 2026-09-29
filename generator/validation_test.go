@@ -124,6 +124,18 @@ func TestValidationReference(t *testing.T) {
 		assert.ElementsMatch(t, declared(t, string(example)), got)
 	})
 
+	t.Run("is the snippet the README shows", func(t *testing.T) {
+		t.Parallel()
+
+		// Arrange
+		readme, err := os.ReadFile(filepath.Join("..", "README.md"))
+		require.NoError(t, err)
+		snippet := strings.ReplaceAll(generator.ValidationReference, "\n\t", "\n")[1:]
+
+		// Assert
+		assert.Contains(t, string(readme), snippet, "the README must show the reference the command prints")
+	})
+
 	t.Run("is what the command prints without the flag", func(t *testing.T) {
 		t.Parallel()
 
