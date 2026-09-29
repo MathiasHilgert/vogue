@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/MathiasHilgert/vogue/examples/customrule/cuit"
+	"github.com/MathiasHilgert/vogue/examples/customrule/cuitrule"
 	"github.com/MathiasHilgert/vogue/generator"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +33,7 @@ func TestGoGenerate(t *testing.T) {
 		err = generator.Run(
 			generator.WithDir(dir),
 			generator.WithImportPath(domainPath),
-			generator.WithRules(cuit.Rule),
+			generator.WithRules(cuitrule.Rule),
 		)
 
 		// Assert
@@ -61,7 +61,7 @@ func TestGoGenerate(t *testing.T) {
 		err := generator.Run(
 			generator.WithDir(dir),
 			generator.WithImportPath(domainPath),
-			generator.WithRules(cuit.Rule),
+			generator.WithRules(cuitrule.Rule),
 		)
 
 		// Assert

@@ -24,7 +24,7 @@ var shortAllowed = map[string]bool{"ok": true, "id": true, "err": true, "_": tru
 // except ok, id and err. A generated test may also name its *testing.T t,
 // which is how every Go test is written, and so may the voguetest helpers
 // that take one. The runtime packages generated code
-// and its tests import — validation, schema, textjson, rulecheck and voguetest — are held to
+// and its tests import — validation, schema, textjson and voguetest — are held to
 // the same rule.
 func TestGenerate_NoAbbreviatedIdentifiers(t *testing.T) {
 	goldens, err := filepath.Glob(filepath.Join("testdata", "strict", "*", "*_vogue*.go"))
@@ -40,7 +40,7 @@ func TestGenerate_NoAbbreviatedIdentifiers(t *testing.T) {
 		filepath.Join("..", "examples", "composite", "geo", "coordinates.go"),
 	)
 
-	for _, runtime := range []string{"validation", "voguetest", "schema", "textjson", filepath.Join("rules", "rulecheck")} {
+	for _, runtime := range []string{"validation", "voguetest", "schema", "textjson"} {
 		sources, err := filepath.Glob(filepath.Join("..", runtime, "*.go"))
 		require.NoError(t, err)
 		for _, source := range sources {

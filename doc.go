@@ -65,7 +65,9 @@
 // A rule is a plain value: see [Rule]. It declares the tag [Rule.Name], the
 // [KindSet] it applies to, its [ParamSpec], a [Rule.Message] template rendered
 // with [MessageData], its documentation, its [Examples], and exactly one of
-// [Rule.Emit] (an inline expression) or [Rule.Call] (a static [FuncRef]).
+// [Rule.Emit] (an inline expression), [Rule.Call] (a static [FuncRef] into a
+// package the consumer owns, which may not depend on vogue) or [Rule.Method]
+// (an unexported method the generator writes on each type that uses the rule).
 //
 // The rules vogue ships with live in their own package, so the catalogue can
 // be read, extended or replaced wholesale:
@@ -77,9 +79,9 @@
 //     `nospace`, `prefix`, `suffix`, `contains` and `excludes`, and the
 //     integer checks `positive`, `nonneg` and `multipleof` — together with
 //     `rules.All`, `rules.Set` and `rules.MustSet`.
-//   - `rules/rulecheck` holds the runtime helpers those rules dispatch to
-//     through [Rule.Call], such as `rulecheck.Email`: pure `func(string) bool`
-//     predicates a generated constructor calls statically.
+//     The checks too long to read inline — `email`, `url`, `uuid` and
+//     `timezone` — are [Rule.Method] rules that use the standard library only,
+//     so generated code imports no helper package of vogue for them.
 //
 // Rules live in a [RuleSet], which is ordered and name-unique and provides
 // [RuleSet.Suggest] so an unknown tag is reported with a file:line position and

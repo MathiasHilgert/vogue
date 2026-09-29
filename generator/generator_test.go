@@ -2,6 +2,7 @@ package generator_test
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -220,5 +221,90 @@ func TestRun(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
+	})
+}
+
+// predicateRule returns a rule dispatching to a static function of the given
+// package, the shape a consumer-owned predicate has.
+func predicateRule(path, name string) vogue.Rule {
+	return vogue.Rule{
+		Name:    "predicate",
+		Kinds:   vogue.Kinds(vogue.String),
+		Doc:     "Requires what the predicate accepts.",
+		Message: "{{.Field}} is not acceptable",
+		Call:    &vogue.FuncRef{Path: path, Name: name},
+		Examples: vogue.Examples{
+			Valid:   []vogue.Example{{In: "abc"}},
+			Invalid: []vogue.Example{{In: ""}},
+		},
+	}
+}
+
+func TestRun_CallRules(t *testing.T) {
+	const module = "github.com/MathiasHilgert/vogue"
+
+	t.Run("refuses a call into a package that depends on vogue", func(t *testing.T) {
+		// Arrange
+		var stdout bytes.Buffer
+
+		// Act
+		err := generator.Run(
+			generator.WithDir(filepath.Join("testdata", "callrule")),
+			generator.WithRules(predicateRule(module+"/rules", "Any")),
+			generator.WithDryRun(true),
+			generator.WithStdout(&stdout),
+		)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `rule "predicate"`)
+		assert.Contains(t, err.Error(), module+"/rules")
+		assert.Contains(t, err.Error(), "depends on vogue")
+		assert.Empty(t, stdout.String(), "nothing is planned for a refused run")
+	})
+
+	t.Run("refuses a call into the vogue module itself", func(t *testing.T) {
+		// Act
+		err := generator.Run(
+			generator.WithDir(filepath.Join("testdata", "callrule")),
+			generator.WithRules(predicateRule(module, "Any")),
+			generator.WithDryRun(true),
+		)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "depends on vogue")
+	})
+
+	t.Run("accepts a call into a package that does not depend on vogue", func(t *testing.T) {
+		// Act
+		err := generator.Run(
+			generator.WithDir(filepath.Join("testdata", "callrule")),
+			generator.WithRules(predicateRule("unicode/utf8", "ValidString")),
+			generator.WithDryRun(true),
+			generator.WithStdout(io.Discard),
+		)
+
+		// Assert
+		require.NoError(t, err)
+	})
+
+	t.Run("warns, and generates, when the dependencies cannot be listed", func(t *testing.T) {
+		// Arrange
+		var stderr bytes.Buffer
+
+		// Act
+		err := generator.Run(
+			generator.WithDir(filepath.Join("testdata", "callrule")),
+			generator.WithRules(predicateRule("example.invalid/nowhere", "Check")),
+			generator.WithDryRun(true),
+			generator.WithStdout(io.Discard),
+			generator.WithStderr(&stderr),
+		)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, stderr.String(), "example.invalid/nowhere")
+		assert.Contains(t, stderr.String(), "could not be checked")
 	})
 }

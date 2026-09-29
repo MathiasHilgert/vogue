@@ -14,7 +14,9 @@ import (
 // the import it depends on cannot drift apart.
 const (
 	importDecimal = "github.com/govalues/decimal"
-	importFn      = "github.com/MathiasHilgert/vogue/rules/rulecheck"
+	importMail    = "net/mail"
+	importRegexp  = "regexp"
+	importURL     = "net/url"
 	importSlices  = "slices"
 	importStrings = "strings"
 	importUnicode = "unicode"
@@ -140,4 +142,23 @@ func integer(param string) string {
 		return param
 	}
 	return strconv.FormatInt(parsed, 10)
+}
+
+// patternName returns the name of the package-level variable holding the
+// compiled pattern of a regex rule: the receiver of the type, which is its
+// name in lower camel case, followed by "Pattern". A directive uses a rule
+// once, so one type never declares two of them.
+func patternName(c vogue.EmitContext) string { return c.Receiver + "Pattern" }
+
+// regexDeclaration declares the compiled pattern of a regex rule, once per
+// generated type, at package initialisation. The generator has already
+// compiled the pattern to validate the directive, so MustCompile cannot panic
+// at run time. A raw string keeps the pattern as it was written, unless it
+// holds a backtick, which a raw string cannot.
+func regexDeclaration(c vogue.EmitContext) string {
+	literal := "`" + c.Param + "`"
+	if strings.Contains(c.Param, "`") {
+		literal = strconv.Quote(c.Param)
+	}
+	return "var " + patternName(c) + " = regexp.MustCompile(" + literal + ")"
 }

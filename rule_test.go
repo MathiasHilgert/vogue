@@ -67,14 +67,14 @@ func TestRule_Validate(t *testing.T) {
 		{
 			name:    "neither emit nor call",
 			mutate:  func(r *vogue.Rule) { r.Emit = nil; r.Call = nil },
-			wantMsg: "exactly one of Emit or Call must be set",
+			wantMsg: "exactly one of Emit, Call or Method must be set",
 		},
 		{
 			name: "both emit and call",
 			mutate: func(r *vogue.Rule) {
 				r.Call = &vogue.FuncRef{Path: "p", Name: "N"}
 			},
-			wantMsg: "exactly one of Emit or Call must be set",
+			wantMsg: "exactly one of Emit, Call or Method must be set",
 		},
 		{
 			name:    "call without path",
@@ -116,6 +116,31 @@ func TestRule_Validate(t *testing.T) {
 				r.Declare = func(vogue.EmitContext) string { return "var x = 1" }
 			},
 			wantMsg: "Declare requires Emit",
+		},
+		{
+			name: "method together with emit",
+			mutate: func(r *vogue.Rule) {
+				r.Method = func(vogue.EmitContext) (string, string) { return "isOK", "return true" }
+			},
+			wantMsg: "exactly one of Emit, Call or Method",
+		},
+		{
+			name: "method together with call",
+			mutate: func(r *vogue.Rule) {
+				r.Emit = nil
+				r.Call = &vogue.FuncRef{Path: "p", Name: "N"}
+				r.Method = func(vogue.EmitContext) (string, string) { return "isOK", "return true" }
+			},
+			wantMsg: "exactly one of Emit, Call or Method",
+		},
+		{
+			name: "method on a normalizer",
+			mutate: func(r *vogue.Rule) {
+				r.Emit = nil
+				r.Normalize = true
+				r.Method = func(vogue.EmitContext) (string, string) { return "isOK", "return true" }
+			},
+			wantMsg: "a normalizing rule must emit a statement",
 		},
 		{
 			name: "local without emit",
@@ -513,6 +538,42 @@ func TestRule_Declare(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, rule.Declare)
 		assert.Equal(t, "var _vogueBound = 3", rule.Declare(vogue.EmitContext{Param: "3"}))
+	})
+}
+
+func TestRule_Method(t *testing.T) {
+	t.Run("a rule may be backed by a method of the generated type instead of an expression", func(t *testing.T) {
+		// Arrange
+		rule := minRule()
+		rule.Emit = nil
+		rule.Local = nil
+		rule.Method = func(c vogue.EmitContext) (string, string) {
+			return "isLongEnough", "return len(value) >= " + c.Param
+		}
+
+		// Act
+		err := rule.Validate()
+		name, body := rule.Method(vogue.EmitContext{Param: "3"})
+
+		// Assert
+		require.NoError(t, err)
+		assert.Equal(t, "isLongEnough", name)
+		assert.Equal(t, "return len(value) >= 3", body)
+	})
+
+	t.Run("a method rule cannot declare a constructor constant", func(t *testing.T) {
+		// Arrange
+		rule := minRule()
+		rule.Emit = nil
+		rule.Local = func(vogue.EmitContext) string { return "const x = 1" }
+		rule.Method = func(vogue.EmitContext) (string, string) { return "isOK", "return true" }
+
+		// Act
+		err := rule.Validate()
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "Local requires Emit")
 	})
 }
 

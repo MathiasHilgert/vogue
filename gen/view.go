@@ -71,6 +71,10 @@ type voView struct {
 	// Locals are the declarations the rules asked to place at the top of the
 	// constructor through [vogue.Rule.Local], in first-seen order.
 	Locals []string
+	// Methods are the unexported methods the rules asked for through
+	// [vogue.Rule.Method], written after the exported ones. When there are
+	// any, the constructor declares its receiver to call them through.
+	Methods []methodView
 	// SQL marks a value object that implements driver.Valuer and sql.Scanner.
 	SQL bool
 	// Schema is the JSONSchema method, nil when it is not generated.
@@ -139,11 +143,11 @@ func (g *Generator) newView(d parse.Directive, imports *importSet, decls *declSe
 		return voView{}, "", err
 	}
 	if len(d.Rules) > 0 {
-		steps, locals, err := g.steps(d, imports, decls)
+		steps, locals, methods, err := g.steps(d, imports, decls)
 		if err != nil {
 			return voView{}, "", err
 		}
-		v.Steps, v.Locals = steps, locals
+		v.Steps, v.Locals, v.Methods = steps, locals, methods
 	}
 	return v, name, nil
 }
@@ -223,9 +227,10 @@ func addAll(imports *importSet, paths ...string) error {
 // steps resolves every rule of a directive to the source the constructor runs,
 // preserving the order the rules were written in, together with the local
 // declarations those rules need.
-func (g *Generator) steps(d parse.Directive, imports *importSet, decls *declSet) ([]stepView, []string, error) {
+func (g *Generator) steps(d parse.Directive, imports *importSet, decls *declSet) ([]stepView, []string, []methodView, error) {
 	steps := make([]stepView, 0, len(d.Rules))
 	locals := newDeclSet()
+	methods := newMethodSet()
 	for _, use := range d.Rules {
 		rule := use.Rule
 		ctx := emitContext(d, use)
@@ -240,12 +245,12 @@ func (g *Generator) steps(d parse.Directive, imports *importSet, decls *declSet)
 			locals.add(local)
 		}
 
-		code, err := g.code(d, use, imports)
+		code, method, err := g.rulePart(d, use, imports, methods)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
-		if err := addUsed(imports, rule.Imports, code, decl, local); err != nil {
-			return nil, nil, err
+		if err := addUsed(imports, rule.Imports, code, decl, local, method); err != nil {
+			return nil, nil, nil, err
 		}
 		if rule.Normalize {
 			steps = append(steps, stepView{Normalize: true, Code: code})
@@ -254,11 +259,11 @@ func (g *Generator) steps(d parse.Directive, imports *importSet, decls *declSet)
 
 		failed, err := negate(code)
 		if err != nil {
-			return nil, nil, fmt.Errorf("gen: %s: %w", use.Pos, err)
+			return nil, nil, nil, fmt.Errorf("gen: %s: %w", use.Pos, err)
 		}
 		message, err := renderMessage(rule, d.Field, use.Param)
 		if err != nil {
-			return nil, nil, fmt.Errorf("gen: %s: %w", use.Pos, err)
+			return nil, nil, nil, fmt.Errorf("gen: %s: %w", use.Pos, err)
 		}
 		steps = append(steps, stepView{
 			Code:    code,
@@ -269,7 +274,30 @@ func (g *Generator) steps(d parse.Directive, imports *importSet, decls *declSet)
 			Message: message,
 		})
 	}
-	return steps, mergeConsts(locals.all()), nil
+	return steps, mergeConsts(locals.all()), methods.all(), nil
+}
+
+// rulePart resolves the source one rule contributes to the constructor, and
+// the source of the method it asks the type for, empty when it asks for none.
+// A rule with [vogue.Rule.Method] contributes the call to its method and
+// records the method in methods.
+func (g *Generator) rulePart(d parse.Directive, use parse.RuleUse, imports *importSet, methods *methodSet) (code, method string, err error) {
+	rule := use.Rule
+	if rule.Method == nil {
+		code, err = g.code(d, use, imports)
+		return code, "", err
+	}
+
+	ctx := emitContext(d, use)
+	name, body := rule.Method(ctx)
+	if err := checkMethodName(rule.Name, name); err != nil {
+		return "", "", fmt.Errorf("gen: %s: %w", use.Pos, err)
+	}
+	err = methods.add(methodView{Name: name, Rule: rule.Name, ParamType: methodParamType(d.Kind), Body: body, Long: isLong(body)})
+	if err != nil {
+		return "", "", fmt.Errorf("gen: %s: %w", use.Pos, err)
+	}
+	return ctx.Receiver + "." + name + "(" + ctx.Var + ")", body, nil
 }
 
 // singleConst matches a one-line constant declaration.
@@ -317,7 +345,7 @@ func (g *Generator) code(d parse.Directive, use parse.RuleUse, imports *importSe
 		return call + "(" + working + ", " + quote(use.Param) + ")", nil
 	}
 	if rule.Emit == nil {
-		return "", fmt.Errorf("gen: %s: rule %q has neither Emit nor Call", use.Pos, rule.Name)
+		return "", fmt.Errorf("gen: %s: rule %q has none of Emit, Call or Method", use.Pos, rule.Name)
 	}
 	return rule.Emit(emitContext(d, use)), nil
 }
@@ -325,7 +353,15 @@ func (g *Generator) code(d parse.Directive, use parse.RuleUse, imports *importSe
 // emitContext builds the context handed to [vogue.Rule.Emit] and
 // [vogue.Rule.Declare], so both always see exactly the same identifiers.
 func emitContext(d parse.Directive, use parse.RuleUse) vogue.EmitContext {
-	return vogue.EmitContext{Var: "value", Param: use.Param, Field: d.Field, Kind: d.Kind, Ident: ident(use.Rule.Name)}
+	return vogue.EmitContext{
+		Var:      "value",
+		Param:    use.Param,
+		Field:    d.Field,
+		Kind:     d.Kind,
+		Type:     d.Name,
+		Receiver: receiver(d.Name),
+		Ident:    ident(use.Rule.Name),
+	}
 }
 
 // spelledOut are the built-in rule names that are abbreviations, and the word
@@ -394,7 +430,7 @@ func receiver(name string) string {
 // packages generated code imports and the locals and parameters its methods
 // declare.
 var reservedReceivers = map[string]struct{}{
-	"decimal": {}, "driver": {}, "fmt": {}, "regexp": {}, "rulecheck": {}, "schema": {},
+	"decimal": {}, "driver": {}, "fmt": {}, "regexp": {}, "schema": {},
 	"slices": {}, "strconv": {}, "strings": {}, "unicode": {}, "utf8": {}, "uuid": {},
 	"validation": {},
 	"data":       {}, "err": {}, "failed": {}, "id": {}, "member": {}, "notification": {}, "null": {},

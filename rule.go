@@ -115,6 +115,14 @@ type EmitContext struct {
 	// Kind is the value-object kind being generated, so a rule registered for
 	// several kinds can emit the expression each one needs.
 	Kind Kind
+	// Type is the name of the generated value-object type, such as
+	// "CountryCode". A rule that declares something per type — a compiled
+	// pattern, a method — names it after Type, so two types never share one.
+	Type string
+	// Receiver is the identifier the constructor uses to reach the methods of
+	// its own type, such as "countryCode": a rule with [Rule.Method] is called
+	// as `<Receiver>.<name>(<Var>)`.
+	Receiver string
 	// Ident is an identifier reserved for this one use of the rule inside the
 	// generated constructor, such as "maxParam". A rule that declares a local
 	// constant through [Rule.Local] names it with Ident (or with Ident as a
@@ -232,8 +240,10 @@ type Examples struct {
 // extends the catalogue by building its own generator binary that passes extra
 // rules to the generator.
 //
-// Exactly one of [Rule.Emit] and [Rule.Call] must be set: a rule is either
-// inlined into the generated constructor or delegated to a static function.
+// Exactly one of [Rule.Emit], [Rule.Call] and [Rule.Method] must be set: a rule
+// is inlined into the generated constructor, delegated to a static function of
+// a package the consumer owns, or written once as an unexported method of the
+// generated type.
 type Rule struct {
 	// Name is the tag name as written in the directive, for example "min". It
 	// must match ^[a-z][a-z0-9_]*$ so directives stay unambiguous to parse.
@@ -260,20 +270,33 @@ type Rule struct {
 	// Call names a static function to call instead of emitting an expression.
 	Call *FuncRef
 	// Declare returns a package-level declaration the emitted expression needs,
-	// such as a regular expression compiled once at process start rather than
-	// on every constructor call. It is optional, requires [Rule.Emit], and is
-	// emitted once per distinct declaration in a generated file: two directives
-	// using the same rule with the same parameter share one declaration. The
-	// returned source must therefore be self-contained and must name itself
-	// deterministically from [EmitContext.Param], so that a rule declaring
-	// `var x = ...` also emits an expression referring to that same `x`.
+	// such as a regular expression compiled once at package initialisation
+	// rather than on every constructor call. It is optional, requires
+	// [Rule.Emit], and is emitted once per distinct declaration in a generated
+	// file. The returned source must be self-contained and must name itself
+	// deterministically from [EmitContext.Type], so that a rule declaring
+	// `var countryCodePattern = ...` also emits an expression referring to that
+	// same name and two types never declare the same one.
 	//
-	// A package-level variable is exactly what strict linters such as
-	// gochecknoglobals reject in generated code, so the built-in rules no
-	// longer use Declare: they declare constants with [Rule.Local] or call a
-	// runtime helper that caches what it compiles. Declare is kept for custom
-	// rules that need it.
+	// A package-level variable is what strict linters such as gochecknoglobals
+	// reject in generated code, so keep it for what they exempt, a compiled
+	// regular expression, and use [Rule.Local] or [Rule.Method] for the rest.
 	Declare func(EmitContext) string
+	// Method returns an unexported method of the generated type that holds the
+	// check, for a rule too long to read inline, such as a parser call or a
+	// list of names. The generator writes
+	//
+	//	func (Type) <name>(value string) bool { <body> }
+	//
+	// once for every generated type that uses the rule, and the constructor
+	// calls it as `<receiver>.<name>(value)`. The value parameter is a string,
+	// an int64 or a decimal.Decimal, after the kind being generated, and body
+	// is the statements of the method, returning true when the value is
+	// acceptable. The name must be an unexported identifier that does not
+	// collide with a field of the type, and the body may use only the packages
+	// listed in [Rule.Imports]. A method rule is set instead of [Rule.Emit] and
+	// [Rule.Call], and cannot be a normalizer.
+	Method func(EmitContext) (name, body string)
 	// Local returns a declaration placed at the top of the generated
 	// constructor, before the first rule runs, such as the named constant a
 	// bound is compared against:
@@ -313,8 +336,8 @@ func (r Rule) Validate() error {
 	if _, err := compileMessage(r.Message); err != nil {
 		return fmt.Errorf("vogue: rule %q: %w", r.Name, err)
 	}
-	if (r.Emit == nil) == (r.Call == nil) {
-		return fmt.Errorf("vogue: rule %q: exactly one of Emit or Call must be set", r.Name)
+	if r.implementations() != 1 {
+		return fmt.Errorf("vogue: rule %q: exactly one of Emit, Call or Method must be set", r.Name)
 	}
 	for _, path := range r.Imports {
 		if path == "" {
@@ -322,10 +345,13 @@ func (r Rule) Validate() error {
 		}
 	}
 	if r.Declare != nil && r.Emit == nil {
-		return fmt.Errorf("vogue: rule %q: Declare requires Emit, a call-backed rule declares nothing", r.Name)
+		return fmt.Errorf("vogue: rule %q: Declare requires Emit, a rule without an expression declares nothing", r.Name)
 	}
 	if r.Local != nil && r.Emit == nil {
-		return fmt.Errorf("vogue: rule %q: Local requires Emit, a call-backed rule declares nothing", r.Name)
+		return fmt.Errorf("vogue: rule %q: Local requires Emit, a rule without an expression declares nothing", r.Name)
+	}
+	if r.Method != nil && r.Normalize {
+		return fmt.Errorf("vogue: rule %q: a normalizing rule must emit a statement, Method is not supported", r.Name)
 	}
 	if r.Call != nil {
 		if r.Normalize {
@@ -339,6 +365,21 @@ func (r Rule) Validate() error {
 		}
 	}
 	return r.validateParam()
+}
+
+// implementations counts how many of Emit, Call and Method the rule sets.
+func (r Rule) implementations() int {
+	count := 0
+	if r.Emit != nil {
+		count++
+	}
+	if r.Call != nil {
+		count++
+	}
+	if r.Method != nil {
+		count++
+	}
+	return count
 }
 
 // validateParam checks the parameter contract in isolation.

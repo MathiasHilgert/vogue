@@ -384,7 +384,7 @@ output, the whole rule catalogue and the custom-rule example with it. Bounds
 are named constants local to the constructor (`const maximumParameter = 120`), a
 failure is recorded with `Notification.Reject`, the negated check is written
 without a `!(...)` wrapper, `Scan` wraps a sentinel error, and a regular
-expression is compiled once by `rulecheck.Regexp` rather than held in a package-level
+expression is compiled once into an unexported package-level `<type>Pattern`
 variable. The one directive the output carries is a `//nolint:recvcheck` on a
 type with `Scan`, which needs a pointer receiver while every other method keeps
 a value receiver; with `-sql=false` there is no `Scan` and no directive.
@@ -455,10 +455,11 @@ text codec and test, written to the same strict lint profile as the generated
 code.
 
 **Time zones.** The `timezone` rule accepts the canonical, case-exact names of
-the zone database the Go toolchain ships (listed in `rules/rulecheck/zones.go`,
-refreshed with `go run ./rules/rulecheck/internal/zonelist`), and rejects the
+the zone database the Go toolchain ships (listed in `rules/zones.go`,
+refreshed with `go run ./rules/internal/zonelist`), and rejects the
 database's own files — `Factory`, `localtime`, `posixrules` — `Local` and the
-empty string. The check itself reads no zone database; converting the value
+empty string. The check is a `switch` over the names, written into each type that uses the
+rule, and reads no zone database; converting the value
 with `time.LoadLocation` does, so a binary in a minimal container image should
 import `time/tzdata`.
 

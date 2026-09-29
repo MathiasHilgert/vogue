@@ -6,6 +6,8 @@ value as the text a FieldError carries.
 */}}
 {{define "validate"}}{{range .Locals}}	{{.}}
 
+{{end}}{{if .Methods}}	var {{.Recv}} {{.Name}}
+
 {{end}}	var notification validation.Notification
 
 	value := raw
@@ -30,3 +32,19 @@ value as the text a FieldError carries.
 		return zero, &failed
 	}
 {{end}}
+
+{{/*
+The unexported methods the rules of a value object asked for, written after
+its exported ones. The receiver is unnamed: a check reads nothing from it.
+*/}}
+{{define "rulemethods"}}{{range .Methods}}
+// {{.Name}} implements the {{.Rule}} rule of New{{$.Name}}: it reports whether
+// value is acceptable.
+{{- if .Long}}
+//
+//nolint:funlen // the body lists data, every name the rule accepts, not logic.
+{{- end}}
+func ({{$.Name}}) {{.Name}}(value {{.ParamType}}) bool {
+{{.Body}}
+}
+{{end}}{{end}}

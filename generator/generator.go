@@ -202,6 +202,9 @@ func Run(opts ...Option) error {
 	if err != nil {
 		return c.report(err)
 	}
+	if err := c.refuseCallsIntoVogue(pkg); err != nil {
+		return err
+	}
 	files, err := c.render(pkg, set)
 	if err != nil {
 		return err
@@ -224,6 +227,71 @@ func Run(opts ...Option) error {
 		return err
 	}
 	return c.retire(stale, pkg.Name)
+}
+
+// vogueModule is the module the generator itself belongs to. Generated code
+// imports nothing from it, so a predicate the generated code calls must not
+// either.
+const vogueModule = "github.com/MathiasHilgert/vogue"
+
+// refuseCallsIntoVogue fails when a directive uses a rule whose [vogue.Rule.Call]
+// points at a package that is vogue or depends on it, directly or through
+// other packages. The generated file would import that package, and with it
+// the generator, its templates and its catalogue, into the consumer's domain.
+//
+// The dependency graph is asked of the go command, `go list -deps`, from the
+// directory being generated. When the go command cannot answer, because the
+// directory is outside a module or the package does not resolve yet, the
+// generation goes ahead and a warning naming the unchecked package is written
+// to the diagnostics: the compiler reports an import that does not resolve,
+// and refusing here would make a directory outside a module ungeneratable. The
+// package being generated into is skipped, since it is the consumer's own.
+func (c *config) refuseCallsIntoVogue(pkg *parse.Package) error {
+	own := c.resolveImportPath()
+	checked := map[string]struct{}{}
+	for _, directive := range pkg.Directives() {
+		for _, use := range directive.Rules {
+			call := use.Rule.Call
+			if call == nil || call.Path == own {
+				continue
+			}
+			if _, done := checked[call.Path]; done {
+				continue
+			}
+			checked[call.Path] = struct{}{}
+
+			dependency, err := c.vogueDependency(call.Path)
+			if err != nil {
+				fmt.Fprintf(c.stderr, "vogue: warning: %s: rule %q calls %s.%s, whose dependencies could not be checked for vogue: %v\n",
+					use.Pos, use.Rule.Name, call.Path, call.Name, err)
+				continue
+			}
+			if dependency != "" {
+				return fmt.Errorf("vogue: %s: rule %q calls %s.%s, which depends on vogue (through %s): "+
+					"generated code must not import vogue; move the predicate into a package that does not, "+
+					"and keep the vogue.Rule value in a package of its own",
+					use.Pos, use.Rule.Name, call.Path, call.Name, dependency)
+			}
+		}
+	}
+	return nil
+}
+
+// vogueDependency returns the first package of the vogue module that path is
+// or depends on, and the empty string when there is none.
+func (c *config) vogueDependency(path string) (string, error) {
+	cmd := exec.Command("go", "list", "-deps", "-f", "{{.ImportPath}}", path)
+	cmd.Dir = c.dir
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("listing its dependencies with the go command: %w", err)
+	}
+	for _, dependency := range strings.Fields(string(out)) {
+		if dependency == vogueModule || (dependency != path && strings.HasPrefix(dependency, vogueModule+"/")) {
+			return dependency, nil
+		}
+	}
+	return "", nil
 }
 
 // render generates the files of the package, none when it has no directive.

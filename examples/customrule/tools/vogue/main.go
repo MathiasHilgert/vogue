@@ -10,14 +10,14 @@ package main
 import (
 	"log"
 
-	"github.com/MathiasHilgert/vogue/examples/customrule/cuit"
+	"github.com/MathiasHilgert/vogue/examples/customrule/cuitrule"
 	"github.com/MathiasHilgert/vogue/generator"
 )
 
 func main() {
 	log.SetFlags(0)
 	log.SetPrefix("")
-	if err := generator.Run(generator.WithRules(cuit.Rule)); err != nil {
+	if err := generator.Run(generator.WithRules(cuitrule.Rule)); err != nil {
 		log.Fatal(err)
 	}
 }

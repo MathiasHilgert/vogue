@@ -1,7 +1,9 @@
 package rules_test
 
 import (
+	"go/token"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/MathiasHilgert/vogue"
@@ -370,10 +372,70 @@ func TestIntegerParameters(t *testing.T) {
 }
 
 func TestRegex(t *testing.T) {
-	t.Run("calls the caching matcher instead of declaring a package-level pattern", func(t *testing.T) {
+	t.Run("declares one pattern compiled at package initialisation, named after the type", func(t *testing.T) {
+		// Arrange
+		ctx := vogue.EmitContext{Var: "value", Param: "^[A-Z]{2}$", Type: "CountryCode", Receiver: "countryCode"}
+
+		// Act
+		declaration := rules.Regex.Declare(ctx)
+		expression := rules.Regex.Emit(ctx)
+
 		// Assert
-		assert.Nil(t, rules.Regex.Declare)
-		require.NotNil(t, rules.Regex.Call)
-		assert.Equal(t, "rulecheck.Regexp", rules.Regex.Call.Selector())
+		assert.Nil(t, rules.Regex.Call)
+		assert.Equal(t, "var countryCodePattern = regexp.MustCompile(`^[A-Z]{2}$`)", declaration)
+		assert.Equal(t, "countryCodePattern.MatchString(value)", expression)
+	})
+
+	t.Run("quotes a pattern that holds a backtick", func(t *testing.T) {
+		// Arrange
+		ctx := vogue.EmitContext{Var: "value", Param: "^`$", Type: "Quoted", Receiver: "quoted"}
+
+		// Act
+		declaration := rules.Regex.Declare(ctx)
+
+		// Assert
+		assert.Equal(t, `var quotedPattern = regexp.MustCompile("^`+"`"+`$")`, declaration)
+	})
+}
+
+func TestBuiltinsWithoutRuntimeHelpers(t *testing.T) {
+	// Arrange
+	for _, rule := range []vogue.Rule{rules.Email, rules.URL, rules.UUID, rules.TimeZone} {
+		t.Run(rule.Name+" is a method of the generated type that uses the standard library only", func(t *testing.T) {
+			// Act
+			name, body := rule.Method(vogue.EmitContext{Var: "value", Type: "Subject"})
+
+			// Assert
+			assert.Nil(t, rule.Call)
+			assert.Nil(t, rule.Emit)
+			assert.True(t, token.IsIdentifier(name))
+			assert.NotContains(t, body, "rulecheck")
+			assert.NotContains(t, body, "vogue")
+			assert.Contains(t, body, "return ")
+			for _, path := range rule.Imports {
+				assert.NotContains(t, path, ".", "%q is not a standard library package", path)
+			}
+		})
+	}
+}
+
+func TestTimeZoneMethod(t *testing.T) {
+	// Act
+	_, body := rules.TimeZone.Method(vogue.EmitContext{Var: "value", Type: "Zone"})
+
+	// Assert
+	t.Run("switches over the zone names, several to a line", func(t *testing.T) {
+		assert.Contains(t, body, "switch value {")
+		assert.Contains(t, body, `"America/Argentina/Buenos_Aires"`)
+		assert.Contains(t, body, `"UTC"`)
+		assert.NotContains(t, body, `"Local"`)
+		assert.NotContains(t, body, `"Factory"`)
+		for _, line := range strings.Split(body, "\n") {
+			assert.LessOrEqual(t, len(strings.ReplaceAll(line, "\t", "    ")), 110, "line too long: %s", line)
+		}
+	})
+
+	t.Run("names every zone once", func(t *testing.T) {
+		assert.Equal(t, 1, strings.Count(body, `"Europe/Madrid"`))
 	})
 }

@@ -8,6 +8,27 @@ is zero, a minor release may break the API; every break is listed under
 
 ## [Unreleased]
 
+### Changed
+
+- **Breaking:** `Rule.Method` replaces `Rule.Declare` for checks too long to
+  read inline. It returns the name and the body of an unexported method, which
+  the generator writes once on every type that uses the rule
+  (`func (Code) isEmail(value string) bool`), and the constructor calls through
+  its receiver. `email`, `url`, `uuid` and `timezone` are method rules that use
+  the standard library only (`net/mail`, `net/url`, a hand-written 8-4-4-4-12
+  check, a `switch` over the IANA zone names), and `regex` compiles its pattern
+  once into one unexported `<type>Pattern` variable per type. Nothing generated
+  calls `rules/rulecheck` any more, and the package is removed.
+  `Rule.Declare` stays, for a package-level declaration such as a compiled
+  pattern; `EmitContext` gains `Type` and `Receiver` to name it per type.
+  Migration: a custom rule that used `Declare` for anything but a compiled
+  pattern returns a `Method` instead, and its `Emit` goes away.
+- **Breaking:** a `Rule.Call` into a package that is vogue, or depends on it
+  directly or transitively (`go list -deps`), is refused at generate time: the
+  generated code would import vogue into the domain. Keep the predicate in a
+  package that imports nothing of vogue and the `vogue.Rule` value in another,
+  as `examples/customrule` now does (`cuit` and `cuitrule`).
+
 ### Fixed
 
 - Switching `-suffix` under `go generate` no longer fails the first run with

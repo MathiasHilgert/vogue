@@ -140,7 +140,8 @@ var Email = vogue.Rule{
 		"domain that does not exist is accepted. Pair it with `lower` to store one canonical " +
 		"spelling.",
 	Message: "{{.Field}} must be a valid email address",
-	Call:    &vogue.FuncRef{Path: importFn, Name: "Email"},
+	Imports: []string{importMail},
+	Method:  emailMethod,
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{In: "waiter@example.com", Note: "an ordinary address"},
@@ -164,7 +165,8 @@ var URL = vogue.Rule{
 		"or https is rejected too, which is what makes a stored URL safe to render as a link. " +
 		"Reachability is not checked: no request is made.",
 	Message: "{{.Field}} must be a valid http or https URL",
-	Call:    &vogue.FuncRef{Path: importFn, Name: "URL"},
+	Imports: []string{importURL},
+	Method:  urlMethod,
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{In: "https://example.com/menu", Note: "an https address"},
@@ -190,7 +192,7 @@ var TimeZone = vogue.Rule{
 		"place. The check needs no zone database at run time; turning the value into a " +
 		"time.Location does, so a binary in a minimal container image should import time/tzdata.",
 	Message: "{{.Field}} must be an IANA time zone",
-	Call:    &vogue.FuncRef{Path: importFn, Name: "TimeZone"},
+	Method:  timeZoneMethod,
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{In: "America/Argentina/Buenos_Aires", Note: "a zone named after its city"},
@@ -217,7 +219,8 @@ var UUID = vogue.Rule{
 		"normalised before every comparison. For an identifier of your own use the `id` kind " +
 		"instead, which gives it its own type.",
 	Message: "{{.Field}} must be a valid UUID",
-	Call:    &vogue.FuncRef{Path: importFn, Name: "UUID"},
+	Imports: []string{importStrings},
+	Method:  uuidMethod,
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{In: "9b2b4f52-1c2d-4e5a-9f3b-6d7c8e9f0a1b", Note: "a version 4 identifier"},
@@ -231,20 +234,22 @@ var UUID = vogue.Rule{
 	},
 }
 
-// Regex requires the value to match a pattern compiled once, at start-up.
+// Regex requires the value to match a pattern compiled once, at package initialisation.
 var Regex = vogue.Rule{
 	Name:  "regex",
 	Kinds: str,
 	Doc: "Requires the value to match the given RE2 pattern. The pattern is compiled at generate " +
 		"time, so a malformed one is a generator error naming the directive rather than a panic in " +
-		"production, and the generated constructor calls rulecheck.Regexp, which compiles it on first use " +
-		"and caches it, so every later call only matches. The match is unanchored: write ^ and $ when the whole " +
-		"value must match. The pattern may not contain a space, because a directive is read as " +
+		"production, and the generated file compiles it once, into one unexported package-level " +
+		"variable per type, so every constructor call only matches. The match is unanchored: " +
+		"write ^ and $ when the whole value must match. The pattern may not contain a space, because a directive is read as " +
 		"whitespace-separated tokens; use `[[:space:]]` or `\\s` for one. Reach for a named rule " +
 		"first — `alphanum`, `prefix`, `len` — and keep this for a shape that has no name.",
 	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamRegex},
 	Message: "{{.Field}} must match the pattern {{.Param}}",
-	Call:    &vogue.FuncRef{Path: importFn, Name: "Regexp"},
+	Imports: []string{importRegexp},
+	Declare: regexDeclaration,
+	Emit:    func(c vogue.EmitContext) string { return patternName(c) + ".MatchString(" + c.Var + ")" },
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{Param: "^[A-Z]{3}-[0-9]{4}$", In: "SKU-0042", Note: "a code in the documented shape"},

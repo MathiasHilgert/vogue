@@ -81,10 +81,17 @@
 //     the top of the constructor, named after [vogue.EmitContext.Ident]:
 //     the built-in bounds declare the number they compare against there.
 //
+//   - A rule with [vogue.Rule.Method] set is written once per generated type
+//     as an unexported method, `func (Type) isEmail(value string) bool`, placed
+//     after the exported methods, and the constructor calls it through a
+//     receiver it declares, `if !email.isEmail(value)`. The standard-library
+//     packages the body uses are added to the imports.
+//
 //   - A rule with [vogue.Rule.Declare] set contributes a package-level
 //     declaration, emitted once between the imports and the first value
-//     object. The built-in rules no longer use it, because a package-level
-//     variable is what gochecknoglobals reports; it remains for custom rules.
+//     object. The `regex` rule uses it for its compiled pattern, one
+//     unexported `<type>Pattern` variable per type, the only package-level
+//     variable generated code declares.
 //
 // # Messages
 //
