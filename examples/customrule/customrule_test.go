@@ -5,11 +5,14 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/MathiasHilgert/vogue/examples/customrule/cuit"
+	"github.com/MathiasHilgert/vogue/examples/customrule/cuitrule"
 	"github.com/MathiasHilgert/vogue/generator"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// withValidation names the failure type of the reference implementation.
+var withValidation = generator.WithValidation("github.com/MathiasHilgert/vogue/examples/validation", "Validation")
 
 // domainPath is the import path of the example's value-object package. The
 // generator is told it explicitly so the run under test does not depend on the
@@ -30,10 +33,10 @@ func TestGoGenerate(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "vo.go"), body, 0o600))
 
 		// Act
-		err = generator.Run(
+		err = generator.Run(withValidation,
 			generator.WithDir(dir),
 			generator.WithImportPath(domainPath),
-			generator.WithRules(cuit.Rule),
+			generator.WithRules(cuitrule.Rule),
 		)
 
 		// Assert
@@ -58,10 +61,10 @@ func TestGoGenerate(t *testing.T) {
 		}
 
 		// Act
-		err := generator.Run(
+		err := generator.Run(withValidation,
 			generator.WithDir(dir),
 			generator.WithImportPath(domainPath),
-			generator.WithRules(cuit.Rule),
+			generator.WithRules(cuitrule.Rule),
 		)
 
 		// Assert

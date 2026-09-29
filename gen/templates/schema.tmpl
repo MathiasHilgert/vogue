@@ -1,24 +1,20 @@
 {{define "schema"}}{{with .Schema}}
-// JSONSchema implements schema.Provider: it describes how {{$.Name}} crosses a
-// JSON boundary, derived from its directive, so an HTTP adapter can publish it
-// in an OpenAPI document without the domain importing an HTTP framework. It
-// describes the canonical text String returns.
-func ({{$.Name}}) JSONSchema() schema.Schema {
+// JSONSchema returns the JSON Schema of the text {{$.Name}} marshals to.
+func ({{$.Name}}) JSONSchema() map[string]any {
+{{- if .FromMembers}}
+	members := {{$.Catalogue}}{}.All()
+	values := make([]string, len(members))
+	for index, member := range members {
+		values[index] = member.String()
+	}
+{{end}}
 {{- if .Consts}}
 	const (
 {{range .Consts}}		{{.}}
 {{end}}	)
 {{end}}
-	return schema.Schema{
-		Type:             schema.String,
-		Format:           {{.Format}},
-		Pattern:          {{.Pattern}},
-		Enum:             {{if .Enum}}[]string{ {{- range $i, $e := .Enum}}{{if $i}}, {{end}}{{q $e}}{{end -}} }{{else}}nil{{end}},
-		MinLength:        schema.Length{Set: {{.MinLength.Set}}, Value: {{if .MinLength.Set}}minimumLength{{else}}0{{end}}},
-		MaxLength:        schema.Length{Set: {{.MaxLength.Set}}, Value: {{if .MaxLength.Set}}maximumLength{{else}}0{{end}}},
-		Minimum:          schema.Number{Set: {{.Minimum.Set}}, Value: {{if .Minimum.Set}}minimum{{else}}0{{end}}},
-		Maximum:          schema.Number{Set: {{.Maximum.Set}}, Value: {{if .Maximum.Set}}maximum{{else}}0{{end}}},
-		ExclusiveMinimum: schema.Number{Set: {{.ExclusiveMinimum.Set}}, Value: {{if .ExclusiveMinimum.Set}}exclusiveMinimum{{else}}0{{end}}},
-	}
+	return map[string]any{
+{{range .Entries}}		{{q .Key}}: {{.Value}},
+{{end}}	}
 }
 {{end}}{{end}}

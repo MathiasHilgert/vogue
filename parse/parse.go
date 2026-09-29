@@ -21,6 +21,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -223,11 +224,11 @@ func (p *collector) directive(comment *ast.Comment, doc string) (Directive, bool
 		d.Values = values
 		d.Catalogue = plural(nameTok.text)
 	case vogue.String, vogue.Int, vogue.Decimal:
-		rules, examples, ok := p.ruleUses(pos, kind, tokens)
+		rules, examples, regexMessage, ok := p.ruleUses(pos, kind, tokens)
 		if !ok {
 			return Directive{}, false
 		}
-		d.Rules, d.Examples = rules, examples
+		d.Rules, d.Examples, d.RegexMessage = rules, examples, regexMessage
 	}
 	return d, true
 }
@@ -310,16 +311,24 @@ func (p *collector) enumValues(pos, namePos token.Position, name string, tokens 
 	return values, ok
 }
 
-// exampleToken is the reserved token name that declares a valid value rather
-// than naming a rule.
-const exampleToken = "example"
+// Reserved token names that configure the directive rather than naming a rule:
+// `example` declares a valid value, and `regex_message` replaces the generic
+// message of the `regex` rule.
+const (
+	exampleToken      = "example"
+	regexMessageToken = "regex_message"
+)
 
 // ruleUses resolves every rule token of a string, int or decimal directive
 // against the catalogue, preserving the order in which they were written, and
 // collects its `example=` tokens.
-func (p *collector) ruleUses(pos token.Position, kind vogue.Kind, tokens []dtoken) ([]RuleUse, []string, bool) {
+func (p *collector) ruleUses(pos token.Position, kind vogue.Kind, tokens []dtoken) ([]RuleUse, []string, string, bool) {
 	uses := make([]RuleUse, 0, len(tokens))
-	var examples []string
+	var (
+		examples     []string
+		regexMessage string
+		messagePos   token.Position
+	)
 	seen := make(map[string]token.Position, len(tokens))
 	ok := true
 	for _, tok := range tokens {
@@ -332,6 +341,15 @@ func (p *collector) ruleUses(pos token.Position, kind vogue.Kind, tokens []dtoke
 				continue
 			}
 			examples = append(examples, param)
+			continue
+		}
+
+		if name == regexMessageToken {
+			if !p.checkRegexMessage(tokPos, messagePos, param, hasParam) {
+				ok = false
+				continue
+			}
+			regexMessage, messagePos = param, tokPos
 			continue
 		}
 
@@ -364,7 +382,26 @@ func (p *collector) ruleUses(pos token.Position, kind vogue.Kind, tokens []dtoke
 		}
 		uses = append(uses, RuleUse{Rule: rule, Param: param, Pos: tokPos})
 	}
-	return uses, examples, ok
+	if regexMessage != "" && !slices.ContainsFunc(uses, func(use RuleUse) bool { return use.Rule.Name == "regex" }) {
+		p.errs.hint(messagePos, "regex_message needs a regex rule to describe",
+			"write regex=<pattern> in the same directive, or remove regex_message")
+		ok = false
+	}
+	return uses, examples, regexMessage, ok
+}
+
+// checkRegexMessage validates a `regex_message=` token: it needs a non-empty
+// value, and it may be written once.
+func (p *collector) checkRegexMessage(pos, first token.Position, value string, hasValue bool) bool {
+	switch {
+	case !hasValue || value == "":
+		p.errs.hint(pos, "regex_message requires a message", `write regex_message="must be an ISO 3166-1 alpha-2 code"`)
+		return false
+	case first.IsValid():
+		p.errs.hint(pos, "duplicate regex_message", "already given at "+first.String())
+		return false
+	}
+	return true
 }
 
 // checkExample validates an `example=` token: it needs a value, and the value

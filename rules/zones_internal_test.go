@@ -1,4 +1,4 @@
-package rulecheck
+package rules
 
 import (
 	"slices"
@@ -17,13 +17,13 @@ func TestZones(t *testing.T) {
 		t.Parallel()
 
 		// Assert
-		assert.True(t, slices.IsSorted(zones[:]))
+		assert.True(t, slices.IsSorted(timeZoneNames[:]))
 	})
 
 	t.Run("each loads under the very name it is listed as", func(t *testing.T) {
 		t.Parallel()
 
-		for _, name := range zones {
+		for _, name := range timeZoneNames {
 			// Act
 			location, err := time.LoadLocation(name)
 

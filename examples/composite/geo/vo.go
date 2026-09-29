@@ -1,4 +1,4 @@
-//go:generate go run github.com/MathiasHilgert/vogue/cmd/vogue -sql=false
+//go:generate go run github.com/MathiasHilgert/vogue/cmd/vogue -validation=github.com/MathiasHilgert/vogue/examples/validation.Validation
 
 package geo
 

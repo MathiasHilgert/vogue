@@ -44,6 +44,7 @@ package generator
 import (
 	"errors"
 	"fmt"
+	"go/token"
 	"io"
 	"os"
 	"os/exec"
@@ -65,6 +66,7 @@ type config struct {
 	withoutBuiltin bool
 	tests          bool
 	sql            bool
+	validation     gen.Validation
 	suffix         string
 	perValueObject bool
 	schema         bool
@@ -120,10 +122,35 @@ func WithSuffix(suffix string) Option {
 	return func(c *config) { c.suffix, c.perValueObject = suffix, suffix == "" }
 }
 
+// WithValidation names the type generated constructors record their failures
+// on, by the import path of its package and its exported name. It is required:
+// generated code imports nothing of vogue, so the failure type is the
+// consumer's own. See [ValidationContract] for what the type must provide. When
+// the path is the package being generated into, the type is used unqualified.
+func WithValidation(path, typeName string) Option {
+	return func(c *config) { c.validation = gen.Validation{ImportPath: path, TypeName: typeName} }
+}
+
+// ParseValidation splits the value of the `-validation` flag,
+// `<import path>.<Type>`, at the last dot after the last slash, so a path
+// whose elements hold dots, such as example.com/app/fault, is read whole.
+func ParseValidation(spec string) (path, typeName string, err error) {
+	slash := strings.LastIndex(spec, "/")
+	dot := strings.LastIndex(spec, ".")
+	if dot <= slash+1 || dot == len(spec)-1 {
+		return "", "", fmt.Errorf("vogue: -validation %q must be <import path>.<Type>, such as example.com/app/fault.Validation", spec)
+	}
+	path, typeName = spec[:dot], spec[dot+1:]
+	if !token.IsExported(typeName) {
+		return "", "", fmt.Errorf("vogue: -validation %q: the type %q must be exported", spec, typeName)
+	}
+	return path, typeName, nil
+}
+
 // WithSQL turns the database/sql/driver codec — Value and Scan — on or off.
-// It is on by default. A hexagonal domain package whose linter forbids
-// importing database/sql/driver turns it off and converts at the persistence
-// adapter, through the text codec or the accessors.
+// It is off by default, so a domain package that must not import
+// database/sql/driver needs no flag. Turn it on for value objects stored
+// through database/sql.
 func WithSQL(on bool) Option {
 	return func(c *config) { c.sql = on }
 }
@@ -154,7 +181,7 @@ func WithStderr(w io.Writer) Option {
 
 // newConfig resolves the defaults and applies the options.
 func newConfig(opts []Option) *config {
-	c := &config{tests: true, sql: true, suffix: gen.DefaultSuffix, stdout: os.Stdout, stderr: os.Stderr}
+	c := &config{tests: true, suffix: gen.DefaultSuffix, stdout: os.Stdout, stderr: os.Stderr}
 	for _, opt := range opts {
 		opt(c)
 	}
@@ -192,6 +219,9 @@ func defaultDir() string {
 // suffix — are removed, but only when they carry that header.
 func Run(opts ...Option) error {
 	c := newConfig(opts)
+	if c.validation.ImportPath == "" {
+		return errors.New(strings.TrimRight(ValidationRequired, "\n"))
+	}
 
 	set, err := c.ruleSet()
 	if err != nil {
@@ -201,6 +231,9 @@ func Run(opts ...Option) error {
 	pkg, err := parse.Dir(c.dir, set)
 	if err != nil {
 		return c.report(err)
+	}
+	if err := c.refuseCallsIntoVogue(pkg); err != nil {
+		return err
 	}
 	files, err := c.render(pkg, set)
 	if err != nil {
@@ -226,6 +259,71 @@ func Run(opts ...Option) error {
 	return c.retire(stale, pkg.Name)
 }
 
+// vogueModule is the module the generator itself belongs to. Generated code
+// imports nothing from it, so a predicate the generated code calls must not
+// either.
+const vogueModule = "github.com/MathiasHilgert/vogue"
+
+// refuseCallsIntoVogue fails when a directive uses a rule whose [vogue.Rule.Call]
+// points at a package that is vogue or depends on it, directly or through
+// other packages. The generated file would import that package, and with it
+// the generator, its templates and its catalogue, into the consumer's domain.
+//
+// The dependency graph is asked of the go command, `go list -deps`, from the
+// directory being generated. When the go command cannot answer, because the
+// directory is outside a module or the package does not resolve yet, the
+// generation goes ahead and a warning naming the unchecked package is written
+// to the diagnostics: the compiler reports an import that does not resolve,
+// and refusing here would make a directory outside a module ungeneratable. The
+// package being generated into is skipped, since it is the consumer's own.
+func (c *config) refuseCallsIntoVogue(pkg *parse.Package) error {
+	own := c.resolveImportPath()
+	checked := map[string]struct{}{}
+	for _, directive := range pkg.Directives() {
+		for _, use := range directive.Rules {
+			call := use.Rule.Call
+			if call == nil || call.Path == own {
+				continue
+			}
+			if _, done := checked[call.Path]; done {
+				continue
+			}
+			checked[call.Path] = struct{}{}
+
+			dependency, err := c.vogueDependency(call.Path)
+			if err != nil {
+				fmt.Fprintf(c.stderr, "vogue: warning: %s: rule %q calls %s.%s, whose dependencies could not be checked for vogue: %v\n",
+					use.Pos, use.Rule.Name, call.Path, call.Name, err)
+				continue
+			}
+			if dependency != "" {
+				return fmt.Errorf("vogue: %s: rule %q calls %s.%s, which depends on vogue (through %s): "+
+					"generated code must not import vogue; move the predicate into a package that does not, "+
+					"and keep the vogue.Rule value in a package of its own",
+					use.Pos, use.Rule.Name, call.Path, call.Name, dependency)
+			}
+		}
+	}
+	return nil
+}
+
+// vogueDependency returns the first package of the vogue module that path is
+// or depends on, and the empty string when there is none.
+func (c *config) vogueDependency(path string) (string, error) {
+	cmd := exec.Command("go", "list", "-deps", "-f", "{{.ImportPath}}", path)
+	cmd.Dir = c.dir
+	out, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("listing its dependencies with the go command: %w", err)
+	}
+	for _, dependency := range strings.Fields(string(out)) {
+		if dependency == vogueModule || (dependency != path && strings.HasPrefix(dependency, vogueModule+"/")) {
+			return dependency, nil
+		}
+	}
+	return "", nil
+}
+
 // render generates the files of the package, none when it has no directive.
 func (c *config) render(pkg *parse.Package, set *vogue.RuleSet) ([]gen.OutFile, error) {
 	if len(pkg.Directives()) == 0 {
@@ -237,7 +335,8 @@ func (c *config) render(pkg *parse.Package, set *vogue.RuleSet) ([]gen.OutFile, 
 		ImportPath:     c.resolveImportPath(),
 		Suffix:         c.suffix,
 		PerValueObject: c.perValueObject,
-		OmitSQL:        !c.sql,
+		Validation:     c.validation,
+		SQL:            c.sql,
 		Schema:         c.schema,
 	})
 	if err != nil {

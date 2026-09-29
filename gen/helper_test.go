@@ -12,6 +12,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// testValidation is the failure type the generated code of these tests records
+// its failures on: the reference implementation of the repository.
+var testValidation = gen.Validation{
+	ImportPath: "github.com/MathiasHilgert/vogue/examples/validation",
+	TypeName:   "Validation",
+}
+
 // parseSource parses directives from an in-memory source body, so a test can
 // state the exact directive it is about without owning a testdata directory.
 func parseSource(t *testing.T, body string, rules *vogue.RuleSet) *parse.Package {

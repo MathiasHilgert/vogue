@@ -32,20 +32,20 @@ func zeroValidRule(valid ...string) vogue.Rule {
 }
 
 func TestTestGenerator_Candidates(t *testing.T) {
-	t.Run("hands every declared valid example to the suite, the zero value included", func(t *testing.T) {
+	t.Run("hands every declared valid example to the round trip, the zero value included", func(t *testing.T) {
 		// Arrange
 		set := &vogue.RuleSet{}
 		require.NoError(t, set.Add(zeroValidRule("0", "7")))
 		pkg := parseSource(t, "//vogue:int Stock nonneg\n", set)
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: set})
 
 		// Assert
 		require.NoError(t, err)
 		require.Len(t, files, 2)
-		assert.Regexp(t, `Candidates:\s+\[\]int64\{0, 7\},`, string(files[1].Content),
-			"the suite, not the generator, skips a zero sample when the test runs")
+		assert.Contains(t, string(files[1].Content), "[]int64{0, 7}",
+			"the test, not the generator, asks the constructor which sample it accepts")
 	})
 
 	t.Run("puts the directive's own examples ahead of the candidates", func(t *testing.T) {
@@ -55,13 +55,14 @@ func TestTestGenerator_Candidates(t *testing.T) {
 		pkg := parseSource(t, "//vogue:int Stock nonneg example=12 example=40\n", set)
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: set})
 
 		// Assert
 		require.NoError(t, err)
 		test := string(files[1].Content)
-		assert.Regexp(t, `Examples:\s+\[\]int64\{12, 40\},`, test)
-		assert.Regexp(t, `Candidates:\s+\[\]int64\{0\},`, test)
+		assert.Contains(t, test, "TestStock_AcceptsItsExamples")
+		assert.Contains(t, test, "[]int64{12, 40}", "the directive's examples are asserted outright")
+		assert.Contains(t, test, "[]int64{12, 40, 0}", "the round trip tries them first, then the candidates")
 	})
 }
 
@@ -94,29 +95,29 @@ func TestTestGenerator_NormalizerOnlyDirective(t *testing.T) {
 		pkg := parseSource(t, "//vogue:string Code lower\n", set)
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: set})
 
 		// Assert
 		require.NoError(t, err)
 		require.Len(t, files, 2)
 		test := string(files[1].Content)
-		assert.Regexp(t, `Candidates:\s+nil,`, test)
-		assert.Contains(t, test, `Out:   "ábc",`)
+		assert.NotContains(t, test, "RoundTripsText", "no sample, nothing to round trip")
+		assert.Contains(t, test, `{"lower folds an accented capital", "ÁBC", "ábc"}`)
 	})
 
-	t.Run("imports only testing and the suites", func(t *testing.T) {
+	t.Run("imports only testing and errors", func(t *testing.T) {
 		// Arrange
 		set := &vogue.RuleSet{}
 		require.NoError(t, set.Add(normalizerOnlyRule()))
 		pkg := parseSource(t, "//vogue:string Code lower\n", set)
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: set})
 
 		// Assert
 		require.NoError(t, err)
 		test := string(files[1].Content)
-		assert.Contains(t, test, "import (\n\t\"testing\"\n\n\t\"github.com/MathiasHilgert/vogue/voguetest\"\n)")
+		assert.Contains(t, test, "import (\n\t\"errors\"\n\t\"testing\"\n)")
 	})
 }
 
@@ -170,19 +171,19 @@ func broadRule() vogue.Rule {
 }
 
 func TestTestGenerator_Normalizations(t *testing.T) {
-	t.Run("hands a rewrite to the suite even when no rule vouches for its output", func(t *testing.T) {
+	t.Run("writes a rewrite even when no rule vouches for its output", func(t *testing.T) {
 		// Arrange
 		set := &vogue.RuleSet{}
 		require.NoError(t, set.Add(trimRule(), narrowRule()))
 		pkg := parseSource(t, "//vogue:string TaxID trim cuit\n", set)
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: set})
 
 		// Assert
 		require.NoError(t, err)
-		assert.Contains(t, string(files[1].Content), `Out:   "Tortilla",`,
-			"the suite asks the constructor whether the rest of the directive accepts the rewrite")
+		assert.Contains(t, string(files[1].Content), `"  Tortilla  ", "Tortilla"`,
+			"the test asks the constructor whether the rest of the directive accepts the rewrite")
 	})
 
 	t.Run("keeps a rewrite the checks of the directive declare acceptable", func(t *testing.T) {
@@ -192,13 +193,13 @@ func TestTestGenerator_Normalizations(t *testing.T) {
 		pkg := parseSource(t, "//vogue:string Name trim required\n", set)
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: set})
 
 		// Assert
 		require.NoError(t, err)
 		test := string(files[1].Content)
-		assert.Contains(t, test, "Normalized: []voguetest.Normalization[string]{")
-		assert.Contains(t, test, `Name:  "the blanks are dropped",`)
+		assert.Contains(t, test, "TestName_Normalizes")
+		assert.Contains(t, test, `{"the blanks are dropped", "  Tortilla  ", "Tortilla"}`)
 	})
 }
 
@@ -210,11 +211,11 @@ func TestTestGenerator_RejectionsAfterANormalizer(t *testing.T) {
 		pkg := parseSource(t, "//vogue:string Code lower required\n", set)
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: set})
 
 		// Assert
 		require.NoError(t, err)
-		assert.Regexp(t, `Rejected:\s+nil,`, string(files[1].Content),
+		assert.NotContains(t, string(files[1].Content), "RejectsInvalidInput",
 			"lower rewrites the input before required sees it, so required's examples prove nothing")
 	})
 
@@ -225,10 +226,10 @@ func TestTestGenerator_RejectionsAfterANormalizer(t *testing.T) {
 		pkg := parseSource(t, "//vogue:string Code required lower\n", set)
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, Rules: set})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, Rules: set})
 
 		// Assert
 		require.NoError(t, err)
-		assert.Regexp(t, `Name:\s+"rejects the empty string",`, string(files[1].Content))
+		assert.Contains(t, string(files[1].Content), `"rejects the empty string"`)
 	})
 }

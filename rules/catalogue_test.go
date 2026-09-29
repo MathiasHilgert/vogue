@@ -18,6 +18,10 @@ import (
 // is generated into.
 const cataloguePath = "github.com/MathiasHilgert/vogue/rules/internal/catalogue"
 
+// validationPath is the package of the failure type the catalogue fixture
+// records its failures on.
+const validationPath = "github.com/MathiasHilgert/vogue/examples/validation"
+
 // updateCatalogue rewrites the committed fixture instead of comparing against
 // it, for when a rule legitimately changes what it emits.
 var updateCatalogue = flag.Bool("update", false, "rewrite the committed catalogue fixture")
@@ -29,7 +33,7 @@ func TestCatalogue_Fixture(t *testing.T) {
 		pkg, err := parse.Dir(dir, rules.MustSet())
 		require.NoError(t, err)
 
-		g, err := gen.New(gen.Options{Package: pkg, Rules: rules.MustSet(), ImportPath: cataloguePath})
+		g, err := gen.New(gen.Options{Validation: gen.Validation{ImportPath: validationPath, TypeName: "Validation"}, Package: pkg, Rules: rules.MustSet(), ImportPath: cataloguePath})
 		require.NoError(t, err)
 
 		// Act

@@ -20,7 +20,7 @@ import (
 // shadow what its methods use.
 var reservedNames = []string{
 	"data", "decimal", "driver", "err", "failed", "fmt", "id", "isNull", "member", "notification", "null",
-	"number", "other", "parsed", "raw", "rawLength", "regexp", "rulecheck", "schema", "slices",
+	"number", "other", "parsed", "raw", "rawLength", "regexp", "schema", "slices",
 	"source", "src", "strconv", "strings", "text", "textjson", "unicode", "utf8", "uuid", "validation", "value",
 	"whole", "zero",
 }
@@ -29,7 +29,7 @@ var reservedNames = []string{
 // every reserved name and type-checks the result.
 func TestGenerate_ReservedReceiverNames(t *testing.T) {
 	kinds := []string{
-		"string %s trim required len=2 regex=^[a-z]+$ email",
+		"string %s trim required len=2 regex=^[a-z]+$ email url uuid timezone",
 		"int %s min=1 max=9",
 		"decimal %s min=0 max=1",
 		"enum %s alpha,beta",
@@ -46,9 +46,9 @@ func TestGenerate_ReservedReceiverNames(t *testing.T) {
 			}
 			pkg := parseSource(t, body.String(), rules.MustSet())
 
-			for _, omitSQL := range []bool{false, true} {
+			for _, sql := range []bool{false, true} {
 				// Act
-				files, err := filesOf(t, gen.Options{Package: pkg, OmitSQL: omitSQL})
+				files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg, SQL: sql})
 				require.NoError(t, err)
 
 				// Assert

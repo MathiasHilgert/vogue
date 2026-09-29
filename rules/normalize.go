@@ -12,7 +12,7 @@ var Trim = vogue.Rule{
 		"the value rather than rejecting it, so every rule written after it measures the " +
 		"trimmed value; a field that must not be blank pairs it with `required`, which then " +
 		"rejects a value that was nothing but whitespace.",
-	Message:   "{{.Field}} is trimmed",
+	Message:   "is trimmed",
 	Normalize: true,
 	Imports:   []string{importStrings},
 	Emit:      func(c vogue.EmitContext) string { return c.Var + " = strings.TrimSpace(" + c.Var + ")" },
@@ -35,7 +35,7 @@ var Squish = vogue.Rule{
 		"It is the normalizer for a value a human typed into a single-line field, where a double " +
 		"space is a slip rather than a meaning. Line breaks are collapsed as well, which makes it " +
 		"the wrong rule for a value whose layout matters.",
-	Message:   "{{.Field}} has its whitespace squished",
+	Message:   "has its whitespace squished",
 	Normalize: true,
 	Imports:   []string{importStrings},
 	Emit: func(c vogue.EmitContext) string {
@@ -58,7 +58,7 @@ var Lower = vogue.Rule{
 		"It is how a value that must compare case-insensitively — an email address, a slug, a " +
 		"tag — is stored in one canonical shape, which makes an index on it meaningful. The " +
 		"mapping is locale-independent, so the Turkish dotless i is not special-cased.",
-	Message:   "{{.Field}} is lower-cased",
+	Message:   "is lower-cased",
 	Normalize: true,
 	Imports:   []string{importStrings},
 	Emit:      func(c vogue.EmitContext) string { return c.Var + " = strings.ToLower(" + c.Var + ")" },
@@ -79,7 +79,7 @@ var Upper = vogue.Rule{
 		"code that is conventionally shouted — a currency code, a country code, a SKU prefix — " +
 		"so the value reaches the database in the shape the rest of the system expects to read. " +
 		"Like `lower`, the mapping is locale-independent.",
-	Message:   "{{.Field}} is upper-cased",
+	Message:   "is upper-cased",
 	Normalize: true,
 	Imports:   []string{importStrings},
 	Emit:      func(c vogue.EmitContext) string { return c.Var + " = strings.ToUpper(" + c.Var + ")" },

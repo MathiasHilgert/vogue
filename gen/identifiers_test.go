@@ -22,10 +22,8 @@ var shortAllowed = map[string]bool{"ok": true, "id": true, "err": true, "_": tru
 // declares — types, functions, receivers, parameters, results, variables,
 // constants, fields and import names — is at least three characters long,
 // except ok, id and err. A generated test may also name its *testing.T t,
-// which is how every Go test is written, and so may the voguetest helpers
-// that take one. The runtime packages generated code
-// and its tests import — validation, schema, textjson, rulecheck and voguetest — are held to
-// the same rule.
+// which is how every Go test is written. The reference failure type generated
+// code records its failures on is held to the same rule.
 func TestGenerate_NoAbbreviatedIdentifiers(t *testing.T) {
 	goldens, err := filepath.Glob(filepath.Join("testdata", "strict", "*", "*_vogue*.go"))
 	require.NoError(t, err)
@@ -38,17 +36,8 @@ func TestGenerate_NoAbbreviatedIdentifiers(t *testing.T) {
 		filepath.Join("..", "rules", "internal", "catalogue", "vo_vogue_test.go"),
 		filepath.Join("..", "examples", "composite", "geo", "vo_vogue.go"),
 		filepath.Join("..", "examples", "composite", "geo", "coordinates.go"),
+		filepath.Join("..", "examples", "validation", "validation.go"),
 	)
-
-	for _, runtime := range []string{"validation", "voguetest", "schema", "textjson", filepath.Join("rules", "rulecheck")} {
-		sources, err := filepath.Glob(filepath.Join("..", runtime, "*.go"))
-		require.NoError(t, err)
-		for _, source := range sources {
-			if !strings.HasSuffix(source, "_test.go") {
-				goldens = append(goldens, source)
-			}
-		}
-	}
 
 	for _, golden := range goldens {
 		t.Run(golden, func(t *testing.T) {
@@ -57,8 +46,7 @@ func TestGenerate_NoAbbreviatedIdentifiers(t *testing.T) {
 			file, err := parser.ParseFile(fset, golden, nil, 0)
 			require.NoError(t, err)
 			allowed := func(name string) bool {
-				testSupport := strings.HasSuffix(golden, "_test.go") || strings.Contains(golden, "voguetest")
-				return shortAllowed[name] || (name == "t" && testSupport)
+				return shortAllowed[name] || (name == "t" && strings.HasSuffix(golden, "_test.go"))
 			}
 
 			// Act

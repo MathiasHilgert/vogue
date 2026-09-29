@@ -2,15 +2,23 @@ package fixture_test
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
-	"github.com/MathiasHilgert/vogue"
 	"github.com/MathiasHilgert/vogue/gen/internal/fixture"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// rejectedBy reports whether err says that the rule rejected the field, the
+// way the generated tests ask it.
+func rejectedBy(err error, field, rule string) bool {
+	var failed interface{ Has(field, rule string) bool }
+
+	return errors.As(err, &failed) && failed.Has(field, rule)
+}
 
 func TestNewTitle(t *testing.T) {
 	// Arrange
@@ -35,8 +43,7 @@ func TestNewTitle(t *testing.T) {
 			// Assert
 			if tc.wantRule != "" {
 				require.Error(t, err)
-				require.ErrorIs(t, err, vogue.FieldError{Field: "title", Rule: tc.wantRule},
-					"want rule %q, got %v", tc.wantRule, err)
+				assert.True(t, rejectedBy(err, "title", tc.wantRule), "want rule %q, got %v", tc.wantRule, err)
 				assert.True(t, got.IsZero())
 				return
 			}
@@ -47,38 +54,52 @@ func TestNewTitle(t *testing.T) {
 	}
 }
 
-func TestNewTitle_CollectsEveryFailure(t *testing.T) {
-	t.Run("reports the required and the bound failure together", func(t *testing.T) {
+func TestNewTitle_Failures(t *testing.T) {
+	t.Run("an empty value reports required alone, which stops the rules after it", func(t *testing.T) {
+		// Act
+		_, err := fixture.NewTitle("")
+
+		// Assert
+		require.Error(t, err)
+		assert.Equal(t, "invalid title: is required (required)", err.Error())
+		assert.False(t, rejectedBy(err, "title", "min"), "min would report the same empty value")
+	})
+
+	t.Run("collects every failure of a value that passes required", func(t *testing.T) {
 		// Arrange
-		raw := "   "
+		raw := strings.Repeat("a", 120) + "1"
 
 		// Act
 		_, err := fixture.NewTitle(raw)
 
 		// Assert
 		require.Error(t, err)
-		var n *vogue.Notification
-		require.ErrorAs(t, err, &n)
-		assert.Equal(t, 1, n.Len(), "required runs before trim, so only min fails here: %v", err)
+		assert.True(t, rejectedBy(err, "title", "max"), "%v", err)
+		assert.True(t, rejectedBy(err, "title", "nodigits"), "%v", err)
+		assert.Equal(t, "invalid title: must be at most 120 (max); invalid title: must not contain digits (nodigits)",
+			err.Error(), "the message never carries the value")
+	})
 
-		// Act: an empty value fails both the required rule and the lower bound.
-		_, err = fixture.NewTitle("")
+	t.Run("a blank is checked after trim, so only min fails", func(t *testing.T) {
+		// Act
+		_, err := fixture.NewTitle("   ")
 
 		// Assert
 		require.Error(t, err)
-		require.ErrorAs(t, err, &n)
-		assert.Equal(t, 2, n.Len())
-		assert.Equal(t, []string{"title.required", "title.min"}, codes(n))
+		assert.True(t, rejectedBy(err, "title", "min"))
+		assert.False(t, rejectedBy(err, "title", "required"), "required runs before trim, on the padded value")
 	})
 }
 
-// codes returns the machine-readable code of every collected failure, in order.
-func codes(n *vogue.Notification) []string {
-	out := make([]string, 0, n.Len())
-	for _, e := range n.Errors() {
-		out = append(out, e.Code())
-	}
-	return out
+// TestNewTitle_ValidInputAllocatesNothing proves the happy path allocates
+// nothing: the failure type only builds its error when there is one. It is
+// not parallel: AllocsPerRun refuses to run beside other tests.
+func TestNewTitle_ValidInputAllocatesNothing(t *testing.T) {
+	// Act
+	allocations := testing.AllocsPerRun(100, func() { _, _ = fixture.NewTitle("house red") })
+
+	// Assert
+	assert.Zero(t, allocations)
 }
 
 func TestTitle_JSON(t *testing.T) {
@@ -115,7 +136,39 @@ func TestTitle_JSON(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Rule: "nodigits"})
+		assert.True(t, rejectedBy(err, "title", "nodigits"), "%v", err)
+	})
+
+	t.Run("the zero value cannot be marshaled, so an optional field says omitzero", func(t *testing.T) {
+		// Arrange
+		type required struct {
+			Title fixture.Title `json:"title"`
+		}
+		type optional struct {
+			Title fixture.Title `json:"title,omitzero"`
+		}
+
+		// Act
+		_, requiredErr := json.Marshal(required{})
+		optionalBody, optionalErr := json.Marshal(optional{})
+
+		// Assert
+		var marshalerErr *json.MarshalerError
+		require.ErrorAs(t, requiredErr, &marshalerErr, "encoding/json reports the zero value as a marshaler error")
+		require.NoError(t, optionalErr)
+		assert.JSONEq(t, `{}`, string(optionalBody))
+	})
+
+	t.Run("null leaves the zero value", func(t *testing.T) {
+		// Arrange
+		var got fixture.Title
+
+		// Act
+		err := json.Unmarshal([]byte(`null`), &got)
+
+		// Assert
+		require.NoError(t, err)
+		assert.True(t, got.IsZero())
 	})
 }
 
@@ -166,7 +219,7 @@ func TestCovers(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "covers", Rule: "min"})
+		assert.True(t, rejectedBy(err, "covers", "min"), "%v", err)
 	})
 
 	t.Run("round-trips through SQL", func(t *testing.T) {
@@ -199,7 +252,7 @@ func TestCovers(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "covers", Rule: "int"})
+		assert.True(t, rejectedBy(err, "covers", "int"), "%v", err)
 	})
 }
 
@@ -229,8 +282,8 @@ func TestTabStatus(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.True(t, got.IsZero())
-		require.ErrorIs(t, err, vogue.FieldError{Field: "tabStatus", Rule: "oneof"})
-		assert.Contains(t, err.Error(), "open, in_progress, closed")
+		assert.True(t, rejectedBy(err, "tabStatus", "oneof"), "%v", err)
+		assert.Equal(t, "invalid tabStatus: must be one of: open, in_progress, closed (oneof)", err.Error())
 	})
 
 	t.Run("the zero value is no member", func(t *testing.T) {
@@ -292,7 +345,7 @@ func TestTabID(t *testing.T) {
 		// Assert
 		require.Error(t, err)
 		assert.True(t, got.IsZero())
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "tabID", Rule: "uuid"})
+		assert.True(t, rejectedBy(err, "tabID", "uuid"), "%v", err)
 	})
 
 	t.Run("the zero value is the nil UUID", func(t *testing.T) {
@@ -321,7 +374,7 @@ func TestInvoiceNumber(t *testing.T) {
 
 		// Assert
 		require.Error(t, err)
-		assert.ErrorIs(t, err, vogue.FieldError{Field: "invoiceNumber", Rule: "positive"})
+		assert.True(t, rejectedBy(err, "invoiceNumber", "positive"), "%v", err)
 	})
 
 	t.Run("crosses JSON as a string so precision survives", func(t *testing.T) {

@@ -3,13 +3,12 @@
 package place
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"unicode/utf8"
 
-	"github.com/MathiasHilgert/vogue/schema"
-	"github.com/MathiasHilgert/vogue/textjson"
-	"github.com/MathiasHilgert/vogue/validation"
+	"github.com/MathiasHilgert/vogue/examples/validation"
 )
 
 // AlternateName is another name a place is known by. It is declared in a
@@ -22,57 +21,32 @@ type AlternateName struct {
 }
 
 // NewAlternateName validates raw and returns the AlternateName it describes.
-//
-// Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification.
-// Every failure is collected, so the returned error describes the whole input
-// rather than the first thing that went wrong.
 func NewAlternateName(raw string) (AlternateName, error) {
+	var alternateName AlternateName // stays zero unless every rule passes
+	var failures validation.Validation
+
 	const (
 		minimumParameter = 1
 		maximumParameter = 200
 	)
 
-	var notification validation.Notification
-
 	value := raw
 	value = strings.Join(strings.Fields(value), " ")
 	if value == "" {
-		notification.Reject(
-			"alternateName",
-			"required",
-			"",
-			value,
-			"alternateName is required",
-		)
+		failures.Add("alternateName", "required", "is required")
+
+		return alternateName, failures.Err()
 	}
 	if utf8.RuneCountInString(value) < minimumParameter {
-		notification.Reject(
-			"alternateName",
-			"min",
-			"1",
-			value,
-			"alternateName must be at least 1",
-		)
+		failures.Add("alternateName", "min", "length must be at least 1")
 	}
 	if utf8.RuneCountInString(value) > maximumParameter {
-		notification.Reject(
-			"alternateName",
-			"max",
-			"200",
-			value,
-			"alternateName must be at most 200",
-		)
+		failures.Add("alternateName", "max", "length must be at most 200")
 	}
 
-	if notification.HasErrors() {
-		var zero AlternateName
-
-		// Only a rejected input escapes to the heap: the notification is
-		// copied here, so the happy path above allocates nothing.
-		failed := notification
-
-		return zero, &failed
+	err := failures.Err()
+	if err != nil {
+		return alternateName, err
 	}
 
 	return AlternateName{value: value, set: true}, nil
@@ -81,30 +55,22 @@ func NewAlternateName(raw string) (AlternateName, error) {
 // String returns the validated value.
 func (alternateName AlternateName) String() string { return alternateName.value }
 
-// IsZero reports whether the receiver is the zero AlternateName: one that was never
-// constructed, as opposed to one constructed from an empty string the rules
-// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+// IsZero reports whether the receiver was never constructed; `json:",omitzero"` asks it.
 func (alternateName AlternateName) IsZero() bool { return !alternateName.set }
 
-// Equal reports whether both value objects hold the same value.
-func (alternateName AlternateName) Equal(other AlternateName) bool {
-	return alternateName.value == other.value && alternateName.set == other.set
-}
+// Equal reports whether both hold the same value.
+func (alternateName AlternateName) Equal(other AlternateName) bool { return alternateName == other }
 
-// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
-// the text codec for types that implement it, so AlternateName marshals and
-// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
-// map key too.
+// MarshalText implements encoding.TextMarshaler; the zero AlternateName has no text form.
 func (alternateName AlternateName) MarshalText() ([]byte, error) {
 	if alternateName.IsZero() {
-		return nil, fmt.Errorf("vogue: cannot marshal the zero AlternateName: %w", validation.ErrZeroValue)
+		return nil, fmt.Errorf("cannot marshal the zero AlternateName: %w", errors.ErrUnsupported)
 	}
 
 	return []byte(alternateName.value), nil
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
-// no payload can produce a AlternateName the constructor would have rejected.
+// UnmarshalText implements encoding.TextUnmarshaler and validates like the constructor.
 func (alternateName *AlternateName) UnmarshalText(data []byte) error {
 	parsed, err := NewAlternateName(string(data))
 	if err != nil {
@@ -116,61 +82,17 @@ func (alternateName *AlternateName) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements json.Marshaler. The zero AlternateName is null, which is
-// what keeps an unset field from being written as a value that would read back
-// as a constructed one; anything else is the JSON string of its text form.
-func (alternateName AlternateName) MarshalJSON() ([]byte, error) {
-	if alternateName.IsZero() {
-		return textjson.Null(), nil
-	}
-
-	text, err := alternateName.MarshalText()
-	if err != nil {
-		return nil, err
-	}
-
-	return textjson.Quote(text), nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
-// AlternateName; a JSON string goes through UnmarshalText, so it is validated.
-func (alternateName *AlternateName) UnmarshalJSON(data []byte) error {
-	text, isNull, err := textjson.Unquote(data)
-	if err != nil {
-		return fmt.Errorf("vogue: cannot decode AlternateName: %w", err)
-	}
-
-	if isNull {
-		var zero AlternateName
-
-		*alternateName = zero
-
-		return nil
-	}
-
-	return alternateName.UnmarshalText(text)
-}
-
-// JSONSchema implements schema.Provider: it describes how AlternateName crosses a
-// JSON boundary, derived from its directive, so an HTTP adapter can publish it
-// in an OpenAPI document without the domain importing an HTTP framework. It
-// describes the canonical text String returns.
-func (AlternateName) JSONSchema() schema.Schema {
+// JSONSchema returns the JSON Schema of the text AlternateName marshals to.
+func (AlternateName) JSONSchema() map[string]any {
 	const (
 		minimumLength = 1
 		maximumLength = 200
 	)
 
-	return schema.Schema{
-		Type:             schema.String,
-		Format:           "",
-		Pattern:          "",
-		Enum:             nil,
-		MinLength:        schema.Length{Set: true, Value: minimumLength},
-		MaxLength:        schema.Length{Set: true, Value: maximumLength},
-		Minimum:          schema.Number{Set: false, Value: 0},
-		Maximum:          schema.Number{Set: false, Value: 0},
-		ExclusiveMinimum: schema.Number{Set: false, Value: 0},
+	return map[string]any{
+		"type":      "string",
+		"minLength": minimumLength,
+		"maxLength": maximumLength,
 	}
 }
 
@@ -181,46 +103,27 @@ type LanguageCode struct {
 }
 
 // NewLanguageCode validates raw and returns the LanguageCode it describes.
-//
-// Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification.
-// Every failure is collected, so the returned error describes the whole input
-// rather than the first thing that went wrong.
 func NewLanguageCode(raw string) (LanguageCode, error) {
-	const lengthParameter = 2
+	var languageCode LanguageCode // stays zero unless every rule passes
+	var failures validation.Validation
 
-	var notification validation.Notification
+	const lengthParameter = 2
 
 	value := raw
 	value = strings.TrimSpace(value)
 	value = strings.ToLower(value)
 	if value == "" {
-		notification.Reject(
-			"languageCode",
-			"required",
-			"",
-			value,
-			"languageCode is required",
-		)
+		failures.Add("languageCode", "required", "is required")
+
+		return languageCode, failures.Err()
 	}
 	if utf8.RuneCountInString(value) != lengthParameter {
-		notification.Reject(
-			"languageCode",
-			"len",
-			"2",
-			value,
-			"languageCode must be exactly 2 characters long",
-		)
+		failures.Add("languageCode", "len", "must be exactly 2 characters long")
 	}
 
-	if notification.HasErrors() {
-		var zero LanguageCode
-
-		// Only a rejected input escapes to the heap: the notification is
-		// copied here, so the happy path above allocates nothing.
-		failed := notification
-
-		return zero, &failed
+	err := failures.Err()
+	if err != nil {
+		return languageCode, err
 	}
 
 	return LanguageCode{value: value, set: true}, nil
@@ -229,30 +132,22 @@ func NewLanguageCode(raw string) (LanguageCode, error) {
 // String returns the validated value.
 func (languageCode LanguageCode) String() string { return languageCode.value }
 
-// IsZero reports whether the receiver is the zero LanguageCode: one that was never
-// constructed, as opposed to one constructed from an empty string the rules
-// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+// IsZero reports whether the receiver was never constructed; `json:",omitzero"` asks it.
 func (languageCode LanguageCode) IsZero() bool { return !languageCode.set }
 
-// Equal reports whether both value objects hold the same value.
-func (languageCode LanguageCode) Equal(other LanguageCode) bool {
-	return languageCode.value == other.value && languageCode.set == other.set
-}
+// Equal reports whether both hold the same value.
+func (languageCode LanguageCode) Equal(other LanguageCode) bool { return languageCode == other }
 
-// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
-// the text codec for types that implement it, so LanguageCode marshals and
-// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
-// map key too.
+// MarshalText implements encoding.TextMarshaler; the zero LanguageCode has no text form.
 func (languageCode LanguageCode) MarshalText() ([]byte, error) {
 	if languageCode.IsZero() {
-		return nil, fmt.Errorf("vogue: cannot marshal the zero LanguageCode: %w", validation.ErrZeroValue)
+		return nil, fmt.Errorf("cannot marshal the zero LanguageCode: %w", errors.ErrUnsupported)
 	}
 
 	return []byte(languageCode.value), nil
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
-// no payload can produce a LanguageCode the constructor would have rejected.
+// UnmarshalText implements encoding.TextUnmarshaler and validates like the constructor.
 func (languageCode *LanguageCode) UnmarshalText(data []byte) error {
 	parsed, err := NewLanguageCode(string(data))
 	if err != nil {
@@ -264,60 +159,16 @@ func (languageCode *LanguageCode) UnmarshalText(data []byte) error {
 	return nil
 }
 
-// MarshalJSON implements json.Marshaler. The zero LanguageCode is null, which is
-// what keeps an unset field from being written as a value that would read back
-// as a constructed one; anything else is the JSON string of its text form.
-func (languageCode LanguageCode) MarshalJSON() ([]byte, error) {
-	if languageCode.IsZero() {
-		return textjson.Null(), nil
-	}
-
-	text, err := languageCode.MarshalText()
-	if err != nil {
-		return nil, err
-	}
-
-	return textjson.Quote(text), nil
-}
-
-// UnmarshalJSON implements json.Unmarshaler. null reads back as the zero
-// LanguageCode; a JSON string goes through UnmarshalText, so it is validated.
-func (languageCode *LanguageCode) UnmarshalJSON(data []byte) error {
-	text, isNull, err := textjson.Unquote(data)
-	if err != nil {
-		return fmt.Errorf("vogue: cannot decode LanguageCode: %w", err)
-	}
-
-	if isNull {
-		var zero LanguageCode
-
-		*languageCode = zero
-
-		return nil
-	}
-
-	return languageCode.UnmarshalText(text)
-}
-
-// JSONSchema implements schema.Provider: it describes how LanguageCode crosses a
-// JSON boundary, derived from its directive, so an HTTP adapter can publish it
-// in an OpenAPI document without the domain importing an HTTP framework. It
-// describes the canonical text String returns.
-func (LanguageCode) JSONSchema() schema.Schema {
+// JSONSchema returns the JSON Schema of the text LanguageCode marshals to.
+func (LanguageCode) JSONSchema() map[string]any {
 	const (
 		minimumLength = 2
 		maximumLength = 2
 	)
 
-	return schema.Schema{
-		Type:             schema.String,
-		Format:           "",
-		Pattern:          "",
-		Enum:             nil,
-		MinLength:        schema.Length{Set: true, Value: minimumLength},
-		MaxLength:        schema.Length{Set: true, Value: maximumLength},
-		Minimum:          schema.Number{Set: false, Value: 0},
-		Maximum:          schema.Number{Set: false, Value: 0},
-		ExclusiveMinimum: schema.Number{Set: false, Value: 0},
+	return map[string]any{
+		"type":      "string",
+		"minLength": minimumLength,
+		"maxLength": maximumLength,
 	}
 }

@@ -10,6 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// validationFlag names the reference failure type of the repository.
+const validationFlag = "-validation=github.com/MathiasHilgert/vogue/examples/validation.Validation"
+
+// withValidation returns the command line with the failure type appended.
+func withValidation(args ...string) []string { return append(args, validationFlag) }
+
 // fixture writes a directive package into a fresh temporary directory.
 func fixture(t *testing.T) string {
 	t.Helper()
@@ -27,7 +33,7 @@ func TestRun(t *testing.T) {
 		var stdout, stderr bytes.Buffer
 
 		// Act
-		code := run([]string{"-dir", dir}, &stdout, &stderr)
+		code := run(withValidation("-dir", dir), &stdout, &stderr)
 
 		// Assert
 		assert.Equal(t, 0, code)
@@ -42,20 +48,20 @@ func TestRun(t *testing.T) {
 		var stdout, stderr bytes.Buffer
 
 		// Act
-		code := run([]string{"-dir", dir, "-tests=false"}, &stdout, &stderr)
+		code := run(withValidation("-dir", dir, "-tests=false"), &stdout, &stderr)
 
 		// Assert
 		assert.Equal(t, 0, code)
 		assert.NoFileExists(t, filepath.Join(dir, "vo_vogue_test.go"))
 	})
 
-	t.Run("leaves the SQL codec out when it is turned off", func(t *testing.T) {
+	t.Run("leaves the SQL codec out unless it is turned on", func(t *testing.T) {
 		// Arrange
 		dir := fixture(t)
 		var stdout, stderr bytes.Buffer
 
 		// Act
-		code := run([]string{"-dir", dir, "-sql=false"}, &stdout, &stderr)
+		code := run(withValidation("-dir", dir), &stdout, &stderr)
 
 		// Assert
 		assert.Equal(t, 0, code)
@@ -64,20 +70,69 @@ func TestRun(t *testing.T) {
 		assert.NotContains(t, string(generated), "database/sql/driver")
 	})
 
+	t.Run("generates the SQL codec when it is turned on", func(t *testing.T) {
+		// Arrange
+		dir := fixture(t)
+		var stdout, stderr bytes.Buffer
+
+		// Act
+		code := run(withValidation("-dir", dir, "-sql"), &stdout, &stderr)
+
+		// Assert
+		assert.Equal(t, 0, code)
+		generated, err := os.ReadFile(filepath.Join(dir, "vo_vogue.go"))
+		require.NoError(t, err)
+		assert.Contains(t, string(generated), "database/sql/driver")
+	})
+
 	t.Run("adds the JSONSchema method when asked to", func(t *testing.T) {
 		// Arrange
 		dir := fixture(t)
 		var stdout, stderr bytes.Buffer
 
 		// Act
-		code := run([]string{"-dir", dir, "-schema"}, &stdout, &stderr)
+		code := run(withValidation("-dir", dir, "-schema"), &stdout, &stderr)
 
 		// Assert
 		assert.Equal(t, 0, code)
 		generated, err := os.ReadFile(filepath.Join(dir, "vo_vogue.go"))
 		require.NoError(t, err)
-		assert.Contains(t, string(generated), "JSONSchema() schema.Schema")
+		assert.Contains(t, string(generated), "JSONSchema() map[string]any")
 	})
+
+	t.Run("exits 2 and prints the contract when the failure type is missing", func(t *testing.T) {
+		// Arrange
+		dir := fixture(t)
+		var stdout, stderr bytes.Buffer
+
+		// Act
+		code := run([]string{"-dir", dir}, &stdout, &stderr)
+
+		// Assert
+		assert.Equal(t, 2, code)
+		assert.Contains(t, stderr.String(), "-validation=<import path>.<Type>")
+		assert.Contains(t, stderr.String(), "Add(field, rule, message string)")
+		assert.Contains(t, stderr.String(), "func (validation *Validation) Err() error")
+		assert.NoFileExists(t, filepath.Join(dir, "vo_vogue.go"))
+	})
+
+	for name, spec := range map[string]string{
+		"has no type":              "example.com/app/fault",
+		"names an unexported type": "example.com/app/fault.validation",
+		"has an empty path":        ".Validation",
+	} {
+		t.Run("exits 2 when -validation "+name, func(t *testing.T) {
+			// Arrange
+			var stdout, stderr bytes.Buffer
+
+			// Act
+			code := run([]string{"-dir", fixture(t), "-validation=" + spec}, &stdout, &stderr)
+
+			// Assert
+			assert.Equal(t, 2, code)
+			assert.Contains(t, stderr.String(), "-validation")
+		})
+	}
 
 	t.Run("an empty suffix names the files after the value objects", func(t *testing.T) {
 		// Arrange
@@ -85,7 +140,7 @@ func TestRun(t *testing.T) {
 		var stdout, stderr bytes.Buffer
 
 		// Act
-		code := run([]string{"-dir", dir, "-suffix="}, &stdout, &stderr)
+		code := run(withValidation("-dir", dir, "-suffix="), &stdout, &stderr)
 
 		// Assert
 		assert.Equal(t, 0, code)
@@ -100,7 +155,7 @@ func TestRun(t *testing.T) {
 		var stdout, stderr bytes.Buffer
 
 		// Act
-		code := run([]string{"-dir", dir, "-suffix="}, &stdout, &stderr)
+		code := run(withValidation("-dir", dir, "-suffix="), &stdout, &stderr)
 
 		// Assert
 		assert.Equal(t, 1, code)
@@ -113,7 +168,7 @@ func TestRun(t *testing.T) {
 		var stdout, stderr bytes.Buffer
 
 		// Act
-		code := run([]string{"-dir", dir, "-dry-run"}, &stdout, &stderr)
+		code := run(withValidation("-dir", dir, "-dry-run"), &stdout, &stderr)
 
 		// Assert
 		assert.Equal(t, 0, code)
@@ -129,7 +184,7 @@ func TestRun(t *testing.T) {
 		var stdout, stderr bytes.Buffer
 
 		// Act
-		code := run([]string{"-dir", dir}, &stdout, &stderr)
+		code := run(withValidation("-dir", dir), &stdout, &stderr)
 
 		// Assert
 		assert.Equal(t, 1, code)

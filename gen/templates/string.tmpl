@@ -9,41 +9,27 @@
 }
 
 // New{{$n}} validates raw and returns the {{$n}} it describes.
-//
-// Rules are applied in the order they were declared: normalizers rewrite the
-// working value, checks record a [validation.FieldError] on a notification.
-// Every failure is collected, so the returned error describes the whole input
-// rather than the first thing that went wrong.
 func New{{$n}}(raw string) ({{$n}}, error) {
 {{template "validate" .}}
-	return {{$n}}{value: value, set: true}, nil
-}
-
 // String returns the validated value.
 func ({{$r}} {{$n}}) String() string { return {{$r}}.value }
 
-// IsZero reports whether the receiver is the zero {{$n}}: one that was never
-// constructed, as opposed to one constructed from an empty string the rules
-// accept. It is what `json:",omitzero"` asks, and what Value stores as NULL.
+// IsZero reports whether the receiver was never constructed; `json:",omitzero"` asks it.
 func ({{$r}} {{$n}}) IsZero() bool { return !{{$r}}.set }
 
-// Equal reports whether both value objects hold the same value.
-func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}}.value == other.value && {{$r}}.set == other.set }
+// Equal reports whether both hold the same value.
+func ({{$r}} {{$n}}) Equal(other {{$n}}) bool { return {{$r}} == other }
 
-// MarshalText implements encoding.TextMarshaler. encoding/json falls back to
-// the text codec for types that implement it, so {{$n}} marshals and
-// unmarshals as a JSON string without a MarshalJSON of its own, and works as a
-// map key too.
+// MarshalText implements encoding.TextMarshaler; the zero {{$n}} has no text form.
 func ({{$r}} {{$n}}) MarshalText() ([]byte, error) {
 	if {{$r}}.IsZero() {
-		return nil, fmt.Errorf("vogue: cannot marshal the zero {{$n}}: %w", validation.ErrZeroValue)
+		return nil, fmt.Errorf("cannot marshal the zero {{$n}}: %w", errors.ErrUnsupported)
 	}
 
 	return []byte({{$r}}.value), nil
 }
 
-// UnmarshalText implements encoding.TextUnmarshaler. It re-runs validation, so
-// no payload can produce a {{$n}} the constructor would have rejected.
+// UnmarshalText implements encoding.TextUnmarshaler and validates like the constructor.
 func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 	parsed, err := New{{$n}}(string(data))
 	if err != nil {
@@ -54,10 +40,8 @@ func ({{$r}} *{{$n}}) UnmarshalText(data []byte) error {
 
 	return nil
 }
-{{template "json" .}}
 {{if .SQL}}
-// Value implements driver.Valuer. The zero {{$n}} is stored as NULL, which
-// Scan reads back as the zero {{$n}}.
+// Value implements driver.Valuer; the zero {{$n}} is stored as NULL.
 func ({{$r}} {{$n}}) Value() (driver.Value, error) {
 	if !{{$r}}.set {
 		// A nil driver.Value is SQL NULL.
@@ -69,9 +53,7 @@ func ({{$r}} {{$n}}) Value() (driver.Value, error) {
 	return {{$r}}.value, nil
 }
 
-// Scan implements sql.Scanner for text columns. It re-runs validation, so a
-// row that no longer satisfies the rules surfaces as a validation error
-// instead of an invalid value object.
+// Scan implements sql.Scanner and validates like the constructor.
 func ({{$r}} *{{$n}}) Scan(src any) error {
 	switch source := src.(type) {
 	case nil:
@@ -85,8 +67,9 @@ func ({{$r}} *{{$n}}) Scan(src any) error {
 	case []byte:
 		return {{$r}}.UnmarshalText(source)
 	default:
-		return fmt.Errorf("vogue: cannot scan %T into {{$n}}: %w", src, validation.ErrUnsupportedSource)
+		return fmt.Errorf("cannot scan %T into {{$n}}: %w", src, errors.ErrUnsupported)
 	}
 }
 {{end}}
 {{template "schema" .}}
+{{template "rulemethods" .}}

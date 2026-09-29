@@ -1,7 +1,7 @@
 # Strict lint profile for generated code.
 #
 # This is frappe-api's .golangci.yml (github.com/MathiasHilgert/frappe-api),
-# copied verbatim below this header except for three marked changes, so that
+# copied verbatim below this header except for six marked changes, so that
 # the code vogue generates is held to the configuration of a real consumer:
 #
 #   1. `default: all` instead of `default: none`, with a short list of linters
@@ -12,6 +12,14 @@
 #   3. The `domain` depguard rule also covers gen/testdata/strict/domain, the
 #      golden output generated for a domain package, so frappe-api's
 #      hexagonal layering applies to it.
+#   4. `wrapcheck` ignores the package of the consumer's failure type: a
+#      constructor returns failures.Err() as it is, because wrapping it would
+#      bury the type errors.As looks for under one more message.
+#   5. A `vogue` depguard rule allows generated code and its tests the standard
+#      library, uuid, decimal and the failure type, and nothing of vogue.
+#   6. `goconst` ignores the JSON Schema keywords and formats a JSONSchema
+#      method spells in every value object, and the pattern of an integer's
+#      text: they are protocol constants, repeated by design.
 #
 # It is run by CI against gen/testdata/strict/domain and
 # gen/testdata/strict/persistence; see .github/workflows/ci.yml.
@@ -88,6 +96,21 @@ linters:
               desc: "domain must stay free of foundation infrastructure entirely; foundation belongs to adapters and module root only"
             - pkg: go.opentelemetry.io/otel
               desc: "domain must stay free of telemetry entirely; metrics and tracing belong in the module's metrics/tracing subpackages"
+        vogue:
+          # CHANGE 5: generated code imports the standard library, the kinds'
+          # own dependencies, and the type it records failures on. Nothing of
+          # vogue, and no test framework: the generated tests use testing and
+          # errors only.
+          list-mode: strict
+          files:
+            - "**/*_vogue.go"
+            - "**/*_vogue_test.go"
+          allow:
+            - $gostd
+            - github.com/google/uuid
+            - github.com/govalues/decimal
+            - github.com/MathiasHilgert/vogue/examples/validation
+            - github.com/MathiasHilgert/vogue/examples/customrule/cuit
         application:
           files:
             - "**/internal/modules/*/application/*.go"
@@ -170,6 +193,16 @@ linters:
     gocyclo:
       # Functions above this cyclomatic complexity must be refactored.
       min-complexity: 10
+    goconst:
+      # CHANGE 6: the keywords of a JSON Schema, see the header.
+      ignore-string-values:
+        - '^(type|string|format|pattern|enum|minLength|maxLength|minimum|maximum|exclusiveMinimum)$'
+        - '^(int64|decimal|email|uri|uuid)$'
+        - '^\^\[\+-\]\?\[0-9\]\+\$$'
+    wrapcheck:
+      # CHANGE 4: the consumer's failure type, see the header.
+      ignore-package-globs:
+        - github.com/MathiasHilgert/vogue/examples/validation
     gocognit:
       # Functions above this cognitive complexity must be refactored.
       min-complexity: 15

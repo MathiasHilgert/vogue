@@ -8,14 +8,111 @@ is zero, a minor release may break the API; every break is listed under
 
 ## [Unreleased]
 
-### Fixed
+Generated code now imports nothing of vogue: the standard library, the
+packages of the kinds it uses (`uuid`, `decimal`) and the failure type of your
+own project. Regenerate with `go generate ./...` after following the
+migration below. The entries under "Earlier in this release" were written
+against the beta.2 runtime and are partly superseded by what follows.
+
+### Changed (breaking)
+
+- **`-validation` is required.** Generated constructors record their failures
+  on a type your project owns, named `-validation=<import path>.<Type>`
+  (`generator.WithValidation(path, typeName)`, `gen.Options.Validation`). It
+  needs a zero value that is ready to use, `Add(field, rule, message string)`
+  and `Err() error`, and the error `Err` returns needs
+  `Has(field, rule string) bool`. Without the flag the command exits 2 and
+  prints the contract with a reference implementation, also in
+  `examples/validation`. Migration: copy that type into your module, add the
+  flag to your `//go:generate` line and regenerate.
+- **`errors.Is(err, validation.ErrInvalid)` and `validation.FieldError` are
+  gone**, with `validation.Notification`, `vogue.FieldError`,
+  `vogue.Notification` and `vogue.ErrInvalid`. Match on your own type instead:
+  `errors.As(err, &yourError)`, or `errors.As` into an
+  `interface{ Has(field, rule string) bool }`. An HTTP adapter that mapped
+  `ErrInvalid` to a 422 now maps your error type.
+- **Messages do not name the field and never carry the value**:
+  `invalid slug: is required (required)`, where the field and the rule come
+  from the failure and the message is `is required`. The built-in messages of
+  `min` and `max` read `length must be at most 120` on a string.
+  `vogue.MessageData` gains `Kind` for a rule spanning several kinds.
+- **`required` stops the constructor when it fails**
+  (`vogue.Rule.Precondition`), so an empty input is one failure and not one per
+  rule that also rejects the empty string. Other rules keep accumulating.
+- **No MarshalJSON, no UnmarshalJSON.** `encoding/json` uses the text codec,
+  so a value object is a JSON string as before, but the zero value no longer
+  marshals as `null`: it has no text form and fails. Add `omitzero` to the
+  optional fields that hold value objects (`json:"title,omitzero"`). A JSON
+  `null` is skipped by the decoder and leaves the field as it was.
+- **The zero value fails to marshal with a wrapped `errors.ErrUnsupported`**
+  (was `validation.ErrZeroValue`). `encoding/json` does not print the cause of
+  an `ErrUnsupported`, only that the marshaler failed for the type.
+- **`-sql` is off by default** (`generator.WithSQL` defaults to `false`,
+  `gen.Options.OmitSQL` is now `gen.Options.SQL`). Pass `-sql` where
+  `Value`/`Scan` are wanted. With it, `Scan` wraps `errors.ErrUnsupported`
+  for a source it cannot read, and for a binary float on a decimal;
+  `validation.ErrUnsupportedSource` and `validation.ErrLossySource` are gone.
+- **`JSONSchema()` returns `map[string]any`**, keyed by the JSON Schema
+  keywords `type`, `format`, `pattern`, `enum`, `minLength`, `maxLength`,
+  `minimum`, `maximum` and `exclusiveMinimum` that the directive sets, instead
+  of a `schema.Schema`. An adapter that translated a `schema.Provider`
+  type-asserts on `interface{ JSONSchema() map[string]any }`.
+- **Generated tests use the standard library only** (`testing`, `errors`, and
+  `regexp`, `unicode/utf8` and `slices` for a schema), in a few small
+  functions per value object instead of one `voguetest` suite. Regenerate them.
+- **`Rule.Declare` gives way to `Rule.Method`** for checks too long to read
+  inline. `Method` returns the name and the body of an unexported method, which
+  the generator writes once on every type that uses the rule
+  (`func (Code) isEmail(value string) bool`), and the constructor calls through
+  its receiver. `email`, `url`, `uuid` and `timezone` are method rules that use
+  the standard library only (`net/mail`, `net/url`, a hand-written 8-4-4-4-12
+  check, a `switch` over the IANA zone names). `Declare` stays for a
+  package-level declaration such as a compiled pattern, and `EmitContext`
+  gains `Type` and `Receiver` to name it per type. Migration: a custom rule
+  that used `Declare` for anything but a compiled pattern returns a `Method`
+  instead, and its `Emit` goes away.
+- **`regex` compiles its pattern once**, into one unexported
+  `<type>Pattern` variable per type, the only package-level variable generated
+  code declares. An invalid pattern still fails at generate time.
+- **A `Rule.Call` into vogue is refused at generate time**: into the module
+  itself, or into a package that depends on it (`go list -deps`); the
+  generated code would import vogue into the domain. Keep the predicate in a
+  package that imports nothing of vogue and the `vogue.Rule` value in another,
+  as `examples/customrule` now does (`cuit` and `cuitrule`).
+- **Generated code is shorter.** One `failures.Add(field, rule, message)` line
+  per rule, `Equal` through `==` (a decimal still compares with `Cmp`), and
+  one-line doc comments.
+
+### Added
+
+- `regex_message="..."` directive token: replaces the generic message of the
+  `regex` rule of the same directive, which prints the pattern.
+- `vogue.Rule.Precondition`, `vogue.Rule.Method`, `vogue.EmitContext.Type` and
+  `vogue.EmitContext.Receiver`, `vogue.MessageData.Kind`.
+- `examples/validation`, the reference failure type, linted with the strict
+  profile like the generated code.
+- `generator.ParseValidation`, `generator.ValidationContract`.
+- A test runs `go list -deps` on the golden packages and fails on an import of
+  vogue or of a test framework; the strict lint configuration allows generated
+  code the standard library, `uuid`, `decimal` and the failure type only
+  (`depguard`).
+
+### Removed
+
+- Packages `validation`, `textjson`, `schema`, `voguetest`, `rules/rulecheck`
+  and the aliases of the root package (`vogue.FieldError`,
+  `vogue.Notification`, `vogue.ErrInvalid`). Nothing generated imports them.
+
+### Earlier in this release
+
+#### Fixed
 
 - Switching `-suffix` under `go generate` no longer fails the first run with
   "no such file or directory": go generate opens every file it listed before
   running, so a stale generated file is emptied into a `//go:build ignore`
   stub while go generate runs, and removed by the next run.
 
-### Added
+#### Added
 
 - `-suffix` / `generator.WithSuffix` / `gen.Options.Suffix` name the generated
   files; the default `_vogue` keeps today's names. `-suffix=` writes
@@ -74,7 +171,7 @@ is zero, a minor release may break the API; every break is listed under
 - `examples/composite`: a hand-written `Coordinates` composed from generated
   `Latitude` and `Longitude`, with every failure reported at once.
 
-### Changed
+#### Changed
 
 - **Breaking: field names keep Go initialisms.** The name a value object
   reports its failures under is the lower-camel spelling Go uses, so

@@ -2,13 +2,13 @@ package geo_test
 
 import (
 	"encoding/json"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/MathiasHilgert/vogue/examples/composite/geo"
-	"github.com/MathiasHilgert/vogue/validation"
 )
 
 func TestNewCoordinates(t *testing.T) {
@@ -35,9 +35,9 @@ func TestNewCoordinates(t *testing.T) {
 		got, err := geo.NewCoordinates("91", "-181")
 
 		// Assert
-		require.ErrorIs(t, err, validation.ErrInvalid)
-		require.ErrorIs(t, err, validation.Failure("latitude", "max"))
-		require.ErrorIs(t, err, validation.Failure("longitude", "min"))
+		require.Error(t, err)
+		assert.Equal(t, "invalid coordinates: invalid latitude: must be at most 90 (max)\n"+
+			"invalid longitude: must be at least -180 (min)", err.Error())
 		assert.True(t, got.IsZero())
 	})
 
@@ -70,7 +70,9 @@ func TestNewCoordinates(t *testing.T) {
 		err := got.UnmarshalText([]byte("40.4"))
 
 		// Assert
-		require.ErrorIs(t, err, validation.Failure("coordinates", "pair"))
+		var failed interface{ Has(field, rule string) bool }
+		require.ErrorAs(t, err, &failed)
+		assert.True(t, failed.Has("coordinates", "pair"))
 	})
 }
 
@@ -84,14 +86,11 @@ func TestCoordinates_ZeroValue(t *testing.T) {
 
 	// Act
 	_, textErr := zero.MarshalText()
-	encoded, jsonErr := json.Marshal(zero)
 	decoded := constructed
 	nullErr := json.Unmarshal([]byte("null"), &decoded)
 
 	// Assert
-	require.ErrorIs(t, textErr, validation.ErrZeroValue)
-	require.NoError(t, jsonErr)
-	assert.JSONEq(t, "null", string(encoded))
+	require.ErrorIs(t, textErr, errors.ErrUnsupported)
 	require.NoError(t, nullErr)
-	assert.True(t, decoded.IsZero())
+	assert.False(t, decoded.IsZero(), "null is a no-op for a text unmarshaler, so the value stays")
 }

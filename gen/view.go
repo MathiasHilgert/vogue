@@ -42,8 +42,11 @@ type stepView struct {
 	// the constructor records a failure, with the negation pushed into the
 	// expression rather than wrapped around it.
 	Failed string
-	// Field, Rule and Param identify the failure the step records.
-	Field, Rule, Param string
+	// Halt marks a precondition: when the check fails, the constructor
+	// returns at once and the steps after it do not run.
+	Halt bool
+	// Field and Rule identify the failure the step records.
+	Field, Rule string
 	// Message is the failure message, rendered at generate time.
 	Message string
 }
@@ -60,23 +63,32 @@ type voView struct {
 	// Name is the generated type name and Recv the receiver identifier used by
 	// its methods.
 	Name, Recv string
-	// Field is the name the value object reports in a [validation.FieldError].
+	// Field is the name the value object reports its failures under.
 	Field string
 	// DocLines are the godoc lines of the type, without their slashes.
 	DocLines []string
 	// ValueExpr renders the offending value as text inside a constructor.
 	ValueExpr string
+	// Failures is the consumer's failure type as generated code names it,
+	// such as "fault.Validation".
+	Failures string
 	// Steps are the rules of a string or int constructor, in directive order.
 	Steps []stepView
 	// Locals are the declarations the rules asked to place at the top of the
 	// constructor through [vogue.Rule.Local], in first-seen order.
 	Locals []string
+	// Methods are the unexported methods the rules asked for through
+	// [vogue.Rule.Method], written after the exported ones. When there are
+	// any, the constructor declares its receiver to call them through.
+	Methods []methodView
 	// SQL marks a value object that implements driver.Valuer and sql.Scanner.
 	SQL bool
 	// Schema is the JSONSchema method, nil when it is not generated.
 	Schema *schemaView
 	// Catalogue, Members, MemberList and MemberParam describe an enum.
 	Catalogue string
+	// Message is the failure message of an enum's Parse.
+	Message string
 	// CatalogueRecv is the receiver of the catalogue's methods.
 	CatalogueRecv string
 	Members       []memberView
@@ -92,19 +104,20 @@ type voView struct {
 func (g *Generator) newView(d parse.Directive, imports *importSet, decls *declSet) (voView, string, error) {
 	v := voView{
 		Name:     d.Name,
-		Recv:     receiver(d.Name),
+		Recv:     g.receiver(d.Name),
 		Field:    d.Field,
 		DocLines: docLines(d),
+		Failures: g.failuresType(),
 	}
 
-	// Every kind reports failures through validation. The SQL codec adds
-	// driver.Value and formats an unsupported Scan source with fmt.
-	paths := []string{importValidation, importTextJSON, importFmt}
-	sql := !g.opts.OmitSQL
-	if sql {
-		paths = append(paths, importDriver, importFmt)
+	// Every kind records failures on the consumer's type and refuses to marshal
+	// its zero value with a wrapped errors.ErrUnsupported. The SQL codec adds
+	// driver.Value.
+	paths := []string{g.opts.Validation.ImportPath, importErrors, importFmt}
+	if g.opts.SQL {
+		paths = append(paths, importDriver)
 	}
-	v.SQL = sql
+	v.SQL = g.opts.SQL
 
 	var name string
 	switch d.Kind {
@@ -132,18 +145,17 @@ func (g *Generator) newView(d parse.Directive, imports *importSet, decls *declSe
 
 	if g.opts.Schema {
 		v.Schema = newSchemaView(d)
-		paths = append(paths, importSchema)
 	}
 
 	if err := addAll(imports, paths...); err != nil {
 		return voView{}, "", err
 	}
 	if len(d.Rules) > 0 {
-		steps, locals, err := g.steps(d, imports, decls)
+		steps, locals, methods, err := g.steps(d, imports, decls)
 		if err != nil {
 			return voView{}, "", err
 		}
-		v.Steps, v.Locals = steps, locals
+		v.Steps, v.Locals, v.Methods = steps, locals, methods
 	}
 	return v, name, nil
 }
@@ -156,9 +168,10 @@ func (g *Generator) enumView(v *voView, d parse.Directive) {
 		v.Members[i] = memberView{Method: member.Method, Value: member.Value}
 		values[i] = member.Value
 	}
-	v.Catalogue, v.CatalogueRecv = d.Catalogue, receiver(d.Catalogue)
+	v.Catalogue, v.CatalogueRecv = d.Catalogue, g.receiver(d.Catalogue)
 	v.MemberParam = strings.Join(values, ",")
 	v.MemberList = strings.Join(values, ", ")
+	v.Message = "must be one of: " + v.MemberList
 }
 
 // idView completes the view of an id value object for its strategy, returning
@@ -223,12 +236,13 @@ func addAll(imports *importSet, paths ...string) error {
 // steps resolves every rule of a directive to the source the constructor runs,
 // preserving the order the rules were written in, together with the local
 // declarations those rules need.
-func (g *Generator) steps(d parse.Directive, imports *importSet, decls *declSet) ([]stepView, []string, error) {
+func (g *Generator) steps(d parse.Directive, imports *importSet, decls *declSet) ([]stepView, []string, []methodView, error) {
 	steps := make([]stepView, 0, len(d.Rules))
 	locals := newDeclSet()
+	methods := newMethodSet()
 	for _, use := range d.Rules {
 		rule := use.Rule
-		ctx := emitContext(d, use)
+		ctx := g.emitContext(d, use)
 
 		var decl, local string
 		if rule.Declare != nil {
@@ -240,12 +254,12 @@ func (g *Generator) steps(d parse.Directive, imports *importSet, decls *declSet)
 			locals.add(local)
 		}
 
-		code, err := g.code(d, use, imports)
+		code, method, err := g.rulePart(d, use, imports, methods)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
-		if err := addUsed(imports, rule.Imports, code, decl, local); err != nil {
-			return nil, nil, err
+		if err := addUsed(imports, rule.Imports, code, decl, local, method); err != nil {
+			return nil, nil, nil, err
 		}
 		if rule.Normalize {
 			steps = append(steps, stepView{Normalize: true, Code: code})
@@ -254,22 +268,45 @@ func (g *Generator) steps(d parse.Directive, imports *importSet, decls *declSet)
 
 		failed, err := negate(code)
 		if err != nil {
-			return nil, nil, fmt.Errorf("gen: %s: %w", use.Pos, err)
+			return nil, nil, nil, fmt.Errorf("gen: %s: %w", use.Pos, err)
 		}
-		message, err := renderMessage(rule, d.Field, use.Param)
+		message, err := renderMessage(rule, d, use.Param)
 		if err != nil {
-			return nil, nil, fmt.Errorf("gen: %s: %w", use.Pos, err)
+			return nil, nil, nil, fmt.Errorf("gen: %s: %w", use.Pos, err)
 		}
 		steps = append(steps, stepView{
 			Code:    code,
 			Failed:  failed,
+			Halt:    rule.Precondition,
 			Field:   d.Field,
 			Rule:    rule.Name,
-			Param:   use.Param,
 			Message: message,
 		})
 	}
-	return steps, mergeConsts(locals.all()), nil
+	return steps, mergeConsts(locals.all()), methods.all(), nil
+}
+
+// rulePart resolves the source one rule contributes to the constructor, and
+// the source of the method it asks the type for, empty when it asks for none.
+// A rule with [vogue.Rule.Method] contributes the call to its method and
+// records the method in methods.
+func (g *Generator) rulePart(d parse.Directive, use parse.RuleUse, imports *importSet, methods *methodSet) (code, method string, err error) {
+	rule := use.Rule
+	if rule.Method == nil {
+		code, err = g.code(d, use, imports)
+		return code, "", err
+	}
+
+	ctx := g.emitContext(d, use)
+	name, body := rule.Method(ctx)
+	if err := checkMethodName(rule.Name, name); err != nil {
+		return "", "", fmt.Errorf("gen: %s: %w", use.Pos, err)
+	}
+	err = methods.add(methodView{Name: name, Rule: rule.Name, ParamType: methodParamType(d.Kind), Body: body, Long: isLong(body)})
+	if err != nil {
+		return "", "", fmt.Errorf("gen: %s: %w", use.Pos, err)
+	}
+	return ctx.Receiver + "." + name + "(" + ctx.Var + ")", body, nil
 }
 
 // singleConst matches a one-line constant declaration.
@@ -310,22 +347,30 @@ func (g *Generator) code(d parse.Directive, use parse.RuleUse, imports *importSe
 		if rule.Call.Path != g.opts.ImportPath {
 			call = rule.Call.Selector()
 		}
-		working := emitContext(d, use).Var
+		working := g.emitContext(d, use).Var
 		if rule.Param.Presence == vogue.ParamNone || use.Param == "" {
 			return call + "(" + working + ")", nil
 		}
 		return call + "(" + working + ", " + quote(use.Param) + ")", nil
 	}
 	if rule.Emit == nil {
-		return "", fmt.Errorf("gen: %s: rule %q has neither Emit nor Call", use.Pos, rule.Name)
+		return "", fmt.Errorf("gen: %s: rule %q has none of Emit, Call or Method", use.Pos, rule.Name)
 	}
-	return rule.Emit(emitContext(d, use)), nil
+	return rule.Emit(g.emitContext(d, use)), nil
 }
 
 // emitContext builds the context handed to [vogue.Rule.Emit] and
 // [vogue.Rule.Declare], so both always see exactly the same identifiers.
-func emitContext(d parse.Directive, use parse.RuleUse) vogue.EmitContext {
-	return vogue.EmitContext{Var: "value", Param: use.Param, Field: d.Field, Kind: d.Kind, Ident: ident(use.Rule.Name)}
+func (g *Generator) emitContext(d parse.Directive, use parse.RuleUse) vogue.EmitContext {
+	return vogue.EmitContext{
+		Var:      "value",
+		Param:    use.Param,
+		Field:    d.Field,
+		Kind:     d.Kind,
+		Type:     d.Name,
+		Receiver: g.receiver(d.Name),
+		Ident:    ident(use.Rule.Name),
+	}
 }
 
 // spelledOut are the built-in rule names that are abbreviations, and the word
@@ -351,14 +396,18 @@ func ident(rule string) string {
 }
 
 // renderMessage renders a rule message at generate time, rejecting a template
-// that needs the runtime value.
-func renderMessage(rule vogue.Rule, field, param string) (string, error) {
-	message, err := rule.RenderMessage(vogue.MessageData{Field: field, Param: param, Value: valueSentinel})
+// that needs the runtime value. The `regex` rule takes the message of the
+// directive's regex_message token when there is one.
+func renderMessage(rule vogue.Rule, d parse.Directive, param string) (string, error) {
+	if rule.Name == "regex" && d.RegexMessage != "" {
+		return d.RegexMessage, nil
+	}
+	message, err := rule.RenderMessage(vogue.MessageData{Field: d.Field, Kind: d.Kind, Param: param, Value: valueSentinel})
 	if err != nil {
 		return "", err
 	}
 	if strings.Contains(message, valueSentinel) {
-		return "", fmt.Errorf("rule %q: message template must not reference {{.Value}}: messages are rendered at generate time, and the offending value is already carried by validation.FieldError.Value", rule.Name)
+		return "", fmt.Errorf("rule %q: message template must not reference {{.Value}}: messages are rendered at generate time", rule.Name)
 	}
 	return message, nil
 }
@@ -380,24 +429,42 @@ func docLines(d parse.Directive) []string {
 
 // receiver returns the method receiver of a type name: the name in lower
 // camel case, so CountryCode methods read countryCode.value. A name that
-// would shadow an import, a keyword, a predeclared identifier or a local the
-// templates declare takes a "Value" suffix instead.
-func receiver(name string) string {
+// would shadow an import, the package of the consumer's failure type, a
+// keyword, a predeclared identifier or a local the templates declare takes a
+// "Value" suffix instead.
+func (g *Generator) receiver(name string) string {
 	recv := parse.FieldName(name)
-	if _, taken := reservedReceivers[recv]; taken || token.IsKeyword(recv) || types.Universe.Lookup(recv) != nil {
+	_, taken := reservedReceivers[recv]
+	if taken || recv == g.validationIdent() || token.IsKeyword(recv) || types.Universe.Lookup(recv) != nil {
 		return recv + "Value"
 	}
 	return recv
+}
+
+// validationIdent is the identifier the consumer's failure type is referenced
+// through, empty when it lives in the package being generated.
+func (g *Generator) validationIdent() string {
+	if g.opts.Validation.ImportPath == g.opts.ImportPath {
+		return ""
+	}
+	return packageIdent(g.opts.Validation.ImportPath)
+}
+
+// failuresType returns the consumer's failure type as generated code names it.
+func (g *Generator) failuresType() string {
+	if ident := g.validationIdent(); ident != "" {
+		return ident + "." + g.opts.Validation.TypeName
+	}
+	return g.opts.Validation.TypeName
 }
 
 // reservedReceivers are the identifiers a receiver must not take: the
 // packages generated code imports and the locals and parameters its methods
 // declare.
 var reservedReceivers = map[string]struct{}{
-	"decimal": {}, "driver": {}, "fmt": {}, "regexp": {}, "rulecheck": {}, "schema": {},
-	"slices": {}, "strconv": {}, "strings": {}, "unicode": {}, "utf8": {}, "uuid": {},
-	"validation": {},
-	"data":       {}, "err": {}, "failed": {}, "id": {}, "member": {}, "notification": {}, "null": {},
+	"decimal": {}, "driver": {}, "errors": {}, "fmt": {}, "regexp": {}, "slices": {},
+	"strconv": {}, "strings": {}, "unicode": {}, "utf8": {}, "uuid": {},
+	"data": {}, "err": {}, "failures": {}, "id": {}, "member": {}, "null": {},
 	"number": {}, "other": {}, "parsed": {}, "raw": {}, "rawLength": {}, "source": {}, "src": {},
-	"isNull": {}, "text": {}, "textjson": {}, "value": {}, "whole": {}, "zero": {},
+	"text": {}, "value": {}, "whole": {}, "zero": {},
 }

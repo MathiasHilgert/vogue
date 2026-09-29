@@ -14,11 +14,12 @@
 //
 //	-dir string          directory to generate from (default: $GOFILE's, else ".")
 //	-import-path string  import path of that directory (default: asked of `go list`)
+//	-validation string   the type constructors record failures on, <import path>.<Type> (required)
 //	-tests               generate the test of every value object (default true)
 //	-suffix string       appended to a source file's name to name its output (default "_vogue");
 //	                     empty writes one <snake_name>.go and <snake_name>_test.go per value object
-//	-sql                 generate the database/sql codec, Value and Scan (default true)
-//	-schema              generate a JSONSchema method returning a schema.Schema
+//	-sql                 generate the database/sql codec, Value and Scan (default false)
+//	-schema              generate a JSONSchema method returning a map[string]any
 //	-dry-run             report the files that would be written, write nothing
 //	-list                print the rule catalogue and exit
 //	-version             print the version and exit
@@ -64,8 +65,9 @@ func run(args []string, stdout, stderr io.Writer) int {
 	importPath := flags.String("import-path", "", "import path of that directory (default: asked of `go list`)")
 	tests := flags.Bool("tests", true, "generate the test of every value object")
 	suffix := flags.String("suffix", "_vogue", "appended to a source file's base name to name the files generated from it; empty writes <snake_name>.go and <snake_name>_test.go per value object")
+	validation := flags.String("validation", "", "the type constructors record failures on, as <import path>.<Type> (required)")
 	schema := flags.Bool("schema", false, "generate a JSONSchema method describing each value object for OpenAPI")
-	sql := flags.Bool("sql", true, "generate the database/sql codec (Value and Scan); turn it off for a domain package that must not import database/sql/driver")
+	sql := flags.Bool("sql", false, "generate the database/sql codec (Value and Scan), which imports database/sql/driver")
 	dryRun := flags.Bool("dry-run", false, "report the files that would be written, and write nothing")
 	list := flags.Bool("list", false, "print the rule catalogue and exit")
 	version := flags.Bool("version", false, "print the version and exit")
@@ -88,7 +90,18 @@ func run(args []string, stdout, stderr io.Writer) int {
 		return exitOK
 	}
 
+	if *validation == "" {
+		fmt.Fprint(stderr, generator.ValidationRequired)
+		return exitUsage
+	}
+	validationPath, validationType, err := generator.ParseValidation(*validation)
+	if err != nil {
+		fmt.Fprintln(stderr, err)
+		return exitUsage
+	}
+
 	opts := []generator.Option{
+		generator.WithValidation(validationPath, validationType),
 		generator.WithTests(*tests),
 		generator.WithSQL(*sql),
 		generator.WithSuffix(*suffix),

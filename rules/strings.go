@@ -16,10 +16,14 @@ var Required = vogue.Rule{
 	Kinds: str,
 	Doc: "Rejects the empty string. It is checked at the point it is written, so a `required` " +
 		"after `trim` rejects a value that was nothing but whitespace, while a `required` before " +
-		"it would have accepted it. Nothing else in the catalogue rejects an empty value, which " +
-		"is what lets an optional field still be checked for shape when it is filled in.",
-	Message: "{{.Field}} is required",
-	Emit:    func(c vogue.EmitContext) string { return c.Var + ` != ""` },
+		"it would have accepted it. When it fails the constructor returns at once, so the rules " +
+		"written after it do not also report the empty value: an empty input is one failure, " +
+		"not one per rule. Leave it out and an optional field is still checked for shape when " +
+		"it is filled in.",
+	Message: "is required",
+	// The rules written after it would each report the same empty value.
+	Precondition: true,
+	Emit:         func(c vogue.EmitContext) string { return c.Var + ` != ""` },
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{In: "Tortilla", Note: "an ordinary value"},
@@ -43,7 +47,7 @@ var Min = vogue.Rule{
 		"generate-time error on an integer. Place it after any normalizer, so the bound is " +
 		"measured on the value that will actually be stored.",
 	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamNumber},
-	Message: "{{.Field}} must be at least {{.Param}}",
+	Message: `{{if eq .Kind.String "string"}}length {{end}}must be at least {{.Param}}`,
 	Imports: []string{importUTF8, importDecimal},
 	Emit:    func(c vogue.EmitContext) string { return compare(c, ">=") },
 	Local:   boundConst,
@@ -78,7 +82,7 @@ var Max = vogue.Rule{
 		"is what a form should say. On a decimal it is the ceiling of a rate: `max=1` is a share " +
 		"that cannot exceed the whole.",
 	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamNumber},
-	Message: "{{.Field}} must be at most {{.Param}}",
+	Message: `{{if eq .Kind.String "string"}}length {{end}}must be at most {{.Param}}`,
 	Imports: []string{importUTF8, importDecimal},
 	Emit:    func(c vogue.EmitContext) string { return compare(c, "<=") },
 	Local:   boundConst,
@@ -111,7 +115,7 @@ var Len = vogue.Rule{
 		"value of any other length is a typo rather than a shorter name. Runes are counted, not " +
 		"bytes, so `len=3` accepts \"añó\" and rejects a value that merely encodes to three bytes.",
 	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamInt},
-	Message: "{{.Field}} must be exactly {{.Param}} characters long",
+	Message: "must be exactly {{.Param}} characters long",
 	Imports: []string{importUTF8},
 	Emit:    func(c vogue.EmitContext) string { return compare(c, "==") },
 	Local:   boundConst,
@@ -139,8 +143,9 @@ var Email = vogue.Rule{
 		"Deliverability is not checked — no DNS lookup happens — so a well-formed address at a " +
 		"domain that does not exist is accepted. Pair it with `lower` to store one canonical " +
 		"spelling.",
-	Message: "{{.Field}} must be a valid email address",
-	Call:    &vogue.FuncRef{Path: importFn, Name: "Email"},
+	Message: "must be a valid email address",
+	Imports: []string{importMail},
+	Method:  emailMethod,
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{In: "waiter@example.com", Note: "an ordinary address"},
@@ -163,8 +168,9 @@ var URL = vogue.Rule{
 		"neither can be resolved without knowing where it came from, and a scheme other than http " +
 		"or https is rejected too, which is what makes a stored URL safe to render as a link. " +
 		"Reachability is not checked: no request is made.",
-	Message: "{{.Field}} must be a valid http or https URL",
-	Call:    &vogue.FuncRef{Path: importFn, Name: "URL"},
+	Message: "must be a valid http or https URL",
+	Imports: []string{importURL},
+	Method:  urlMethod,
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{In: "https://example.com/menu", Note: "an https address"},
@@ -189,8 +195,8 @@ var TimeZone = vogue.Rule{
 		"(Factory, localtime, posixrules), \"Local\" and the empty string, none of which names a " +
 		"place. The check needs no zone database at run time; turning the value into a " +
 		"time.Location does, so a binary in a minimal container image should import time/tzdata.",
-	Message: "{{.Field}} must be an IANA time zone",
-	Call:    &vogue.FuncRef{Path: importFn, Name: "TimeZone"},
+	Message: "must be an IANA time zone",
+	Method:  timeZoneMethod,
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{In: "America/Argentina/Buenos_Aires", Note: "a zone named after its city"},
@@ -216,8 +222,9 @@ var UUID = vogue.Rule{
 		"purpose: an identifier that compares equal as text is worth more than one that has to be " +
 		"normalised before every comparison. For an identifier of your own use the `id` kind " +
 		"instead, which gives it its own type.",
-	Message: "{{.Field}} must be a valid UUID",
-	Call:    &vogue.FuncRef{Path: importFn, Name: "UUID"},
+	Message: "must be a valid UUID",
+	Imports: []string{importStrings},
+	Method:  uuidMethod,
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{In: "9b2b4f52-1c2d-4e5a-9f3b-6d7c8e9f0a1b", Note: "a version 4 identifier"},
@@ -231,20 +238,22 @@ var UUID = vogue.Rule{
 	},
 }
 
-// Regex requires the value to match a pattern compiled once, at start-up.
+// Regex requires the value to match a pattern compiled once, at package initialisation.
 var Regex = vogue.Rule{
 	Name:  "regex",
 	Kinds: str,
 	Doc: "Requires the value to match the given RE2 pattern. The pattern is compiled at generate " +
 		"time, so a malformed one is a generator error naming the directive rather than a panic in " +
-		"production, and the generated constructor calls rulecheck.Regexp, which compiles it on first use " +
-		"and caches it, so every later call only matches. The match is unanchored: write ^ and $ when the whole " +
-		"value must match. The pattern may not contain a space, because a directive is read as " +
+		"production, and the generated file compiles it once, into one unexported package-level " +
+		"variable per type, so every constructor call only matches. The match is unanchored: " +
+		"write ^ and $ when the whole value must match. The pattern may not contain a space, because a directive is read as " +
 		"whitespace-separated tokens; use `[[:space:]]` or `\\s` for one. Reach for a named rule " +
 		"first — `alphanum`, `prefix`, `len` — and keep this for a shape that has no name.",
 	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamRegex},
-	Message: "{{.Field}} must match the pattern {{.Param}}",
-	Call:    &vogue.FuncRef{Path: importFn, Name: "Regexp"},
+	Message: "must match the pattern {{.Param}}",
+	Imports: []string{importRegexp},
+	Declare: regexDeclaration,
+	Emit:    func(c vogue.EmitContext) string { return patternName(c) + ".MatchString(" + c.Var + ")" },
 	Examples: vogue.Examples{
 		Valid: []vogue.Example{
 			{Param: "^[A-Z]{3}-[0-9]{4}$", In: "SKU-0042", Note: "a code in the documented shape"},
@@ -269,7 +278,7 @@ var OneOf = vogue.Rule{
 		"which gives each member its own value and a Values accessor; this rule is for a closed " +
 		"list that stays a plain string or number.",
 	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamList},
-	Message: "{{.Field}} must be one of: {{.Param}}",
+	Message: "must be one of: {{.Param}}",
 	Imports: []string{importSlices},
 	Emit:    anyOf,
 	Examples: vogue.Examples{
@@ -297,7 +306,7 @@ var Alpha = vogue.Rule{
 		"apostrophe does not. That makes it the wrong rule for a person's full name, which " +
 		"routinely carries all three. The empty string passes, because it holds no offending " +
 		"rune; pair it with `required` when the field is mandatory.",
-	Message: "{{.Field}} must contain letters only",
+	Message: "must contain letters only",
 	Imports: []string{importStrings, importUnicode},
 	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "!unicode.IsLetter(character)") },
 	Examples: vogue.Examples{
@@ -321,7 +330,7 @@ var Alphanum = vogue.Rule{
 		"punctuation, nothing that needs escaping downstream. A hyphen and an underscore are " +
 		"rejected, so a slug that uses one needs a `regex` instead. The empty string passes; pair " +
 		"it with `required`.",
-	Message: "{{.Field}} must contain letters and digits only",
+	Message: "must contain letters and digits only",
 	Imports: []string{importStrings, importUnicode},
 	Emit: func(c vogue.EmitContext) string {
 		return noRuneWhere(c, "!unicode.IsLetter(character) && !unicode.IsDigit(character)")
@@ -348,7 +357,7 @@ var Numeric = vogue.Rule{
 		"exists to be parsed. A sign and a decimal point are rejected, so it describes a digit " +
 		"string — a phone number, a document number — rather than a number; use the `int` kind for " +
 		"one of those. The empty string passes; pair it with `required`.",
-	Message: "{{.Field}} must contain digits only",
+	Message: "must contain digits only",
 	Imports: []string{importStrings},
 	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "character < '0' || character > '9'") },
 	Examples: vogue.Examples{
@@ -373,7 +382,7 @@ var ASCII = vogue.Rule{
 		"filename in an old archive format. It accepts control characters, since those are ASCII " +
 		"too; combine it with `printable` when the value must also be readable. The empty string " +
 		"passes; pair it with `required`.",
-	Message: "{{.Field}} must contain ASCII characters only",
+	Message: "must contain ASCII characters only",
 	Imports: []string{importStrings, importUTF8},
 	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "character >= utf8.RuneSelf") },
 	Examples: vogue.Examples{
@@ -398,7 +407,7 @@ var Printable = vogue.Rule{
 		"a line break into a log, a CSV export or a terminal. Accented and non-Latin letters pass, " +
 		"so it restricts nothing a human would type into one line. The empty string passes; pair " +
 		"it with `required`.",
-	Message: "{{.Field}} must not contain control characters",
+	Message: "must not contain control characters",
 	Imports: []string{importStrings, importUnicode},
 	Emit:    func(c vogue.EmitContext) string { return noRuneWhere(c, "!unicode.IsPrint(character)") },
 	Examples: vogue.Examples{
@@ -422,7 +431,7 @@ var NoSpace = vogue.Rule{
 		"code that has to appear unquoted in a URL, a header or a command line. It is a check, not " +
 		"a normalizer: it reports the problem rather than silently removing it, which is what " +
 		"`trim` and `squish` are for. The empty string passes; pair it with `required`.",
-	Message: "{{.Field}} must not contain spaces",
+	Message: "must not contain spaces",
 	Imports: []string{importStrings, importUnicode},
 	Emit:    func(c vogue.EmitContext) string { return "strings.IndexFunc(" + c.Var + ", unicode.IsSpace) < 0" },
 	Examples: vogue.Examples{
@@ -447,7 +456,7 @@ var Prefix = vogue.Rule{
 		"directive is read as whitespace-separated tokens. An empty parameter accepts everything, " +
 		"including the empty string.",
 	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamString},
-	Message: `{{.Field}} must start with "{{.Param}}"`,
+	Message: `must start with "{{.Param}}"`,
 	Imports: []string{importStrings},
 	Emit: func(c vogue.EmitContext) string {
 		return "strings.HasPrefix(" + c.Var + ", " + strconv.Quote(c.Param) + ")"
@@ -474,7 +483,7 @@ var Suffix = vogue.Rule{
 		"extension or a domain. The parameter may not contain a space. An empty parameter accepts " +
 		"everything, including the empty string.",
 	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamString},
-	Message: `{{.Field}} must end with "{{.Param}}"`,
+	Message: `must end with "{{.Param}}"`,
 	Imports: []string{importStrings},
 	Emit: func(c vogue.EmitContext) string {
 		return "strings.HasSuffix(" + c.Var + ", " + strconv.Quote(c.Param) + ")"
@@ -501,7 +510,7 @@ var Contains = vogue.Rule{
 		"better described by `regex` or by a named rule. The parameter may not contain a space. " +
 		"An empty parameter accepts everything.",
 	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamString},
-	Message: `{{.Field}} must contain "{{.Param}}"`,
+	Message: `must contain "{{.Param}}"`,
 	Imports: []string{importStrings},
 	Emit: func(c vogue.EmitContext) string {
 		return "strings.Contains(" + c.Var + ", " + strconv.Quote(c.Param) + ")"
@@ -529,7 +538,7 @@ var Excludes = vogue.Rule{
 		"`alphanum` instead. The parameter may not contain a space, and an empty parameter would " +
 		"reject everything.",
 	Param:   vogue.ParamSpec{Presence: vogue.ParamRequired, Type: vogue.ParamString},
-	Message: `{{.Field}} must not contain "{{.Param}}"`,
+	Message: `must not contain "{{.Param}}"`,
 	Imports: []string{importStrings},
 	Emit: func(c vogue.EmitContext) string {
 		return "!strings.Contains(" + c.Var + ", " + strconv.Quote(c.Param) + ")"

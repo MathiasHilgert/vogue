@@ -3,58 +3,131 @@
 package place
 
 import (
+	"errors"
 	"testing"
-
-	"github.com/MathiasHilgert/vogue/voguetest"
+	"unicode/utf8"
 )
 
-// TestAlternateName runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestAlternateName(t *testing.T) {
+// TestAlternateName_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestAlternateName_Normalizes(t *testing.T) {
+	const exampleTortillaDePatatas = "Tortilla de patatas"
+
+	t.Parallel()
+
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{"a run of spaces becomes one", "Tortilla   de  patatas", exampleTortillaDePatatas},
+		{"the ends are trimmed as well", "  Tortilla de patatas  ", exampleTortillaDePatatas},
+		{"a tab and a newline become plain spaces", "Tortilla\tde\npatatas", exampleTortillaDePatatas},
+	} {
+		want, err := NewAlternateName(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewAlternateName(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewAlternateName(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
+}
+
+// TestAlternateName_RoundTripsText checks what the directive accepts survives its text.
+func TestAlternateName_RoundTripsText(t *testing.T) {
 	const (
-		exampleTortilla          = "Tortilla"
-		exampleTortillaDePatatas = "Tortilla de patatas"
+		exampleTortilla                = "Tortilla"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[AlternateName, *AlternateName, string]{
-		Field:      "alternateName",
-		New:        NewAlternateName,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleTortilla, " ", "a"},
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  "a run of spaces becomes one",
-				Input: "Tortilla   de  patatas",
-				Out:   exampleTortillaDePatatas,
-			},
-			{
-				Name:  "the ends are trimmed as well",
-				Input: "  Tortilla de patatas  ",
-				Out:   exampleTortillaDePatatas,
-			},
-			{
-				Name:  "a tab and a newline become plain spaces",
-				Input: "Tortilla\tde\npatatas",
-				Out:   exampleTortillaDePatatas,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	for _, input := range []string{exampleTortilla, " ", "a"} {
+		value, err := NewAlternateName(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded AlternateName
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
 }
 
-// TestLanguageCode runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestLanguageCode(t *testing.T) {
+// TestAlternateName_ZeroHasNoText checks that the zero AlternateName cannot be marshaled.
+func TestAlternateName_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero AlternateName
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero AlternateName marshaled: %v", err)
+	}
+}
+
+// TestAlternateName_JSONSchemaDescribesItsSamples checks its samples satisfy its JSON Schema.
+func TestAlternateName_JSONSchemaDescribesItsSamples(t *testing.T) {
 	const (
-		exampleTortilla                              = "Tortilla"
+		exampleTortilla                          = "Tortilla"
+		exampleMinLength                         = "minLength"
+		exampleQIsShorterThanTheSchemaMinLengthD = "%q is shorter than the schema minLength %d"
+		exampleMaxLength                         = "maxLength"
+		exampleQIsLongerThanTheSchemaMaxLengthD  = "%q is longer than the schema maxLength %d"
+	)
+
+	t.Parallel()
+
+	var subject AlternateName
+
+	schema := subject.JSONSchema()
+	for _, input := range []string{exampleTortilla, " ", "a"} {
+		value, err := NewAlternateName(input)
+		if err != nil {
+			continue
+		}
+
+		text := value.String()
+		if minimum, _ := schema[exampleMinLength].(int); utf8.RuneCountInString(text) < minimum {
+			t.Errorf(exampleQIsShorterThanTheSchemaMinLengthD, text, minimum)
+		}
+		if maximum, _ := schema[exampleMaxLength].(int); utf8.RuneCountInString(text) > maximum {
+			t.Errorf(exampleQIsLongerThanTheSchemaMaxLengthD, text, maximum)
+		}
+	}
+}
+
+// TestLanguageCode_AcceptsItsExamples checks the values the directive declares valid.
+func TestLanguageCode_AcceptsItsExamples(t *testing.T) {
+	t.Parallel()
+
+	for _, input := range []string{"es"} {
+		got, err := NewLanguageCode(input)
+		if err != nil || got.IsZero() {
+			t.Errorf("NewLanguageCode(%q) = %v, %v, want a constructed value", input, got, err)
+		}
+	}
+}
+
+// TestLanguageCode_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestLanguageCode_Normalizes(t *testing.T) {
+	const (
 		exampleTheBlanksAroundAPastedValueAreDropped = "the blanks around a pasted value are dropped"
 		exampleTortilla2                             = "  Tortilla  "
+		exampleTortilla                              = "Tortilla"
 		exampleTabsAndNewlinesCountAsWhitespaceToo   = "tabs and newlines count as whitespace too"
 		exampleTortilla3                             = "\tTortilla\n"
 		exampleAnAlreadyCleanValueIsLeftAlone        = "an already clean value is left alone"
@@ -62,47 +135,101 @@ func TestLanguageCode(t *testing.T) {
 
 	t.Parallel()
 
-	voguetest.Scalar[LanguageCode, *LanguageCode, string]{
-		Field:      "languageCode",
-		New:        NewLanguageCode,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   []string{"es"},
-		Candidates: []string{exampleTortilla, " "},
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  exampleTheBlanksAroundAPastedValueAreDropped,
-				Input: exampleTortilla2,
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  exampleTabsAndNewlinesCountAsWhitespaceToo,
-				Input: exampleTortilla3,
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  exampleAnAlreadyCleanValueIsLeftAlone,
-				Input: exampleTortilla,
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  "an address is folded to one canonical spelling",
-				Input: "Waiter@Example.Com",
-				Out:   "waiter@example.com",
-			},
-			{
-				Name:  "an accented capital folds like any other letter",
-				Input: "ÁRBOL",
-				Out:   "árbol",
-			},
-			{
-				Name:  "a value already in lower case is left alone",
-				Input: "already",
-				Out:   "already",
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{exampleTheBlanksAroundAPastedValueAreDropped, exampleTortilla2, exampleTortilla},
+		{exampleTabsAndNewlinesCountAsWhitespaceToo, exampleTortilla3, exampleTortilla},
+		{exampleAnAlreadyCleanValueIsLeftAlone, exampleTortilla, exampleTortilla},
+		{"an address is folded to one canonical spelling", "Waiter@Example.Com", "waiter@example.com"},
+		{"an accented capital folds like any other letter", "ÁRBOL", "árbol"},
+		{"a value already in lower case is left alone", "already", "already"},
+	} {
+		want, err := NewLanguageCode(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewLanguageCode(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewLanguageCode(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
+}
+
+// TestLanguageCode_RoundTripsText checks what the directive accepts survives its text.
+func TestLanguageCode_RoundTripsText(t *testing.T) {
+	const (
+		exampleTortilla                = "Tortilla"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"es", exampleTortilla, " "} {
+		value, err := NewLanguageCode(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded LanguageCode
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestLanguageCode_ZeroHasNoText checks that the zero LanguageCode cannot be marshaled.
+func TestLanguageCode_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero LanguageCode
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero LanguageCode marshaled: %v", err)
+	}
+}
+
+// TestLanguageCode_JSONSchemaDescribesItsSamples checks its samples satisfy its JSON Schema.
+func TestLanguageCode_JSONSchemaDescribesItsSamples(t *testing.T) {
+	const (
+		exampleTortilla                          = "Tortilla"
+		exampleMinLength                         = "minLength"
+		exampleQIsShorterThanTheSchemaMinLengthD = "%q is shorter than the schema minLength %d"
+		exampleMaxLength                         = "maxLength"
+		exampleQIsLongerThanTheSchemaMaxLengthD  = "%q is longer than the schema maxLength %d"
+	)
+
+	t.Parallel()
+
+	var subject LanguageCode
+
+	schema := subject.JSONSchema()
+	for _, input := range []string{"es", exampleTortilla, " "} {
+		value, err := NewLanguageCode(input)
+		if err != nil {
+			continue
+		}
+
+		text := value.String()
+		if minimum, _ := schema[exampleMinLength].(int); utf8.RuneCountInString(text) < minimum {
+			t.Errorf(exampleQIsShorterThanTheSchemaMinLengthD, text, minimum)
+		}
+		if maximum, _ := schema[exampleMaxLength].(int); utf8.RuneCountInString(text) > maximum {
+			t.Errorf(exampleQIsLongerThanTheSchemaMaxLengthD, text, maximum)
+		}
+	}
 }

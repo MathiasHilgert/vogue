@@ -3,18 +3,16 @@
 package catalogue
 
 import (
+	"errors"
 	"testing"
-
-	"github.com/MathiasHilgert/vogue/voguetest"
 )
 
-// TestTrimmedName runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestTrimmedName(t *testing.T) {
+// TestTrimmedName_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestTrimmedName_Normalizes(t *testing.T) {
 	const (
-		exampleTortilla                              = "Tortilla"
 		exampleTheBlanksAroundAPastedValueAreDropped = "the blanks around a pasted value are dropped"
-		exampleTortilla2                             = "  Tortilla  "
+		exampleTortilla                              = "  Tortilla  "
+		exampleTortilla2                             = "Tortilla"
 		exampleTabsAndNewlinesCountAsWhitespaceToo   = "tabs and newlines count as whitespace too"
 		exampleTortilla3                             = "\tTortilla\n"
 		exampleAnAlreadyCleanValueIsLeftAlone        = "an already clean value is left alone"
@@ -22,222 +20,73 @@ func TestTrimmedName(t *testing.T) {
 
 	t.Parallel()
 
-	voguetest.Scalar[TrimmedName, *TrimmedName, string]{
-		Field:      "trimmedName",
-		New:        NewTrimmedName,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleTortilla, " "},
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  exampleTheBlanksAroundAPastedValueAreDropped,
-				Input: exampleTortilla2,
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  exampleTabsAndNewlinesCountAsWhitespaceToo,
-				Input: exampleTortilla3,
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  exampleAnAlreadyCleanValueIsLeftAlone,
-				Input: exampleTortilla,
-				Out:   exampleTortilla,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{exampleTheBlanksAroundAPastedValueAreDropped, exampleTortilla, exampleTortilla2},
+		{exampleTabsAndNewlinesCountAsWhitespaceToo, exampleTortilla3, exampleTortilla2},
+		{exampleAnAlreadyCleanValueIsLeftAlone, exampleTortilla2, exampleTortilla2},
+	} {
+		want, err := NewTrimmedName(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewTrimmedName(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewTrimmedName(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
 }
 
-// TestSquishedName runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestSquishedName(t *testing.T) {
+// TestTrimmedName_RoundTripsText checks what the directive accepts survives its text.
+func TestTrimmedName_RoundTripsText(t *testing.T) {
 	const (
-		exampleTortilla                         = "Tortilla"
-		exampleARunOfSpacesBecomesOne           = "a run of spaces becomes one"
-		exampleTortillaDePatatas                = "Tortilla   de  patatas"
-		exampleTortillaDePatatas2               = "Tortilla de patatas"
-		exampleTheEndsAreTrimmedAsWell          = "the ends are trimmed as well"
-		exampleTortillaDePatatas3               = "  Tortilla de patatas  "
-		exampleATabAndANewlineBecomePlainSpaces = "a tab and a newline become plain spaces"
-		exampleTortillaDePatatas4               = "Tortilla\tde\npatatas"
+		exampleTortilla2               = "Tortilla"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[SquishedName, *SquishedName, string]{
-		Field:      "squishedName",
-		New:        NewSquishedName,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleTortilla, " "},
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  exampleARunOfSpacesBecomesOne,
-				Input: exampleTortillaDePatatas,
-				Out:   exampleTortillaDePatatas2,
-			},
-			{
-				Name:  exampleTheEndsAreTrimmedAsWell,
-				Input: exampleTortillaDePatatas3,
-				Out:   exampleTortillaDePatatas2,
-			},
-			{
-				Name:  exampleATabAndANewlineBecomePlainSpaces,
-				Input: exampleTortillaDePatatas4,
-				Out:   exampleTortillaDePatatas2,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	for _, input := range []string{exampleTortilla2, " "} {
+		value, err := NewTrimmedName(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded TrimmedName
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
 }
 
-// TestLoweredName runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestLoweredName(t *testing.T) {
-	const (
-		exampleTortilla                                 = "Tortilla"
-		exampleAnAddressIsFoldedToOneCanonicalSpelling  = "an address is folded to one canonical spelling"
-		exampleWaiterExampleCom                         = "Waiter@Example.Com"
-		exampleWaiterExampleCom2                        = "waiter@example.com"
-		exampleAnAccentedCapitalFoldsLikeAnyOtherLetter = "an accented capital folds like any other letter"
-		exampleRBOL                                     = "ÁRBOL"
-		exampleRbol                                     = "árbol"
-		exampleAValueAlreadyInLowerCaseIsLeftAlone      = "a value already in lower case is left alone"
-		exampleAlready                                  = "already"
-	)
-
+// TestTrimmedName_ZeroHasNoText checks that the zero TrimmedName cannot be marshaled.
+func TestTrimmedName_ZeroHasNoText(t *testing.T) {
 	t.Parallel()
 
-	voguetest.Scalar[LoweredName, *LoweredName, string]{
-		Field:      "loweredName",
-		New:        NewLoweredName,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleTortilla, " "},
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  exampleAnAddressIsFoldedToOneCanonicalSpelling,
-				Input: exampleWaiterExampleCom,
-				Out:   exampleWaiterExampleCom2,
-			},
-			{
-				Name:  exampleAnAccentedCapitalFoldsLikeAnyOtherLetter,
-				Input: exampleRBOL,
-				Out:   exampleRbol,
-			},
-			{
-				Name:  exampleAValueAlreadyInLowerCaseIsLeftAlone,
-				Input: exampleAlready,
-				Out:   exampleAlready,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	var zero TrimmedName
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero TrimmedName marshaled: %v", err)
+	}
 }
 
-// TestUpperedName runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestUpperedName(t *testing.T) {
-	const (
-		exampleTortilla                                        = "Tortilla"
-		exampleACurrencyCodeIsShoutedTheWayTheStandardWritesIt = "a currency code is shouted the way the standard writes it"
-		exampleEur                                             = "eur"
-		exampleEUR                                             = "EUR"
-		exampleDigitsAndPunctuationAreLeftUntouched            = "digits and punctuation are left untouched"
-		exampleSku12                                           = "sku-12"
-		exampleSKU12                                           = "SKU-12"
-		exampleAValueAlreadyInUpperCaseIsLeftAlone             = "a value already in upper case is left alone"
-	)
-
-	t.Parallel()
-
-	voguetest.Scalar[UpperedName, *UpperedName, string]{
-		Field:      "upperedName",
-		New:        NewUpperedName,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleTortilla, " "},
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  exampleACurrencyCodeIsShoutedTheWayTheStandardWritesIt,
-				Input: exampleEur,
-				Out:   exampleEUR,
-			},
-			{
-				Name:  exampleDigitsAndPunctuationAreLeftUntouched,
-				Input: exampleSku12,
-				Out:   exampleSKU12,
-			},
-			{
-				Name:  exampleAValueAlreadyInUpperCaseIsLeftAlone,
-				Input: exampleEUR,
-				Out:   exampleEUR,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
-}
-
-// TestTrimmedOnly runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestTrimmedOnly(t *testing.T) {
-	const (
-		exampleTheBlanksAroundAPastedValueAreDropped = "the blanks around a pasted value are dropped"
-		exampleTortilla2                             = "  Tortilla  "
-		exampleTortilla                              = "Tortilla"
-		exampleTabsAndNewlinesCountAsWhitespaceToo   = "tabs and newlines count as whitespace too"
-		exampleTortilla3                             = "\tTortilla\n"
-		exampleAnAlreadyCleanValueIsLeftAlone        = "an already clean value is left alone"
-	)
-
-	t.Parallel()
-
-	voguetest.Scalar[TrimmedOnly, *TrimmedOnly, string]{
-		Field:      "trimmedOnly",
-		New:        NewTrimmedOnly,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: nil,
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  exampleTheBlanksAroundAPastedValueAreDropped,
-				Input: exampleTortilla2,
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  exampleTabsAndNewlinesCountAsWhitespaceToo,
-				Input: exampleTortilla3,
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  exampleAnAlreadyCleanValueIsLeftAlone,
-				Input: exampleTortilla,
-				Out:   exampleTortilla,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
-}
-
-// TestSquishedOnly runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestSquishedOnly(t *testing.T) {
+// TestSquishedName_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestSquishedName_Normalizes(t *testing.T) {
 	const (
 		exampleARunOfSpacesBecomesOne           = "a run of spaces becomes one"
 		exampleTortillaDePatatas                = "Tortilla   de  patatas"
@@ -250,39 +99,73 @@ func TestSquishedOnly(t *testing.T) {
 
 	t.Parallel()
 
-	voguetest.Scalar[SquishedOnly, *SquishedOnly, string]{
-		Field:      "squishedOnly",
-		New:        NewSquishedOnly,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: nil,
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  exampleARunOfSpacesBecomesOne,
-				Input: exampleTortillaDePatatas,
-				Out:   exampleTortillaDePatatas2,
-			},
-			{
-				Name:  exampleTheEndsAreTrimmedAsWell,
-				Input: exampleTortillaDePatatas3,
-				Out:   exampleTortillaDePatatas2,
-			},
-			{
-				Name:  exampleATabAndANewlineBecomePlainSpaces,
-				Input: exampleTortillaDePatatas4,
-				Out:   exampleTortillaDePatatas2,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{exampleARunOfSpacesBecomesOne, exampleTortillaDePatatas, exampleTortillaDePatatas2},
+		{exampleTheEndsAreTrimmedAsWell, exampleTortillaDePatatas3, exampleTortillaDePatatas2},
+		{exampleATabAndANewlineBecomePlainSpaces, exampleTortillaDePatatas4, exampleTortillaDePatatas2},
+	} {
+		want, err := NewSquishedName(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewSquishedName(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewSquishedName(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
 }
 
-// TestLoweredOnly runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestLoweredOnly(t *testing.T) {
+// TestSquishedName_RoundTripsText checks what the directive accepts survives its text.
+func TestSquishedName_RoundTripsText(t *testing.T) {
+	const (
+		exampleTortilla2               = "Tortilla"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{exampleTortilla2, " "} {
+		value, err := NewSquishedName(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded SquishedName
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestSquishedName_ZeroHasNoText checks that the zero SquishedName cannot be marshaled.
+func TestSquishedName_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero SquishedName
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero SquishedName marshaled: %v", err)
+	}
+}
+
+// TestLoweredName_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestLoweredName_Normalizes(t *testing.T) {
 	const (
 		exampleAnAddressIsFoldedToOneCanonicalSpelling  = "an address is folded to one canonical spelling"
 		exampleWaiterExampleCom                         = "Waiter@Example.Com"
@@ -296,39 +179,73 @@ func TestLoweredOnly(t *testing.T) {
 
 	t.Parallel()
 
-	voguetest.Scalar[LoweredOnly, *LoweredOnly, string]{
-		Field:      "loweredOnly",
-		New:        NewLoweredOnly,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: nil,
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  exampleAnAddressIsFoldedToOneCanonicalSpelling,
-				Input: exampleWaiterExampleCom,
-				Out:   exampleWaiterExampleCom2,
-			},
-			{
-				Name:  exampleAnAccentedCapitalFoldsLikeAnyOtherLetter,
-				Input: exampleRBOL,
-				Out:   exampleRbol,
-			},
-			{
-				Name:  exampleAValueAlreadyInLowerCaseIsLeftAlone,
-				Input: exampleAlready,
-				Out:   exampleAlready,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{exampleAnAddressIsFoldedToOneCanonicalSpelling, exampleWaiterExampleCom, exampleWaiterExampleCom2},
+		{exampleAnAccentedCapitalFoldsLikeAnyOtherLetter, exampleRBOL, exampleRbol},
+		{exampleAValueAlreadyInLowerCaseIsLeftAlone, exampleAlready, exampleAlready},
+	} {
+		want, err := NewLoweredName(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewLoweredName(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewLoweredName(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
 }
 
-// TestUpperedOnly runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestUpperedOnly(t *testing.T) {
+// TestLoweredName_RoundTripsText checks what the directive accepts survives its text.
+func TestLoweredName_RoundTripsText(t *testing.T) {
+	const (
+		exampleTortilla2               = "Tortilla"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{exampleTortilla2, " "} {
+		value, err := NewLoweredName(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded LoweredName
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestLoweredName_ZeroHasNoText checks that the zero LoweredName cannot be marshaled.
+func TestLoweredName_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero LoweredName
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero LoweredName marshaled: %v", err)
+	}
+}
+
+// TestUpperedName_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestUpperedName_Normalizes(t *testing.T) {
 	const (
 		exampleACurrencyCodeIsShoutedTheWayTheStandardWritesIt = "a currency code is shouted the way the standard writes it"
 		exampleEur                                             = "eur"
@@ -341,247 +258,725 @@ func TestUpperedOnly(t *testing.T) {
 
 	t.Parallel()
 
-	voguetest.Scalar[UpperedOnly, *UpperedOnly, string]{
-		Field:      "upperedOnly",
-		New:        NewUpperedOnly,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: nil,
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  exampleACurrencyCodeIsShoutedTheWayTheStandardWritesIt,
-				Input: exampleEur,
-				Out:   exampleEUR,
-			},
-			{
-				Name:  exampleDigitsAndPunctuationAreLeftUntouched,
-				Input: exampleSku12,
-				Out:   exampleSKU12,
-			},
-			{
-				Name:  exampleAValueAlreadyInUpperCaseIsLeftAlone,
-				Input: exampleEUR,
-				Out:   exampleEUR,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{exampleACurrencyCodeIsShoutedTheWayTheStandardWritesIt, exampleEur, exampleEUR},
+		{exampleDigitsAndPunctuationAreLeftUntouched, exampleSku12, exampleSKU12},
+		{exampleAValueAlreadyInUpperCaseIsLeftAlone, exampleEUR, exampleEUR},
+	} {
+		want, err := NewUpperedName(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewUpperedName(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewUpperedName(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
 }
 
-// TestRequiredName runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestRequiredName(t *testing.T) {
+// TestUpperedName_RoundTripsText checks what the directive accepts survives its text.
+func TestUpperedName_RoundTripsText(t *testing.T) {
 	const (
-		exampleTortilla              = "Tortilla"
-		exampleRejectsTheEmptyString = "rejects the empty string"
+		exampleTortilla2               = "Tortilla"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[RequiredName, *RequiredName, string]{
-		Field:      "requiredName",
-		New:        NewRequiredName,
-		Get:        RequiredName.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleTortilla, " "},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      exampleRejectsTheEmptyString,
-				Input:     "",
-				Rules:     []string{"required"},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, input := range []string{exampleTortilla2, " "} {
+		value, err := NewUpperedName(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded UpperedName
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
 }
 
-// TestShortName runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestShortName(t *testing.T) {
+// TestUpperedName_ZeroHasNoText checks that the zero UpperedName cannot be marshaled.
+func TestUpperedName_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero UpperedName
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero UpperedName marshaled: %v", err)
+	}
+}
+
+// TestTrimmedOnly_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestTrimmedOnly_Normalizes(t *testing.T) {
+	const (
+		exampleTheBlanksAroundAPastedValueAreDropped = "the blanks around a pasted value are dropped"
+		exampleTortilla                              = "  Tortilla  "
+		exampleTortilla2                             = "Tortilla"
+		exampleTabsAndNewlinesCountAsWhitespaceToo   = "tabs and newlines count as whitespace too"
+		exampleTortilla3                             = "\tTortilla\n"
+		exampleAnAlreadyCleanValueIsLeftAlone        = "an already clean value is left alone"
+	)
+
+	t.Parallel()
+
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{exampleTheBlanksAroundAPastedValueAreDropped, exampleTortilla, exampleTortilla2},
+		{exampleTabsAndNewlinesCountAsWhitespaceToo, exampleTortilla3, exampleTortilla2},
+		{exampleAnAlreadyCleanValueIsLeftAlone, exampleTortilla2, exampleTortilla2},
+	} {
+		want, err := NewTrimmedOnly(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewTrimmedOnly(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewTrimmedOnly(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
+}
+
+// TestTrimmedOnly_ZeroHasNoText checks that the zero TrimmedOnly cannot be marshaled.
+func TestTrimmedOnly_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero TrimmedOnly
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero TrimmedOnly marshaled: %v", err)
+	}
+}
+
+// TestSquishedOnly_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestSquishedOnly_Normalizes(t *testing.T) {
+	const (
+		exampleARunOfSpacesBecomesOne           = "a run of spaces becomes one"
+		exampleTortillaDePatatas                = "Tortilla   de  patatas"
+		exampleTortillaDePatatas2               = "Tortilla de patatas"
+		exampleTheEndsAreTrimmedAsWell          = "the ends are trimmed as well"
+		exampleTortillaDePatatas3               = "  Tortilla de patatas  "
+		exampleATabAndANewlineBecomePlainSpaces = "a tab and a newline become plain spaces"
+		exampleTortillaDePatatas4               = "Tortilla\tde\npatatas"
+	)
+
+	t.Parallel()
+
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{exampleARunOfSpacesBecomesOne, exampleTortillaDePatatas, exampleTortillaDePatatas2},
+		{exampleTheEndsAreTrimmedAsWell, exampleTortillaDePatatas3, exampleTortillaDePatatas2},
+		{exampleATabAndANewlineBecomePlainSpaces, exampleTortillaDePatatas4, exampleTortillaDePatatas2},
+	} {
+		want, err := NewSquishedOnly(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewSquishedOnly(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewSquishedOnly(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
+}
+
+// TestSquishedOnly_ZeroHasNoText checks that the zero SquishedOnly cannot be marshaled.
+func TestSquishedOnly_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero SquishedOnly
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero SquishedOnly marshaled: %v", err)
+	}
+}
+
+// TestLoweredOnly_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestLoweredOnly_Normalizes(t *testing.T) {
+	const (
+		exampleAnAddressIsFoldedToOneCanonicalSpelling  = "an address is folded to one canonical spelling"
+		exampleWaiterExampleCom                         = "Waiter@Example.Com"
+		exampleWaiterExampleCom2                        = "waiter@example.com"
+		exampleAnAccentedCapitalFoldsLikeAnyOtherLetter = "an accented capital folds like any other letter"
+		exampleRBOL                                     = "ÁRBOL"
+		exampleRbol                                     = "árbol"
+		exampleAValueAlreadyInLowerCaseIsLeftAlone      = "a value already in lower case is left alone"
+		exampleAlready                                  = "already"
+	)
+
+	t.Parallel()
+
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{exampleAnAddressIsFoldedToOneCanonicalSpelling, exampleWaiterExampleCom, exampleWaiterExampleCom2},
+		{exampleAnAccentedCapitalFoldsLikeAnyOtherLetter, exampleRBOL, exampleRbol},
+		{exampleAValueAlreadyInLowerCaseIsLeftAlone, exampleAlready, exampleAlready},
+	} {
+		want, err := NewLoweredOnly(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewLoweredOnly(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewLoweredOnly(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
+}
+
+// TestLoweredOnly_ZeroHasNoText checks that the zero LoweredOnly cannot be marshaled.
+func TestLoweredOnly_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero LoweredOnly
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero LoweredOnly marshaled: %v", err)
+	}
+}
+
+// TestUpperedOnly_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestUpperedOnly_Normalizes(t *testing.T) {
+	const (
+		exampleACurrencyCodeIsShoutedTheWayTheStandardWritesIt = "a currency code is shouted the way the standard writes it"
+		exampleEur                                             = "eur"
+		exampleEUR                                             = "EUR"
+		exampleDigitsAndPunctuationAreLeftUntouched            = "digits and punctuation are left untouched"
+		exampleSku12                                           = "sku-12"
+		exampleSKU12                                           = "SKU-12"
+		exampleAValueAlreadyInUpperCaseIsLeftAlone             = "a value already in upper case is left alone"
+	)
+
+	t.Parallel()
+
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{exampleACurrencyCodeIsShoutedTheWayTheStandardWritesIt, exampleEur, exampleEUR},
+		{exampleDigitsAndPunctuationAreLeftUntouched, exampleSku12, exampleSKU12},
+		{exampleAValueAlreadyInUpperCaseIsLeftAlone, exampleEUR, exampleEUR},
+	} {
+		want, err := NewUpperedOnly(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewUpperedOnly(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewUpperedOnly(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
+}
+
+// TestUpperedOnly_ZeroHasNoText checks that the zero UpperedOnly cannot be marshaled.
+func TestUpperedOnly_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero UpperedOnly
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero UpperedOnly marshaled: %v", err)
+	}
+}
+
+// TestRequiredName_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestRequiredName_RejectsInvalidInput(t *testing.T) {
+	const exampleRejectsTheEmptyString = "rejects the empty string"
+
+	t.Parallel()
+
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{exampleRejectsTheEmptyString, "", []string{"required"}},
+	} {
+		got, err := NewRequiredName(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewRequiredName(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("requiredName", rule) {
+				t.Errorf("NewRequiredName(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestRequiredName_RoundTripsText checks what the directive accepts survives its text.
+func TestRequiredName_RoundTripsText(t *testing.T) {
+	const (
+		exampleTortilla2               = "Tortilla"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{exampleTortilla2, " "} {
+		value, err := NewRequiredName(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded RequiredName
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestRequiredName_ZeroHasNoText checks that the zero RequiredName cannot be marshaled.
+func TestRequiredName_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero RequiredName
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero RequiredName marshaled: %v", err)
+	}
+}
+
+// TestShortName_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestShortName_RejectsInvalidInput(t *testing.T) {
 	const exampleMin = "min"
 
 	t.Parallel()
 
-	voguetest.Scalar[ShortName, *ShortName, string]{
-		Field:      "shortName",
-		New:        NewShortName,
-		Get:        ShortName.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{"a"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects the empty string is shorter than one rune",
-				Input:     "",
-				Rules:     []string{exampleMin},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects the empty string is shorter than one rune", "", []string{exampleMin}},
+	} {
+		got, err := NewShortName(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewShortName(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("shortName", rule) {
+				t.Errorf("NewShortName(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
 }
 
-// TestLongerName runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestLongerName(t *testing.T) {
+// TestShortName_RoundTripsText checks what the directive accepts survives its text.
+func TestShortName_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"a"} {
+		value, err := NewShortName(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded ShortName
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestShortName_ZeroHasNoText checks that the zero ShortName cannot be marshaled.
+func TestShortName_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero ShortName
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero ShortName marshaled: %v", err)
+	}
+}
+
+// TestLongerName_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestLongerName_RejectsInvalidInput(t *testing.T) {
 	const exampleMin = "min"
 
 	t.Parallel()
 
-	voguetest.Scalar[LongerName, *LongerName, string]{
-		Field:      "longerName",
-		New:        NewLongerName,
-		Get:        LongerName.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{"añó"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects two runes fall short of three",
-				Input:     "ab",
-				Rules:     []string{exampleMin},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects two runes fall short of three", "ab", []string{exampleMin}},
+	} {
+		got, err := NewLongerName(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewLongerName(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("longerName", rule) {
+				t.Errorf("NewLongerName(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
 }
 
-// TestBoundedName runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestBoundedName(t *testing.T) {
+// TestLongerName_RoundTripsText checks what the directive accepts survives its text.
+func TestLongerName_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"añó"} {
+		value, err := NewLongerName(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded LongerName
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestLongerName_ZeroHasNoText checks that the zero LongerName cannot be marshaled.
+func TestLongerName_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero LongerName
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero LongerName marshaled: %v", err)
+	}
+}
+
+// TestBoundedName_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestBoundedName_RejectsInvalidInput(t *testing.T) {
 	const exampleMax = "max"
 
 	t.Parallel()
 
-	voguetest.Scalar[BoundedName, *BoundedName, string]{
-		Field:      "boundedName",
-		New:        NewBoundedName,
-		Get:        BoundedName.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{"abcd", ""},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects one rune more than the bound holds",
-				Input:     "abcde",
-				Rules:     []string{exampleMax},
-				Described: true,
-			},
-			{
-				Name:      "rejects five accented runes are five, not ten",
-				Input:     "añóra",
-				Rules:     []string{exampleMax},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects one rune more than the bound holds", "abcde", []string{exampleMax}},
+		{"rejects five accented runes are five, not ten", "añóra", []string{exampleMax}},
+	} {
+		got, err := NewBoundedName(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewBoundedName(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("boundedName", rule) {
+				t.Errorf("NewBoundedName(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
 }
 
-// TestCurrencyCode runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestCurrencyCode(t *testing.T) {
+// TestBoundedName_RoundTripsText checks what the directive accepts survives its text.
+func TestBoundedName_RoundTripsText(t *testing.T) {
 	const (
-		exampleEUR = "EUR"
-		exampleLen = "len"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[CurrencyCode, *CurrencyCode, string]{
-		Field:      "currencyCode",
-		New:        NewCurrencyCode,
-		Get:        CurrencyCode.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleEUR, "añó"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects a code one character short",
-				Input:     "EU",
-				Rules:     []string{exampleLen},
-				Described: true,
-			},
-			{
-				Name:      "rejects a code one character long",
-				Input:     "EURO",
-				Rules:     []string{exampleLen},
-				Described: true,
-			},
-			{
-				Name:      "rejects the empty string, which has no characters at all",
-				Input:     "",
-				Rules:     []string{exampleLen},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, input := range []string{"abcd", ""} {
+		value, err := NewBoundedName(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded BoundedName
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
 }
 
-// TestEmailAddress runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestEmailAddress(t *testing.T) {
+// TestBoundedName_ZeroHasNoText checks that the zero BoundedName cannot be marshaled.
+func TestBoundedName_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero BoundedName
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero BoundedName marshaled: %v", err)
+	}
+}
+
+// TestCurrencyCode_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestCurrencyCode_RejectsInvalidInput(t *testing.T) {
+	const exampleLen = "len"
+
+	t.Parallel()
+
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects a code one character short", "EU", []string{exampleLen}},
+		{"rejects a code one character long", "EURO", []string{exampleLen}},
+		{"rejects the empty string, which has no characters at all", "", []string{exampleLen}},
+	} {
+		got, err := NewCurrencyCode(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewCurrencyCode(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("currencyCode", rule) {
+				t.Errorf("NewCurrencyCode(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestCurrencyCode_RoundTripsText checks what the directive accepts survives its text.
+func TestCurrencyCode_RoundTripsText(t *testing.T) {
 	const (
-		exampleWaiterExampleCom2     = "waiter@example.com"
+		exampleEUR                     = "EUR"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{exampleEUR, "añó"} {
+		value, err := NewCurrencyCode(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded CurrencyCode
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestCurrencyCode_ZeroHasNoText checks that the zero CurrencyCode cannot be marshaled.
+func TestCurrencyCode_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero CurrencyCode
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero CurrencyCode marshaled: %v", err)
+	}
+}
+
+// TestEmailAddress_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestEmailAddress_RejectsInvalidInput(t *testing.T) {
+	const (
 		exampleEmail                 = "email"
 		exampleRejectsTheEmptyString = "rejects the empty string"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[EmailAddress, *EmailAddress, string]{
-		Field:      "emailAddress",
-		New:        NewEmailAddress,
-		Get:        EmailAddress.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleWaiterExampleCom2, "orders+tab7@example.com"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects a local part with no domain",
-				Input:     "waiter",
-				Rules:     []string{exampleEmail},
-				Described: false,
-			},
-			{
-				Name:      "rejects a display name, which a stored address must not carry",
-				Input:     "Waiter <a@b.test>",
-				Rules:     []string{exampleEmail},
-				Described: false,
-			},
-			{
-				Name:      exampleRejectsTheEmptyString,
-				Input:     "",
-				Rules:     []string{exampleEmail},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects a local part with no domain", "waiter", []string{exampleEmail}},
+		{"rejects a display name, which a stored address must not carry", "Waiter <a@b.test>", []string{exampleEmail}},
+		{exampleRejectsTheEmptyString, "", []string{exampleEmail}},
+	} {
+		got, err := NewEmailAddress(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewEmailAddress(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("emailAddress", rule) {
+				t.Errorf("NewEmailAddress(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
 }
 
-// TestMenuLink runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestMenuLink(t *testing.T) {
+// TestEmailAddress_RoundTripsText checks what the directive accepts survives its text.
+func TestEmailAddress_RoundTripsText(t *testing.T) {
+	const (
+		exampleWaiterExampleCom2       = "waiter@example.com"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{exampleWaiterExampleCom2, "orders+tab7@example.com"} {
+		value, err := NewEmailAddress(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded EmailAddress
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestEmailAddress_ZeroHasNoText checks that the zero EmailAddress cannot be marshaled.
+func TestEmailAddress_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero EmailAddress
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero EmailAddress marshaled: %v", err)
+	}
+}
+
+// TestMenuLink_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestMenuLink_RejectsInvalidInput(t *testing.T) {
 	const (
 		exampleUrl                   = "url"
 		exampleRejectsTheEmptyString = "rejects the empty string"
@@ -589,42 +984,78 @@ func TestMenuLink(t *testing.T) {
 
 	t.Parallel()
 
-	voguetest.Scalar[MenuLink, *MenuLink, string]{
-		Field:      "menuLink",
-		New:        NewMenuLink,
-		Get:        MenuLink.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{"https://example.com/menu", "http://example.com:8080/menu?tab=7"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects a bare host with no scheme",
-				Input:     "example.com",
-				Rules:     []string{exampleUrl},
-				Described: false,
-			},
-			{
-				Name:      "rejects a scheme that is not http or https",
-				Input:     "ftp://example.com",
-				Rules:     []string{exampleUrl},
-				Described: false,
-			},
-			{
-				Name:      exampleRejectsTheEmptyString,
-				Input:     "",
-				Rules:     []string{exampleUrl},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects a bare host with no scheme", "example.com", []string{exampleUrl}},
+		{"rejects a scheme that is not http or https", "ftp://example.com", []string{exampleUrl}},
+		{exampleRejectsTheEmptyString, "", []string{exampleUrl}},
+	} {
+		got, err := NewMenuLink(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewMenuLink(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("menuLink", rule) {
+				t.Errorf("NewMenuLink(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
 }
 
-// TestExternalRef runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestExternalRef(t *testing.T) {
+// TestMenuLink_RoundTripsText checks what the directive accepts survives its text.
+func TestMenuLink_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"https://example.com/menu", "http://example.com:8080/menu?tab=7"} {
+		value, err := NewMenuLink(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded MenuLink
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestMenuLink_ZeroHasNoText checks that the zero MenuLink cannot be marshaled.
+func TestMenuLink_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero MenuLink
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero MenuLink marshaled: %v", err)
+	}
+}
+
+// TestExternalRef_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestExternalRef_RejectsInvalidInput(t *testing.T) {
 	const (
 		exampleUuid                  = "uuid"
 		exampleRejectsTheEmptyString = "rejects the empty string"
@@ -632,42 +1063,78 @@ func TestExternalRef(t *testing.T) {
 
 	t.Parallel()
 
-	voguetest.Scalar[ExternalRef, *ExternalRef, string]{
-		Field:      "externalRef",
-		New:        NewExternalRef,
-		Get:        ExternalRef.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{"9b2b4f52-1c2d-4e5a-9f3b-6d7c8e9f0a1b", "018f3a2b-7c4d-7e8f-9a0b-1c2d3e4f5a6b"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects the undashed form, which stored ids never use",
-				Input:     "9b2b4f521c2d4e5a9f3b6d7c8e9f0a1b",
-				Rules:     []string{exampleUuid},
-				Described: false,
-			},
-			{
-				Name:      "rejects a value that is not hexadecimal at all",
-				Input:     "not-a-uuid",
-				Rules:     []string{exampleUuid},
-				Described: false,
-			},
-			{
-				Name:      exampleRejectsTheEmptyString,
-				Input:     "",
-				Rules:     []string{exampleUuid},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects the undashed form, which stored ids never use", "9b2b4f521c2d4e5a9f3b6d7c8e9f0a1b", []string{exampleUuid}},
+		{"rejects a value that is not hexadecimal at all", "not-a-uuid", []string{exampleUuid}},
+		{exampleRejectsTheEmptyString, "", []string{exampleUuid}},
+	} {
+		got, err := NewExternalRef(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewExternalRef(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("externalRef", rule) {
+				t.Errorf("NewExternalRef(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
 }
 
-// TestZoneName runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestZoneName(t *testing.T) {
+// TestExternalRef_RoundTripsText checks what the directive accepts survives its text.
+func TestExternalRef_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"9b2b4f52-1c2d-4e5a-9f3b-6d7c8e9f0a1b", "018f3a2b-7c4d-7e8f-9a0b-1c2d3e4f5a6b"} {
+		value, err := NewExternalRef(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded ExternalRef
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestExternalRef_ZeroHasNoText checks that the zero ExternalRef cannot be marshaled.
+func TestExternalRef_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero ExternalRef
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero ExternalRef marshaled: %v", err)
+	}
+}
+
+// TestZoneName_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestZoneName_RejectsInvalidInput(t *testing.T) {
 	const (
 		exampleTimezone              = "timezone"
 		exampleRejectsTheEmptyString = "rejects the empty string"
@@ -675,940 +1142,2179 @@ func TestZoneName(t *testing.T) {
 
 	t.Parallel()
 
-	voguetest.Scalar[ZoneName, *ZoneName, string]{
-		Field:      "zoneName",
-		New:        NewZoneName,
-		Get:        ZoneName.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{"America/Argentina/Buenos_Aires", "UTC"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects a zone the database does not hold",
-				Input:     "Mars/Olympus_Mons",
-				Rules:     []string{exampleTimezone},
-				Described: false,
-			},
-			{
-				Name:      "rejects the process-local zone, which names no place",
-				Input:     "Local",
-				Rules:     []string{exampleTimezone},
-				Described: false,
-			},
-			{
-				Name:      "rejects a zone in the wrong case",
-				Input:     "europe/madrid",
-				Rules:     []string{exampleTimezone},
-				Described: false,
-			},
-			{
-				Name:      exampleRejectsTheEmptyString,
-				Input:     "",
-				Rules:     []string{exampleTimezone},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects a zone the database does not hold", "Mars/Olympus_Mons", []string{exampleTimezone}},
+		{"rejects the process-local zone, which names no place", "Local", []string{exampleTimezone}},
+		{"rejects a zone in the wrong case", "europe/madrid", []string{exampleTimezone}},
+		{exampleRejectsTheEmptyString, "", []string{exampleTimezone}},
+	} {
+		got, err := NewZoneName(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewZoneName(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("zoneName", rule) {
+				t.Errorf("NewZoneName(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
 }
 
-// TestStockCode runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestStockCode(t *testing.T) {
+// TestZoneName_RoundTripsText checks what the directive accepts survives its text.
+func TestZoneName_RoundTripsText(t *testing.T) {
 	const (
-		exampleSKU0042 = "SKU-0042"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"America/Argentina/Buenos_Aires", "UTC"} {
+		value, err := NewZoneName(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded ZoneName
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestZoneName_ZeroHasNoText checks that the zero ZoneName cannot be marshaled.
+func TestZoneName_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero ZoneName
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero ZoneName marshaled: %v", err)
+	}
+}
+
+// TestStockCode_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestStockCode_RejectsInvalidInput(t *testing.T) {
+	const (
 		exampleSku0042 = "sku-0042"
 		exampleRegex   = "regex"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[StockCode, *StockCode, string]{
-		Field:      "stockCode",
-		New:        NewStockCode,
-		Get:        StockCode.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleSKU0042, "EUR-1000"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects the prefix is not upper case",
-				Input:     exampleSku0042,
-				Rules:     []string{exampleRegex},
-				Described: true,
-			},
-			{
-				Name:      "rejects the number is too short",
-				Input:     "SKU-42",
-				Rules:     []string{exampleRegex},
-				Described: true,
-			},
-			{
-				Name:      "rejects the empty string, which an anchored pattern rejects",
-				Input:     "",
-				Rules:     []string{exampleRegex},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects the prefix is not upper case", exampleSku0042, []string{exampleRegex}},
+		{"rejects the number is too short", "SKU-42", []string{exampleRegex}},
+		{"rejects the empty string, which an anchored pattern rejects", "", []string{exampleRegex}},
+	} {
+		got, err := NewStockCode(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewStockCode(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("stockCode", rule) {
+				t.Errorf("NewStockCode(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
 }
 
-// TestCurrency runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestCurrency(t *testing.T) {
+// TestStockCode_RoundTripsText checks what the directive accepts survives its text.
+func TestStockCode_RoundTripsText(t *testing.T) {
 	const (
-		exampleEur   = "eur"
+		exampleSKU0042                 = "SKU-0042"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{exampleSKU0042, "EUR-1000"} {
+		value, err := NewStockCode(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded StockCode
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestStockCode_ZeroHasNoText checks that the zero StockCode cannot be marshaled.
+func TestStockCode_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero StockCode
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero StockCode marshaled: %v", err)
+	}
+}
+
+// TestCurrency_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestCurrency_RejectsInvalidInput(t *testing.T) {
+	const (
 		exampleOneof = "oneof"
 		exampleEUR   = "EUR"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[Currency, *Currency, string]{
-		Field:      "currency",
-		New:        NewCurrency,
-		Get:        Currency.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleEur, "gbp"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects a currency nobody listed",
-				Input:     "chf",
-				Rules:     []string{exampleOneof},
-				Described: true,
-			},
-			{
-				Name:      "rejects the right item in the wrong case",
-				Input:     exampleEUR,
-				Rules:     []string{exampleOneof},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects a currency nobody listed", "chf", []string{exampleOneof}},
+		{"rejects the right item in the wrong case", exampleEUR, []string{exampleOneof}},
+	} {
+		got, err := NewCurrency(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewCurrency(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("currency", rule) {
+				t.Errorf("NewCurrency(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
 }
 
-// TestLetterName runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestLetterName(t *testing.T) {
-	const exampleTortilla = "Tortilla"
+// TestCurrency_RoundTripsText checks what the directive accepts survives its text.
+func TestCurrency_RoundTripsText(t *testing.T) {
+	const (
+		exampleEur                     = "eur"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
 
 	t.Parallel()
 
-	voguetest.Scalar[LetterName, *LetterName, string]{
-		Field:      "letterName",
-		New:        NewLetterName,
-		Get:        LetterName.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleTortilla, "Muñoz"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects a digit among the letters",
-				Input:     "Tab7",
-				Rules:     []string{"alpha"},
-				Described: false,
-			},
-			{
-				Name:      "rejects a space, which is not a letter",
-				Input:     "de patatas",
-				Rules:     []string{"alpha"},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, input := range []string{exampleEur, "gbp"} {
+		value, err := NewCurrency(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded Currency
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
 }
 
-// TestHandle runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestHandle(t *testing.T) {
+// TestCurrency_ZeroHasNoText checks that the zero Currency cannot be marshaled.
+func TestCurrency_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero Currency
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero Currency marshaled: %v", err)
+	}
+}
+
+// TestLetterName_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestLetterName_RejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects a digit among the letters", "Tab7", []string{"alpha"}},
+		{"rejects a space, which is not a letter", "de patatas", []string{"alpha"}},
+	} {
+		got, err := NewLetterName(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewLetterName(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("letterName", rule) {
+				t.Errorf("NewLetterName(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestLetterName_RoundTripsText checks what the directive accepts survives its text.
+func TestLetterName_RoundTripsText(t *testing.T) {
+	const (
+		exampleTortilla2               = "Tortilla"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{exampleTortilla2, "Muñoz"} {
+		value, err := NewLetterName(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded LetterName
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestLetterName_ZeroHasNoText checks that the zero LetterName cannot be marshaled.
+func TestLetterName_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero LetterName
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero LetterName marshaled: %v", err)
+	}
+}
+
+// TestHandle_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestHandle_RejectsInvalidInput(t *testing.T) {
 	const exampleSku0042 = "sku-0042"
 
 	t.Parallel()
 
-	voguetest.Scalar[Handle, *Handle, string]{
-		Field:      "handle",
-		New:        NewHandle,
-		Get:        Handle.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{"Tab7", "sku0042"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects a hyphen, which is neither a letter nor a digit",
-				Input:     exampleSku0042,
-				Rules:     []string{"alphanum"},
-				Described: false,
-			},
-			{
-				Name:      "rejects a space",
-				Input:     "tab 7",
-				Rules:     []string{"alphanum"},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects a hyphen, which is neither a letter nor a digit", exampleSku0042, []string{"alphanum"}},
+		{"rejects a space", "tab 7", []string{"alphanum"}},
+	} {
+		got, err := NewHandle(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewHandle(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("handle", rule) {
+				t.Errorf("NewHandle(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
 }
 
-// TestPhoneDigits runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestPhoneDigits(t *testing.T) {
+// TestHandle_RoundTripsText checks what the directive accepts survives its text.
+func TestHandle_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"Tab7", "sku0042"} {
+		value, err := NewHandle(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded Handle
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestHandle_ZeroHasNoText checks that the zero Handle cannot be marshaled.
+func TestHandle_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero Handle
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero Handle marshaled: %v", err)
+	}
+}
+
+// TestPhoneDigits_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestPhoneDigits_RejectsInvalidInput(t *testing.T) {
 	const exampleNumeric = "numeric"
 
 	t.Parallel()
 
-	voguetest.Scalar[PhoneDigits, *PhoneDigits, string]{
-		Field:      "phoneDigits",
-		New:        NewPhoneDigits,
-		Get:        PhoneDigits.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{"0042", "600123456"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects a sign, which a digit string does not carry",
-				Input:     "-42",
-				Rules:     []string{exampleNumeric},
-				Described: false,
-			},
-			{
-				Name:      "rejects a decimal point",
-				Input:     "4.2",
-				Rules:     []string{exampleNumeric},
-				Described: false,
-			},
-			{
-				Name:      "rejects Arabic-Indic digits, which no parser here would read",
-				Input:     "٤٢",
-				Rules:     []string{exampleNumeric},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects a sign, which a digit string does not carry", "-42", []string{exampleNumeric}},
+		{"rejects a decimal point", "4.2", []string{exampleNumeric}},
+		{"rejects Arabic-Indic digits, which no parser here would read", "٤٢", []string{exampleNumeric}},
+	} {
+		got, err := NewPhoneDigits(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewPhoneDigits(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("phoneDigits", rule) {
+				t.Errorf("NewPhoneDigits(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
 }
 
-// TestLegacyCode runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestLegacyCode(t *testing.T) {
-	t.Parallel()
-
-	voguetest.Scalar[LegacyCode, *LegacyCode, string]{
-		Field:      "legacyCode",
-		New:        NewLegacyCode,
-		Get:        LegacyCode.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{"tortilla", "SKU-0042!"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects an accented letter above U+007F",
-				Input:     "Muñoz",
-				Rules:     []string{"ascii"},
-				Described: false,
-			},
-			{
-				Name:      "rejects a combining accent, which is not ASCII either",
-				Input:     "café",
-				Rules:     []string{"ascii"},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
-}
-
-// TestSingleLine runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestSingleLine(t *testing.T) {
-	const exampleTortillaDePatatas2 = "Tortilla de patatas"
-
-	t.Parallel()
-
-	voguetest.Scalar[SingleLine, *SingleLine, string]{
-		Field:      "singleLine",
-		New:        NewSingleLine,
-		Get:        SingleLine.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleTortillaDePatatas2, "Muñoz — 42 €"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects a newline smuggled into a single-line value",
-				Input:     "Tortilla\nde patatas",
-				Rules:     []string{"printable"},
-				Described: false,
-			},
-			{
-				Name:      "rejects a tab, which is a control character too",
-				Input:     "Tab\t7",
-				Rules:     []string{"printable"},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
-}
-
-// TestSlug runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestSlug(t *testing.T) {
-	t.Parallel()
-
-	voguetest.Scalar[Slug, *Slug, string]{
-		Field:      "slug",
-		New:        NewSlug,
-		Get:        Slug.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{"tortilla-de-patatas", "SKU0042"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects a space in the middle",
-				Input:     "tortilla de patatas",
-				Rules:     []string{"nospace"},
-				Described: false,
-			},
-			{
-				Name:      "rejects a trailing space a paste left behind",
-				Input:     "sku0042 ",
-				Rules:     []string{"nospace"},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
-}
-
-// TestProductCode runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestProductCode(t *testing.T) {
+// TestPhoneDigits_RoundTripsText checks what the directive accepts survives its text.
+func TestPhoneDigits_RoundTripsText(t *testing.T) {
 	const (
-		exampleSKU0042 = "SKU-0042"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"0042", "600123456"} {
+		value, err := NewPhoneDigits(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded PhoneDigits
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestPhoneDigits_ZeroHasNoText checks that the zero PhoneDigits cannot be marshaled.
+func TestPhoneDigits_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero PhoneDigits
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero PhoneDigits marshaled: %v", err)
+	}
+}
+
+// TestLegacyCode_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestLegacyCode_RejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects an accented letter above U+007F", "Muñoz", []string{"ascii"}},
+		{"rejects a combining accent, which is not ASCII either", "café", []string{"ascii"}},
+	} {
+		got, err := NewLegacyCode(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewLegacyCode(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("legacyCode", rule) {
+				t.Errorf("NewLegacyCode(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestLegacyCode_RoundTripsText checks what the directive accepts survives its text.
+func TestLegacyCode_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"tortilla", "SKU-0042!"} {
+		value, err := NewLegacyCode(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded LegacyCode
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestLegacyCode_ZeroHasNoText checks that the zero LegacyCode cannot be marshaled.
+func TestLegacyCode_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero LegacyCode
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero LegacyCode marshaled: %v", err)
+	}
+}
+
+// TestSingleLine_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestSingleLine_RejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects a newline smuggled into a single-line value", "Tortilla\nde patatas", []string{"printable"}},
+		{"rejects a tab, which is a control character too", "Tab\t7", []string{"printable"}},
+	} {
+		got, err := NewSingleLine(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewSingleLine(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("singleLine", rule) {
+				t.Errorf("NewSingleLine(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestSingleLine_RoundTripsText checks what the directive accepts survives its text.
+func TestSingleLine_RoundTripsText(t *testing.T) {
+	const (
+		exampleTortillaDePatatas2      = "Tortilla de patatas"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{exampleTortillaDePatatas2, "Muñoz — 42 €"} {
+		value, err := NewSingleLine(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded SingleLine
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestSingleLine_ZeroHasNoText checks that the zero SingleLine cannot be marshaled.
+func TestSingleLine_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero SingleLine
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero SingleLine marshaled: %v", err)
+	}
+}
+
+// TestSlug_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestSlug_RejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects a space in the middle", "tortilla de patatas", []string{"nospace"}},
+		{"rejects a trailing space a paste left behind", "sku0042 ", []string{"nospace"}},
+	} {
+		got, err := NewSlug(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewSlug(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("slug", rule) {
+				t.Errorf("NewSlug(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestSlug_RoundTripsText checks what the directive accepts survives its text.
+func TestSlug_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"tortilla-de-patatas", "SKU0042"} {
+		value, err := NewSlug(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded Slug
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestSlug_ZeroHasNoText checks that the zero Slug cannot be marshaled.
+func TestSlug_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero Slug
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero Slug marshaled: %v", err)
+	}
+}
+
+// TestProductCode_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestProductCode_RejectsInvalidInput(t *testing.T) {
+	const (
 		exampleSku0042 = "sku-0042"
 		examplePrefix  = "prefix"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[ProductCode, *ProductCode, string]{
-		Field:      "productCode",
-		New:        NewProductCode,
-		Get:        ProductCode.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleSKU0042, "SKU-"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects the right prefix in the wrong case",
-				Input:     exampleSku0042,
-				Rules:     []string{examplePrefix},
-				Described: false,
-			},
-			{
-				Name:      "rejects no namespace at all",
-				Input:     "0042",
-				Rules:     []string{examplePrefix},
-				Described: false,
-			},
-			{
-				Name:      "rejects the empty string, which starts with nothing",
-				Input:     "",
-				Rules:     []string{examplePrefix},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects the right prefix in the wrong case", exampleSku0042, []string{examplePrefix}},
+		{"rejects no namespace at all", "0042", []string{examplePrefix}},
+		{"rejects the empty string, which starts with nothing", "", []string{examplePrefix}},
+	} {
+		got, err := NewProductCode(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewProductCode(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("productCode", rule) {
+				t.Errorf("NewProductCode(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
 }
 
-// TestDocumentFile runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestDocumentFile(t *testing.T) {
-	t.Parallel()
-
-	voguetest.Scalar[DocumentFile, *DocumentFile, string]{
-		Field:      "documentFile",
-		New:        NewDocumentFile,
-		Get:        DocumentFile.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{"invoice.pdf", ".pdf"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects the right extension in the wrong case",
-				Input:     "invoice.PDF",
-				Rules:     []string{"suffix"},
-				Described: false,
-			},
-			{
-				Name:      "rejects a different extension",
-				Input:     "invoice.png",
-				Rules:     []string{"suffix"},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
-}
-
-// TestResourcePath runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestResourcePath(t *testing.T) {
-	t.Parallel()
-
-	voguetest.Scalar[ResourcePath, *ResourcePath, string]{
-		Field:      "resourcePath",
-		New:        NewResourcePath,
-		Get:        ResourcePath.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{"tabs/7", "/"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects a different separator",
-				Input:     "tabs-7",
-				Rules:     []string{"contains"},
-				Described: false,
-			},
-			{
-				Name:      "rejects the empty string, which contains nothing",
-				Input:     "",
-				Rules:     []string{"contains"},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
-}
-
-// TestFlatName runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestFlatName(t *testing.T) {
-	t.Parallel()
-
-	voguetest.Scalar[FlatName, *FlatName, string]{
-		Field:      "flatName",
-		New:        NewFlatName,
-		Get:        FlatName.String,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{"tabs-7", ""},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects the forbidden separator in the middle",
-				Input:     "tabs/7",
-				Rules:     []string{"excludes"},
-				Described: false,
-			},
-			{
-				Name:      "rejects the forbidden separator at the front",
-				Input:     "/tabs",
-				Rules:     []string{"excludes"},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
-}
-
-// TestCovers runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestCovers(t *testing.T) {
+// TestProductCode_RoundTripsText checks what the directive accepts survives its text.
+func TestProductCode_RoundTripsText(t *testing.T) {
 	const (
-		exampleInt = "int"
-		exampleMin = "min"
+		exampleSKU0042                 = "SKU-0042"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[Covers, *Covers, int64]{
-		Field:      "covers",
-		New:        NewCovers,
-		Get:        Covers.Int64,
-		FromString: NewCoversFromString,
-		ParseRule:  exampleInt,
-		Examples:   nil,
-		Candidates: []int64{1, 42},
-		Rejected: []voguetest.Rejection[int64]{
-			{
-				Name:      "rejects a table with nobody at it",
-				Input:     0,
-				Rules:     []string{exampleMin},
-				Described: true,
-			},
-			{
-				Name:      "rejects a negative count is below any positive bound",
-				Input:     -5,
-				Rules:     []string{exampleMin},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, input := range []string{exampleSKU0042, "SKU-"} {
+		value, err := NewProductCode(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded ProductCode
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
 }
 
-// TestSeats runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestSeats(t *testing.T) {
+// TestProductCode_ZeroHasNoText checks that the zero ProductCode cannot be marshaled.
+func TestProductCode_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero ProductCode
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero ProductCode marshaled: %v", err)
+	}
+}
+
+// TestDocumentFile_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestDocumentFile_RejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects the right extension in the wrong case", "invoice.PDF", []string{"suffix"}},
+		{"rejects a different extension", "invoice.png", []string{"suffix"}},
+	} {
+		got, err := NewDocumentFile(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewDocumentFile(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("documentFile", rule) {
+				t.Errorf("NewDocumentFile(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestDocumentFile_RoundTripsText checks what the directive accepts survives its text.
+func TestDocumentFile_RoundTripsText(t *testing.T) {
 	const (
-		exampleInt = "int"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"invoice.pdf", ".pdf"} {
+		value, err := NewDocumentFile(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded DocumentFile
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestDocumentFile_ZeroHasNoText checks that the zero DocumentFile cannot be marshaled.
+func TestDocumentFile_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero DocumentFile
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero DocumentFile marshaled: %v", err)
+	}
+}
+
+// TestResourcePath_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestResourcePath_RejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects a different separator", "tabs-7", []string{"contains"}},
+		{"rejects the empty string, which contains nothing", "", []string{"contains"}},
+	} {
+		got, err := NewResourcePath(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewResourcePath(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("resourcePath", rule) {
+				t.Errorf("NewResourcePath(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestResourcePath_RoundTripsText checks what the directive accepts survives its text.
+func TestResourcePath_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"tabs/7", "/"} {
+		value, err := NewResourcePath(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded ResourcePath
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestResourcePath_ZeroHasNoText checks that the zero ResourcePath cannot be marshaled.
+func TestResourcePath_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero ResourcePath
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero ResourcePath marshaled: %v", err)
+	}
+}
+
+// TestFlatName_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestFlatName_RejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects the forbidden separator in the middle", "tabs/7", []string{"excludes"}},
+		{"rejects the forbidden separator at the front", "/tabs", []string{"excludes"}},
+	} {
+		got, err := NewFlatName(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewFlatName(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("flatName", rule) {
+				t.Errorf("NewFlatName(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestFlatName_RoundTripsText checks what the directive accepts survives its text.
+func TestFlatName_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"tabs-7", ""} {
+		value, err := NewFlatName(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded FlatName
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestFlatName_ZeroHasNoText checks that the zero FlatName cannot be marshaled.
+func TestFlatName_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero FlatName
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero FlatName marshaled: %v", err)
+	}
+}
+
+// TestCovers_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestCovers_RejectsInvalidInput(t *testing.T) {
+	const exampleMin = "min"
+
+	t.Parallel()
+
+	for _, test := range []struct {
+		note  string
+		rules []string
+		input int64
+	}{
+		{"rejects a table with nobody at it", []string{exampleMin}, 0},
+		{"rejects a negative count is below any positive bound", []string{exampleMin}, -5},
+	} {
+		got, err := NewCovers(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewCovers(%v) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("covers", rule) {
+				t.Errorf("NewCovers(%v) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestCovers_RoundTripsText checks what the directive accepts survives its text.
+func TestCovers_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []int64{1, 42} {
+		value, err := NewCovers(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded Covers
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestCovers_RejectsUnreadableText checks text that is no int fails the "int" rule.
+func TestCovers_RejectsUnreadableText(t *testing.T) {
+	const (
+		exampleNotANumber = "not-a-number"
+		exampleInt        = "int"
+	)
+
+	t.Parallel()
+
+	_, err := NewCoversFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("covers", exampleInt) {
+		t.Errorf("NewCoversFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleInt)
+	}
+}
+
+// TestCovers_ZeroHasNoText checks that the zero Covers cannot be marshaled.
+func TestCovers_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero Covers
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero Covers marshaled: %v", err)
+	}
+}
+
+// TestSeats_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestSeats_RejectsInvalidInput(t *testing.T) {
+	const exampleMax = "max"
+
+	t.Parallel()
+
+	for _, test := range []struct {
+		note  string
+		rules []string
+		input int64
+	}{
+		{"rejects one guest more than the room holds", []string{exampleMax}, 201},
+		{"rejects a value far above the bound", []string{exampleMax}, 1000},
+	} {
+		got, err := NewSeats(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewSeats(%v) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("seats", rule) {
+				t.Errorf("NewSeats(%v) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestSeats_RoundTripsText checks what the directive accepts survives its text.
+func TestSeats_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []int64{200, -1} {
+		value, err := NewSeats(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded Seats
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestSeats_RejectsUnreadableText checks text that is no int fails the "int" rule.
+func TestSeats_RejectsUnreadableText(t *testing.T) {
+	const (
+		exampleNotANumber = "not-a-number"
+		exampleInt        = "int"
+	)
+
+	t.Parallel()
+
+	_, err := NewSeatsFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("seats", exampleInt) {
+		t.Errorf("NewSeatsFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleInt)
+	}
+}
+
+// TestSeats_ZeroHasNoText checks that the zero Seats cannot be marshaled.
+func TestSeats_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero Seats
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero Seats marshaled: %v", err)
+	}
+}
+
+// TestCourseCount_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestCourseCount_RejectsInvalidInput(t *testing.T) {
+	const exampleOneof = "oneof"
+
+	t.Parallel()
+
+	for _, test := range []struct {
+		note  string
+		rules []string
+		input int64
+	}{
+		{"rejects a number between two allowed ones", []string{exampleOneof}, 3},
+		{"rejects a number below the whole list", []string{exampleOneof}, 0},
+	} {
+		got, err := NewCourseCount(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewCourseCount(%v) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("courseCount", rule) {
+				t.Errorf("NewCourseCount(%v) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestCourseCount_RoundTripsText checks what the directive accepts survives its text.
+func TestCourseCount_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []int64{1, 4} {
+		value, err := NewCourseCount(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded CourseCount
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestCourseCount_RejectsUnreadableText checks text that is no int fails the "int" rule.
+func TestCourseCount_RejectsUnreadableText(t *testing.T) {
+	const (
+		exampleNotANumber = "not-a-number"
+		exampleInt        = "int"
+	)
+
+	t.Parallel()
+
+	_, err := NewCourseCountFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("courseCount", exampleInt) {
+		t.Errorf("NewCourseCountFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleInt)
+	}
+}
+
+// TestCourseCount_ZeroHasNoText checks that the zero CourseCount cannot be marshaled.
+func TestCourseCount_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero CourseCount
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero CourseCount marshaled: %v", err)
+	}
+}
+
+// TestPortions_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestPortions_RejectsInvalidInput(t *testing.T) {
+	const examplePositive = "positive"
+
+	t.Parallel()
+
+	for _, test := range []struct {
+		note  string
+		rules []string
+		input int64
+	}{
+		{"rejects zero, which is not positive", []string{examplePositive}, 0},
+		{"rejects a negative count", []string{examplePositive}, -1},
+	} {
+		got, err := NewPortions(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewPortions(%v) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("portions", rule) {
+				t.Errorf("NewPortions(%v) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestPortions_RoundTripsText checks what the directive accepts survives its text.
+func TestPortions_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []int64{1, 42} {
+		value, err := NewPortions(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded Portions
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestPortions_RejectsUnreadableText checks text that is no int fails the "int" rule.
+func TestPortions_RejectsUnreadableText(t *testing.T) {
+	const (
+		exampleNotANumber = "not-a-number"
+		exampleInt        = "int"
+	)
+
+	t.Parallel()
+
+	_, err := NewPortionsFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("portions", exampleInt) {
+		t.Errorf("NewPortionsFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleInt)
+	}
+}
+
+// TestPortions_ZeroHasNoText checks that the zero Portions cannot be marshaled.
+func TestPortions_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero Portions
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero Portions marshaled: %v", err)
+	}
+}
+
+// TestStockLevel_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestStockLevel_RejectsInvalidInput(t *testing.T) {
+	const exampleNonneg = "nonneg"
+
+	t.Parallel()
+
+	for _, test := range []struct {
+		note  string
+		rules []string
+		input int64
+	}{
+		{"rejects one below the floor", []string{exampleNonneg}, -1},
+		{"rejects a quantity nobody can have", []string{exampleNonneg}, -100},
+	} {
+		got, err := NewStockLevel(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewStockLevel(%v) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("stockLevel", rule) {
+				t.Errorf("NewStockLevel(%v) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestStockLevel_RoundTripsText checks what the directive accepts survives its text.
+func TestStockLevel_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []int64{0, 7} {
+		value, err := NewStockLevel(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded StockLevel
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestStockLevel_RejectsUnreadableText checks text that is no int fails the "int" rule.
+func TestStockLevel_RejectsUnreadableText(t *testing.T) {
+	const (
+		exampleNotANumber = "not-a-number"
+		exampleInt        = "int"
+	)
+
+	t.Parallel()
+
+	_, err := NewStockLevelFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("stockLevel", exampleInt) {
+		t.Errorf("NewStockLevelFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleInt)
+	}
+}
+
+// TestStockLevel_ZeroHasNoText checks that the zero StockLevel cannot be marshaled.
+func TestStockLevel_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero StockLevel
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero StockLevel marshaled: %v", err)
+	}
+}
+
+// TestSlotMinutes_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestSlotMinutes_RejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		note  string
+		rules []string
+		input int64
+	}{
+		{"rejects a duration that does not fill whole slots", []string{"multipleof"}, 20},
+		{"rejects less than one slot", []string{"multipleof"}, 1},
+	} {
+		got, err := NewSlotMinutes(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewSlotMinutes(%v) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("slotMinutes", rule) {
+				t.Errorf("NewSlotMinutes(%v) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestSlotMinutes_RoundTripsText checks what the directive accepts survives its text.
+func TestSlotMinutes_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []int64{30, 0, -15} {
+		value, err := NewSlotMinutes(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded SlotMinutes
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestSlotMinutes_RejectsUnreadableText checks text that is no int fails the "int" rule.
+func TestSlotMinutes_RejectsUnreadableText(t *testing.T) {
+	const (
+		exampleNotANumber = "not-a-number"
+		exampleInt        = "int"
+	)
+
+	t.Parallel()
+
+	_, err := NewSlotMinutesFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("slotMinutes", exampleInt) {
+		t.Errorf("NewSlotMinutesFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleInt)
+	}
+}
+
+// TestSlotMinutes_ZeroHasNoText checks that the zero SlotMinutes cannot be marshaled.
+func TestSlotMinutes_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero SlotMinutes
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero SlotMinutes marshaled: %v", err)
+	}
+}
+
+// TestMinRate_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestMinRate_RejectsInvalidInput(t *testing.T) {
+	const exampleMin = "min"
+
+	t.Parallel()
+
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects a quarter below a floor of nothing", "-0.25", []string{exampleMin}},
+		{"rejects a whole unit below the floor", "-1", []string{exampleMin}},
+	} {
+		got, err := NewMinRateFromString(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewMinRateFromString(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("minRate", rule) {
+				t.Errorf("NewMinRateFromString(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestMinRate_RoundTripsText checks what the directive accepts survives its text.
+func TestMinRate_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"0.5", "0"} {
+		value, err := NewMinRateFromString(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded MinRate
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestMinRate_RejectsUnreadableText checks text that is no decimal fails the "decimal" rule.
+func TestMinRate_RejectsUnreadableText(t *testing.T) {
+	const (
+		exampleNotANumber = "not-a-number"
+		exampleDecimal    = "decimal"
+	)
+
+	t.Parallel()
+
+	_, err := NewMinRateFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("minRate", exampleDecimal) {
+		t.Errorf("NewMinRateFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleDecimal)
+	}
+}
+
+// TestMinRate_ZeroHasNoText checks that the zero MinRate cannot be marshaled.
+func TestMinRate_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero MinRate
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero MinRate marshaled: %v", err)
+	}
+}
+
+// TestMaxRate_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestMaxRate_RejectsInvalidInput(t *testing.T) {
+	const (
+		example15  = "1.5"
 		exampleMax = "max"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[Seats, *Seats, int64]{
-		Field:      "seats",
-		New:        NewSeats,
-		Get:        Seats.Int64,
-		FromString: NewSeatsFromString,
-		ParseRule:  exampleInt,
-		Examples:   nil,
-		Candidates: []int64{200, -1},
-		Rejected: []voguetest.Rejection[int64]{
-			{
-				Name:      "rejects one guest more than the room holds",
-				Input:     201,
-				Rules:     []string{exampleMax},
-				Described: true,
-			},
-			{
-				Name:      "rejects a value far above the bound",
-				Input:     1000,
-				Rules:     []string{exampleMax},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects half again more than the whole", example15, []string{exampleMax}},
+		{"rejects twice the whole bill", "2", []string{exampleMax}},
+	} {
+		got, err := NewMaxRateFromString(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewMaxRateFromString(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("maxRate", rule) {
+				t.Errorf("NewMaxRateFromString(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
 }
 
-// TestCourseCount runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestCourseCount(t *testing.T) {
+// TestMaxRate_RoundTripsText checks what the directive accepts survives its text.
+func TestMaxRate_RoundTripsText(t *testing.T) {
 	const (
-		exampleInt   = "int"
-		exampleOneof = "oneof"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[CourseCount, *CourseCount, int64]{
-		Field:      "courseCount",
-		New:        NewCourseCount,
-		Get:        CourseCount.Int64,
-		FromString: NewCourseCountFromString,
-		ParseRule:  exampleInt,
-		Examples:   nil,
-		Candidates: []int64{1, 4},
-		Rejected: []voguetest.Rejection[int64]{
-			{
-				Name:      "rejects a number between two allowed ones",
-				Input:     3,
-				Rules:     []string{exampleOneof},
-				Described: true,
-			},
-			{
-				Name:      "rejects a number below the whole list",
-				Input:     0,
-				Rules:     []string{exampleOneof},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, input := range []string{"1", "0.25"} {
+		value, err := NewMaxRateFromString(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded MaxRate
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
 }
 
-// TestPortions runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestPortions(t *testing.T) {
+// TestMaxRate_RejectsUnreadableText checks text that is no decimal fails the "decimal" rule.
+func TestMaxRate_RejectsUnreadableText(t *testing.T) {
 	const (
-		exampleInt      = "int"
-		examplePositive = "positive"
+		exampleNotANumber = "not-a-number"
+		exampleDecimal    = "decimal"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[Portions, *Portions, int64]{
-		Field:      "portions",
-		New:        NewPortions,
-		Get:        Portions.Int64,
-		FromString: NewPortionsFromString,
-		ParseRule:  exampleInt,
-		Examples:   nil,
-		Candidates: []int64{1, 42},
-		Rejected: []voguetest.Rejection[int64]{
-			{
-				Name:      "rejects zero, which is not positive",
-				Input:     0,
-				Rules:     []string{examplePositive},
-				Described: true,
-			},
-			{
-				Name:      "rejects a negative count",
-				Input:     -1,
-				Rules:     []string{examplePositive},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	_, err := NewMaxRateFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("maxRate", exampleDecimal) {
+		t.Errorf("NewMaxRateFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleDecimal)
+	}
 }
 
-// TestStockLevel runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestStockLevel(t *testing.T) {
+// TestMaxRate_ZeroHasNoText checks that the zero MaxRate cannot be marshaled.
+func TestMaxRate_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero MaxRate
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero MaxRate marshaled: %v", err)
+	}
+}
+
+// TestUnitWeight_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestUnitWeight_RejectsInvalidInput(t *testing.T) {
+	const examplePositive = "positive"
+
+	t.Parallel()
+
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects zero written at three decimal places is still zero", "0.000", []string{examplePositive}},
+		{"rejects half a unit less than nothing", "-0.5", []string{examplePositive}},
+	} {
+		got, err := NewUnitWeightFromString(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewUnitWeightFromString(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("unitWeight", rule) {
+				t.Errorf("NewUnitWeightFromString(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestUnitWeight_RoundTripsText checks what the directive accepts survives its text.
+func TestUnitWeight_RoundTripsText(t *testing.T) {
 	const (
-		exampleInt    = "int"
-		exampleNonneg = "nonneg"
+		example15                      = "1.5"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[StockLevel, *StockLevel, int64]{
-		Field:      "stockLevel",
-		New:        NewStockLevel,
-		Get:        StockLevel.Int64,
-		FromString: NewStockLevelFromString,
-		ParseRule:  exampleInt,
-		Examples:   nil,
-		Candidates: []int64{0, 7},
-		Rejected: []voguetest.Rejection[int64]{
-			{
-				Name:      "rejects one below the floor",
-				Input:     -1,
-				Rules:     []string{exampleNonneg},
-				Described: true,
-			},
-			{
-				Name:      "rejects a quantity nobody can have",
-				Input:     -100,
-				Rules:     []string{exampleNonneg},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
+	for _, input := range []string{example15, "0.001"} {
+		value, err := NewUnitWeightFromString(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded UnitWeight
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
 }
 
-// TestSlotMinutes runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestSlotMinutes(t *testing.T) {
-	const exampleInt = "int"
-
-	t.Parallel()
-
-	voguetest.Scalar[SlotMinutes, *SlotMinutes, int64]{
-		Field:      "slotMinutes",
-		New:        NewSlotMinutes,
-		Get:        SlotMinutes.Int64,
-		FromString: NewSlotMinutesFromString,
-		ParseRule:  exampleInt,
-		Examples:   nil,
-		Candidates: []int64{30, 0, -15},
-		Rejected: []voguetest.Rejection[int64]{
-			{
-				Name:      "rejects a duration that does not fill whole slots",
-				Input:     20,
-				Rules:     []string{"multipleof"},
-				Described: false,
-			},
-			{
-				Name:      "rejects less than one slot",
-				Input:     1,
-				Rules:     []string{"multipleof"},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: false,
-	}.Run(t)
-}
-
-// TestMinRate runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestMinRate(t *testing.T) {
+// TestUnitWeight_RejectsUnreadableText checks text that is no decimal fails the "decimal" rule.
+func TestUnitWeight_RejectsUnreadableText(t *testing.T) {
 	const (
-		exampleDecimal = "decimal"
-		exampleMin     = "min"
+		exampleNotANumber = "not-a-number"
+		exampleDecimal    = "decimal"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[MinRate, *MinRate, string]{
-		Field:      "minRate",
-		New:        NewMinRateFromString,
-		Get:        nil,
-		FromString: NewMinRateFromString,
-		ParseRule:  exampleDecimal,
-		Examples:   nil,
-		Candidates: []string{"0.5", "0"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects a quarter below a floor of nothing",
-				Input:     "-0.25",
-				Rules:     []string{exampleMin},
-				Described: true,
-			},
-			{
-				Name:      "rejects a whole unit below the floor",
-				Input:     "-1",
-				Rules:     []string{exampleMin},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: true,
-	}.Run(t)
+	_, err := NewUnitWeightFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("unitWeight", exampleDecimal) {
+		t.Errorf("NewUnitWeightFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleDecimal)
+	}
 }
 
-// TestMaxRate runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestMaxRate(t *testing.T) {
+// TestUnitWeight_ZeroHasNoText checks that the zero UnitWeight cannot be marshaled.
+func TestUnitWeight_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero UnitWeight
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero UnitWeight marshaled: %v", err)
+	}
+}
+
+// TestShelfWeight_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestShelfWeight_RejectsInvalidInput(t *testing.T) {
+	const exampleNonneg = "nonneg"
+
+	t.Parallel()
+
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects a hundredth below the floor", "-0.01", []string{exampleNonneg}},
+		{"rejects a quantity nobody can have", "-100", []string{exampleNonneg}},
+	} {
+		got, err := NewShelfWeightFromString(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewShelfWeightFromString(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("shelfWeight", rule) {
+				t.Errorf("NewShelfWeightFromString(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestShelfWeight_RoundTripsText checks what the directive accepts survives its text.
+func TestShelfWeight_RoundTripsText(t *testing.T) {
 	const (
-		exampleDecimal = "decimal"
-		example15      = "1.5"
-		exampleMax     = "max"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[MaxRate, *MaxRate, string]{
-		Field:      "maxRate",
-		New:        NewMaxRateFromString,
-		Get:        nil,
-		FromString: NewMaxRateFromString,
-		ParseRule:  exampleDecimal,
-		Examples:   nil,
-		Candidates: []string{"1", "0.25"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects half again more than the whole",
-				Input:     example15,
-				Rules:     []string{exampleMax},
-				Described: true,
-			},
-			{
-				Name:      "rejects twice the whole bill",
-				Input:     "2",
-				Rules:     []string{exampleMax},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: true,
-	}.Run(t)
+	for _, input := range []string{"0", "12.750"} {
+		value, err := NewShelfWeightFromString(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded ShelfWeight
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
 }
 
-// TestUnitWeight runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestUnitWeight(t *testing.T) {
+// TestShelfWeight_RejectsUnreadableText checks text that is no decimal fails the "decimal" rule.
+func TestShelfWeight_RejectsUnreadableText(t *testing.T) {
 	const (
-		exampleDecimal  = "decimal"
-		example15       = "1.5"
-		examplePositive = "positive"
+		exampleNotANumber = "not-a-number"
+		exampleDecimal    = "decimal"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[UnitWeight, *UnitWeight, string]{
-		Field:      "unitWeight",
-		New:        NewUnitWeightFromString,
-		Get:        nil,
-		FromString: NewUnitWeightFromString,
-		ParseRule:  exampleDecimal,
-		Examples:   nil,
-		Candidates: []string{example15, "0.001"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects zero written at three decimal places is still zero",
-				Input:     "0.000",
-				Rules:     []string{examplePositive},
-				Described: true,
-			},
-			{
-				Name:      "rejects half a unit less than nothing",
-				Input:     "-0.5",
-				Rules:     []string{examplePositive},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: true,
-	}.Run(t)
+	_, err := NewShelfWeightFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("shelfWeight", exampleDecimal) {
+		t.Errorf("NewShelfWeightFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleDecimal)
+	}
 }
 
-// TestShelfWeight runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestShelfWeight(t *testing.T) {
+// TestShelfWeight_ZeroHasNoText checks that the zero ShelfWeight cannot be marshaled.
+func TestShelfWeight_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero ShelfWeight
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero ShelfWeight marshaled: %v", err)
+	}
+}
+
+// TestTaxRate_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestTaxRate_RejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects one decimal place more than the column holds", "0.12345", []string{"scale"}},
+	} {
+		got, err := NewTaxRateFromString(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewTaxRateFromString(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("taxRate", rule) {
+				t.Errorf("NewTaxRateFromString(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestTaxRate_RoundTripsText checks what the directive accepts survives its text.
+func TestTaxRate_RoundTripsText(t *testing.T) {
 	const (
-		exampleDecimal = "decimal"
-		exampleNonneg  = "nonneg"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[ShelfWeight, *ShelfWeight, string]{
-		Field:      "shelfWeight",
-		New:        NewShelfWeightFromString,
-		Get:        nil,
-		FromString: NewShelfWeightFromString,
-		ParseRule:  exampleDecimal,
-		Examples:   nil,
-		Candidates: []string{"0", "12.750"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects a hundredth below the floor",
-				Input:     "-0.01",
-				Rules:     []string{exampleNonneg},
-				Described: true,
-			},
-			{
-				Name:      "rejects a quantity nobody can have",
-				Input:     "-100",
-				Rules:     []string{exampleNonneg},
-				Described: true,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: true,
-	}.Run(t)
+	for _, input := range []string{"0.1234", "0.5"} {
+		value, err := NewTaxRateFromString(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded TaxRate
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
 }
 
-// TestTaxRate runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestTaxRate(t *testing.T) {
-	const exampleDecimal = "decimal"
-
-	t.Parallel()
-
-	voguetest.Scalar[TaxRate, *TaxRate, string]{
-		Field:      "taxRate",
-		New:        NewTaxRateFromString,
-		Get:        nil,
-		FromString: NewTaxRateFromString,
-		ParseRule:  exampleDecimal,
-		Examples:   nil,
-		Candidates: []string{"0.1234", "0.5"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects one decimal place more than the column holds",
-				Input:     "0.12345",
-				Rules:     []string{"scale"},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: true,
-	}.Run(t)
-}
-
-// TestPreciseWeight runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestPreciseWeight(t *testing.T) {
+// TestTaxRate_RejectsUnreadableText checks text that is no decimal fails the "decimal" rule.
+func TestTaxRate_RejectsUnreadableText(t *testing.T) {
 	const (
-		exampleDecimal = "decimal"
-		example15      = "1.5"
+		exampleNotANumber = "not-a-number"
+		exampleDecimal    = "decimal"
 	)
 
 	t.Parallel()
 
-	voguetest.Scalar[PreciseWeight, *PreciseWeight, string]{
-		Field:      "preciseWeight",
-		New:        NewPreciseWeightFromString,
-		Get:        nil,
-		FromString: NewPreciseWeightFromString,
-		ParseRule:  exampleDecimal,
-		Examples:   nil,
-		Candidates: []string{example15, "12.750"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects a weight measured finer than the scale reads",
-				Input:     "0.1234",
-				Rules:     []string{"scale"},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: true,
-	}.Run(t)
+	_, err := NewTaxRateFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("taxRate", exampleDecimal) {
+		t.Errorf("NewTaxRateFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleDecimal)
+	}
 }
 
-// TestAdjustment runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestAdjustment(t *testing.T) {
-	const exampleDecimal = "decimal"
+// TestTaxRate_ZeroHasNoText checks that the zero TaxRate cannot be marshaled.
+func TestTaxRate_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero TaxRate
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero TaxRate marshaled: %v", err)
+	}
+}
+
+// TestPreciseWeight_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestPreciseWeight_RejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects a weight measured finer than the scale reads", "0.1234", []string{"scale"}},
+	} {
+		got, err := NewPreciseWeightFromString(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewPreciseWeightFromString(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("preciseWeight", rule) {
+				t.Errorf("NewPreciseWeightFromString(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestPreciseWeight_RoundTripsText checks what the directive accepts survives its text.
+func TestPreciseWeight_RoundTripsText(t *testing.T) {
+	const (
+		example15                      = "1.5"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
 
 	t.Parallel()
 
-	voguetest.Scalar[Adjustment, *Adjustment, string]{
-		Field:      "adjustment",
-		New:        NewAdjustmentFromString,
-		Get:        nil,
-		FromString: NewAdjustmentFromString,
-		ParseRule:  exampleDecimal,
-		Examples:   nil,
-		Candidates: []string{"1", "-0.5"},
-		Rejected: []voguetest.Rejection[string]{
-			{
-				Name:      "rejects nothing to adjust",
-				Input:     "0",
-				Rules:     []string{"nonzero"},
-				Described: false,
-			},
-			{
-				Name:      "rejects nothing, written to the cent",
-				Input:     "0.00",
-				Rules:     []string{"nonzero"},
-				Described: false,
-			},
-		},
-		Normalized:   nil,
-		RefusesFloat: true,
-	}.Run(t)
+	for _, input := range []string{example15, "12.750"} {
+		value, err := NewPreciseWeightFromString(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded PreciseWeight
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
 }
 
-// TestLoweredCurrency runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestLoweredCurrency(t *testing.T) {
+// TestPreciseWeight_RejectsUnreadableText checks text that is no decimal fails the "decimal" rule.
+func TestPreciseWeight_RejectsUnreadableText(t *testing.T) {
 	const (
-		exampleEur                                      = "eur"
+		exampleNotANumber = "not-a-number"
+		exampleDecimal    = "decimal"
+	)
+
+	t.Parallel()
+
+	_, err := NewPreciseWeightFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("preciseWeight", exampleDecimal) {
+		t.Errorf("NewPreciseWeightFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleDecimal)
+	}
+}
+
+// TestPreciseWeight_ZeroHasNoText checks that the zero PreciseWeight cannot be marshaled.
+func TestPreciseWeight_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero PreciseWeight
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero PreciseWeight marshaled: %v", err)
+	}
+}
+
+// TestAdjustment_RejectsInvalidInput checks that the rules of the directive reject
+// the inputs their examples declare invalid, each under its own rule.
+func TestAdjustment_RejectsInvalidInput(t *testing.T) {
+	t.Parallel()
+
+	for _, test := range []struct {
+		note, input string
+		rules       []string
+	}{
+		{"rejects nothing to adjust", "0", []string{"nonzero"}},
+		{"rejects nothing, written to the cent", "0.00", []string{"nonzero"}},
+	} {
+		got, err := NewAdjustmentFromString(test.input)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !got.IsZero() {
+			t.Errorf(
+				"NewAdjustmentFromString(%q) = %v, %v, want a validation error and the zero value: %s",
+				test.input, got, err, test.note,
+			)
+
+			continue
+		}
+
+		for _, rule := range test.rules {
+			if !failed.Has("adjustment", rule) {
+				t.Errorf("NewAdjustmentFromString(%q) did not fail the %q rule: %v", test.input, rule, err)
+			}
+		}
+	}
+}
+
+// TestAdjustment_RoundTripsText checks what the directive accepts survives its text.
+func TestAdjustment_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"1", "-0.5"} {
+		value, err := NewAdjustmentFromString(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded Adjustment
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestAdjustment_RejectsUnreadableText checks text that is no decimal fails the "decimal" rule.
+func TestAdjustment_RejectsUnreadableText(t *testing.T) {
+	const (
+		exampleNotANumber = "not-a-number"
+		exampleDecimal    = "decimal"
+	)
+
+	t.Parallel()
+
+	_, err := NewAdjustmentFromString(exampleNotANumber)
+
+	var failed interface{ Has(field, rule string) bool }
+	if !errors.As(err, &failed) || !failed.Has("adjustment", exampleDecimal) {
+		t.Errorf("NewAdjustmentFromString(%q) = %v, want a %q failure", exampleNotANumber, err, exampleDecimal)
+	}
+}
+
+// TestAdjustment_ZeroHasNoText checks that the zero Adjustment cannot be marshaled.
+func TestAdjustment_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero Adjustment
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero Adjustment marshaled: %v", err)
+	}
+}
+
+// TestLoweredCurrency_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestLoweredCurrency_Normalizes(t *testing.T) {
+	const (
 		exampleAnAddressIsFoldedToOneCanonicalSpelling  = "an address is folded to one canonical spelling"
 		exampleWaiterExampleCom                         = "Waiter@Example.Com"
 		exampleWaiterExampleCom2                        = "waiter@example.com"
@@ -1621,41 +3327,74 @@ func TestLoweredCurrency(t *testing.T) {
 
 	t.Parallel()
 
-	voguetest.Scalar[LoweredCurrency, *LoweredCurrency, string]{
-		Field:      "loweredCurrency",
-		New:        NewLoweredCurrency,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleEur, "gbp"},
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  exampleAnAddressIsFoldedToOneCanonicalSpelling,
-				Input: exampleWaiterExampleCom,
-				Out:   exampleWaiterExampleCom2,
-			},
-			{
-				Name:  exampleAnAccentedCapitalFoldsLikeAnyOtherLetter,
-				Input: exampleRBOL,
-				Out:   exampleRbol,
-			},
-			{
-				Name:  exampleAValueAlreadyInLowerCaseIsLeftAlone,
-				Input: exampleAlready,
-				Out:   exampleAlready,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{exampleAnAddressIsFoldedToOneCanonicalSpelling, exampleWaiterExampleCom, exampleWaiterExampleCom2},
+		{exampleAnAccentedCapitalFoldsLikeAnyOtherLetter, exampleRBOL, exampleRbol},
+		{exampleAValueAlreadyInLowerCaseIsLeftAlone, exampleAlready, exampleAlready},
+	} {
+		want, err := NewLoweredCurrency(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewLoweredCurrency(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewLoweredCurrency(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
 }
 
-// TestShoutedSku runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestShoutedSku(t *testing.T) {
+// TestLoweredCurrency_RoundTripsText checks what the directive accepts survives its text.
+func TestLoweredCurrency_RoundTripsText(t *testing.T) {
 	const (
-		exampleSKU0042                                         = "SKU-0042"
+		exampleEur                     = "eur"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{exampleEur, "gbp"} {
+		value, err := NewLoweredCurrency(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded LoweredCurrency
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestLoweredCurrency_ZeroHasNoText checks that the zero LoweredCurrency cannot be marshaled.
+func TestLoweredCurrency_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero LoweredCurrency
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero LoweredCurrency marshaled: %v", err)
+	}
+}
+
+// TestShoutedSku_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestShoutedSku_Normalizes(t *testing.T) {
+	const (
 		exampleACurrencyCodeIsShoutedTheWayTheStandardWritesIt = "a currency code is shouted the way the standard writes it"
 		exampleEur                                             = "eur"
 		exampleEUR                                             = "EUR"
@@ -1667,43 +3406,77 @@ func TestShoutedSku(t *testing.T) {
 
 	t.Parallel()
 
-	voguetest.Scalar[ShoutedSku, *ShoutedSku, string]{
-		Field:      "shoutedSku",
-		New:        NewShoutedSku,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleSKU0042, "SKU-"},
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  exampleACurrencyCodeIsShoutedTheWayTheStandardWritesIt,
-				Input: exampleEur,
-				Out:   exampleEUR,
-			},
-			{
-				Name:  exampleDigitsAndPunctuationAreLeftUntouched,
-				Input: exampleSku12,
-				Out:   exampleSKU12,
-			},
-			{
-				Name:  exampleAValueAlreadyInUpperCaseIsLeftAlone,
-				Input: exampleEUR,
-				Out:   exampleEUR,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{exampleACurrencyCodeIsShoutedTheWayTheStandardWritesIt, exampleEur, exampleEUR},
+		{exampleDigitsAndPunctuationAreLeftUntouched, exampleSku12, exampleSKU12},
+		{exampleAValueAlreadyInUpperCaseIsLeftAlone, exampleEUR, exampleEUR},
+	} {
+		want, err := NewShoutedSku(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewShoutedSku(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewShoutedSku(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
 }
 
-// TestTrimmedSlug runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestTrimmedSlug(t *testing.T) {
+// TestShoutedSku_RoundTripsText checks what the directive accepts survives its text.
+func TestShoutedSku_RoundTripsText(t *testing.T) {
+	const (
+		exampleSKU0042                 = "SKU-0042"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{exampleSKU0042, "SKU-"} {
+		value, err := NewShoutedSku(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded ShoutedSku
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestShoutedSku_ZeroHasNoText checks that the zero ShoutedSku cannot be marshaled.
+func TestShoutedSku_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero ShoutedSku
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero ShoutedSku marshaled: %v", err)
+	}
+}
+
+// TestTrimmedSlug_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestTrimmedSlug_Normalizes(t *testing.T) {
 	const (
 		exampleTheBlanksAroundAPastedValueAreDropped = "the blanks around a pasted value are dropped"
-		exampleTortilla2                             = "  Tortilla  "
-		exampleTortilla                              = "Tortilla"
+		exampleTortilla                              = "  Tortilla  "
+		exampleTortilla2                             = "Tortilla"
 		exampleTabsAndNewlinesCountAsWhitespaceToo   = "tabs and newlines count as whitespace too"
 		exampleTortilla3                             = "\tTortilla\n"
 		exampleAnAlreadyCleanValueIsLeftAlone        = "an already clean value is left alone"
@@ -1711,43 +3484,76 @@ func TestTrimmedSlug(t *testing.T) {
 
 	t.Parallel()
 
-	voguetest.Scalar[TrimmedSlug, *TrimmedSlug, string]{
-		Field:      "trimmedSlug",
-		New:        NewTrimmedSlug,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{"tortilla-de-patatas", "SKU0042"},
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  exampleTheBlanksAroundAPastedValueAreDropped,
-				Input: exampleTortilla2,
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  exampleTabsAndNewlinesCountAsWhitespaceToo,
-				Input: exampleTortilla3,
-				Out:   exampleTortilla,
-			},
-			{
-				Name:  exampleAnAlreadyCleanValueIsLeftAlone,
-				Input: exampleTortilla,
-				Out:   exampleTortilla,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{exampleTheBlanksAroundAPastedValueAreDropped, exampleTortilla, exampleTortilla2},
+		{exampleTabsAndNewlinesCountAsWhitespaceToo, exampleTortilla3, exampleTortilla2},
+		{exampleAnAlreadyCleanValueIsLeftAlone, exampleTortilla2, exampleTortilla2},
+	} {
+		want, err := NewTrimmedSlug(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewTrimmedSlug(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewTrimmedSlug(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
 }
 
-// TestSquishedLine runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestSquishedLine(t *testing.T) {
+// TestTrimmedSlug_RoundTripsText checks what the directive accepts survives its text.
+func TestTrimmedSlug_RoundTripsText(t *testing.T) {
 	const (
-		exampleTortillaDePatatas2               = "Tortilla de patatas"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"tortilla-de-patatas", "SKU0042"} {
+		value, err := NewTrimmedSlug(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded TrimmedSlug
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestTrimmedSlug_ZeroHasNoText checks that the zero TrimmedSlug cannot be marshaled.
+func TestTrimmedSlug_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero TrimmedSlug
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero TrimmedSlug marshaled: %v", err)
+	}
+}
+
+// TestSquishedLine_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestSquishedLine_Normalizes(t *testing.T) {
+	const (
 		exampleARunOfSpacesBecomesOne           = "a run of spaces becomes one"
 		exampleTortillaDePatatas                = "Tortilla   de  patatas"
+		exampleTortillaDePatatas2               = "Tortilla de patatas"
 		exampleTheEndsAreTrimmedAsWell          = "the ends are trimmed as well"
 		exampleTortillaDePatatas3               = "  Tortilla de patatas  "
 		exampleATabAndANewlineBecomePlainSpaces = "a tab and a newline become plain spaces"
@@ -1756,39 +3562,73 @@ func TestSquishedLine(t *testing.T) {
 
 	t.Parallel()
 
-	voguetest.Scalar[SquishedLine, *SquishedLine, string]{
-		Field:      "squishedLine",
-		New:        NewSquishedLine,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{exampleTortillaDePatatas2, "Muñoz — 42 €"},
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  exampleARunOfSpacesBecomesOne,
-				Input: exampleTortillaDePatatas,
-				Out:   exampleTortillaDePatatas2,
-			},
-			{
-				Name:  exampleTheEndsAreTrimmedAsWell,
-				Input: exampleTortillaDePatatas3,
-				Out:   exampleTortillaDePatatas2,
-			},
-			{
-				Name:  exampleATabAndANewlineBecomePlainSpaces,
-				Input: exampleTortillaDePatatas4,
-				Out:   exampleTortillaDePatatas2,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{exampleARunOfSpacesBecomesOne, exampleTortillaDePatatas, exampleTortillaDePatatas2},
+		{exampleTheEndsAreTrimmedAsWell, exampleTortillaDePatatas3, exampleTortillaDePatatas2},
+		{exampleATabAndANewlineBecomePlainSpaces, exampleTortillaDePatatas4, exampleTortillaDePatatas2},
+	} {
+		want, err := NewSquishedLine(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewSquishedLine(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewSquishedLine(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
 }
 
-// TestLoweredFile runs the value-object suite against the examples the directive
-// and its rules declare.
-func TestLoweredFile(t *testing.T) {
+// TestSquishedLine_RoundTripsText checks what the directive accepts survives its text.
+func TestSquishedLine_RoundTripsText(t *testing.T) {
+	const (
+		exampleTortillaDePatatas2      = "Tortilla de patatas"
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{exampleTortillaDePatatas2, "Muñoz — 42 €"} {
+		value, err := NewSquishedLine(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded SquishedLine
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestSquishedLine_ZeroHasNoText checks that the zero SquishedLine cannot be marshaled.
+func TestSquishedLine_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero SquishedLine
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero SquishedLine marshaled: %v", err)
+	}
+}
+
+// TestLoweredFile_Normalizes checks the rewrites the normalizers of the directive declare.
+func TestLoweredFile_Normalizes(t *testing.T) {
 	const (
 		exampleAnAddressIsFoldedToOneCanonicalSpelling  = "an address is folded to one canonical spelling"
 		exampleWaiterExampleCom                         = "Waiter@Example.Com"
@@ -1802,32 +3642,66 @@ func TestLoweredFile(t *testing.T) {
 
 	t.Parallel()
 
-	voguetest.Scalar[LoweredFile, *LoweredFile, string]{
-		Field:      "loweredFile",
-		New:        NewLoweredFile,
-		Get:        nil,
-		FromString: nil,
-		ParseRule:  "",
-		Examples:   nil,
-		Candidates: []string{"invoice.pdf", ".pdf"},
-		Rejected:   nil,
-		Normalized: []voguetest.Normalization[string]{
-			{
-				Name:  exampleAnAddressIsFoldedToOneCanonicalSpelling,
-				Input: exampleWaiterExampleCom,
-				Out:   exampleWaiterExampleCom2,
-			},
-			{
-				Name:  exampleAnAccentedCapitalFoldsLikeAnyOtherLetter,
-				Input: exampleRBOL,
-				Out:   exampleRbol,
-			},
-			{
-				Name:  exampleAValueAlreadyInLowerCaseIsLeftAlone,
-				Input: exampleAlready,
-				Out:   exampleAlready,
-			},
-		},
-		RefusesFloat: false,
-	}.Run(t)
+	for _, test := range []struct {
+		note        string
+		input, want string
+	}{
+		{exampleAnAddressIsFoldedToOneCanonicalSpelling, exampleWaiterExampleCom, exampleWaiterExampleCom2},
+		{exampleAnAccentedCapitalFoldsLikeAnyOtherLetter, exampleRBOL, exampleRbol},
+		{exampleAValueAlreadyInLowerCaseIsLeftAlone, exampleAlready, exampleAlready},
+	} {
+		want, err := NewLoweredFile(test.want)
+		if err != nil {
+			// The rest of the directive rejects the rewritten value, so the
+			// rewrite cannot be observed through the constructor.
+			continue
+		}
+
+		got, err := NewLoweredFile(test.input)
+		if err != nil || !got.Equal(want) {
+			t.Errorf("NewLoweredFile(%q) = %v, %v, want %v: %s",
+				test.input, got, err, want, test.note)
+		}
+	}
+}
+
+// TestLoweredFile_RoundTripsText checks what the directive accepts survives its text.
+func TestLoweredFile_RoundTripsText(t *testing.T) {
+	const (
+		exampleVMarshalTextV           = "%v.MarshalText() = %v"
+		exampleVBecameVVThroughItsText = "%v became %v, %v through its text"
+	)
+
+	t.Parallel()
+
+	for _, input := range []string{"invoice.pdf", ".pdf"} {
+		value, err := NewLoweredFile(input)
+		if err != nil {
+			continue
+		}
+
+		text, err := value.MarshalText()
+		if err != nil {
+			t.Fatalf(exampleVMarshalTextV, value, err)
+		}
+
+		var decoded LoweredFile
+
+		err = decoded.UnmarshalText(text)
+		if err != nil || !decoded.Equal(value) {
+			t.Errorf(exampleVBecameVVThroughItsText, value, decoded, err)
+		}
+	}
+}
+
+// TestLoweredFile_ZeroHasNoText checks that the zero LoweredFile cannot be marshaled.
+func TestLoweredFile_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero LoweredFile
+
+	_, err := zero.MarshalText()
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero LoweredFile marshaled: %v", err)
+	}
 }

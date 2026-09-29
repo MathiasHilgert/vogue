@@ -19,7 +19,7 @@ func TestRun_Suffix(t *testing.T) {
 		dir := copyDir(t, filepath.Join("testdata", "tab"))
 
 		// Act
-		err := generator.Run(generator.WithDir(dir), generator.WithSuffix(""))
+		err := generator.Run(withValidation, generator.WithDir(dir), generator.WithSuffix(""))
 
 		// Assert
 		require.NoError(t, err)
@@ -31,7 +31,7 @@ func TestRun_Suffix(t *testing.T) {
 		dir := copyDir(t, filepath.Join("testdata", "tab"))
 
 		// Act
-		err := generator.Run(generator.WithDir(dir), generator.WithSuffix("_gen"))
+		err := generator.Run(withValidation, generator.WithDir(dir), generator.WithSuffix("_gen"))
 
 		// Assert
 		require.NoError(t, err)
@@ -47,7 +47,7 @@ func TestRun_Ownership(t *testing.T) {
 		require.NoError(t, os.WriteFile(handWritten, []byte("package tab\n\n// Mine.\n"), 0o600))
 
 		// Act
-		err := generator.Run(generator.WithDir(dir), generator.WithSuffix(""))
+		err := generator.Run(withValidation, generator.WithDir(dir), generator.WithSuffix(""))
 
 		// Assert
 		require.ErrorIs(t, err, gen.ErrNotGenerated)
@@ -60,11 +60,11 @@ func TestRun_Ownership(t *testing.T) {
 	t.Run("removes the files a previous run generated and this one does not", func(t *testing.T) {
 		// Arrange
 		dir := copyDir(t, filepath.Join("testdata", "tab"))
-		require.NoError(t, generator.Run(generator.WithDir(dir)))
+		require.NoError(t, generator.Run(withValidation, generator.WithDir(dir)))
 		require.FileExists(t, filepath.Join(dir, "vo_vogue.go"))
 
 		// Act
-		err := generator.Run(generator.WithDir(dir), generator.WithSuffix(""))
+		err := generator.Run(withValidation, generator.WithDir(dir), generator.WithSuffix(""))
 
 		// Assert
 		require.NoError(t, err)
@@ -74,11 +74,11 @@ func TestRun_Ownership(t *testing.T) {
 	t.Run("removes every generated file once the last directive is gone", func(t *testing.T) {
 		// Arrange
 		dir := copyDir(t, filepath.Join("testdata", "tab"))
-		require.NoError(t, generator.Run(generator.WithDir(dir)))
+		require.NoError(t, generator.Run(withValidation, generator.WithDir(dir)))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "vo.go"), []byte("package tab\n"), 0o600))
 
 		// Act
-		err := generator.Run(generator.WithDir(dir))
+		err := generator.Run(withValidation, generator.WithDir(dir))
 
 		// Assert
 		require.NoError(t, err)
@@ -88,11 +88,11 @@ func TestRun_Ownership(t *testing.T) {
 	t.Run("a dry run reports what it would remove and removes nothing", func(t *testing.T) {
 		// Arrange
 		dir := copyDir(t, filepath.Join("testdata", "tab"))
-		require.NoError(t, generator.Run(generator.WithDir(dir)))
+		require.NoError(t, generator.Run(withValidation, generator.WithDir(dir)))
 		var stdout bytes.Buffer
 
 		// Act
-		err := generator.Run(generator.WithDir(dir), generator.WithSuffix(""),
+		err := generator.Run(withValidation, generator.WithDir(dir), generator.WithSuffix(""),
 			generator.WithDryRun(true), generator.WithStdout(&stdout))
 
 		// Assert

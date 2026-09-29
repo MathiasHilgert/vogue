@@ -10,6 +10,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/MathiasHilgert/vogue/generator"
 )
 
 // TestGoGenerate_SuffixSwitch runs the command the way a consumer does, with
@@ -39,12 +41,13 @@ func TestGoGenerate_SuffixSwitch(t *testing.T) {
 	write("go.mod", "module consumer\n\ngo 1.27\n\nrequire github.com/MathiasHilgert/vogue v0.0.0\n\n"+
 		requires+"\nreplace github.com/MathiasHilgert/vogue => "+repository+"\n")
 	write("go.sum", string(goSum))
+	write("fault/fault.go", strings.ReplaceAll(generator.ValidationReference, "\n\t", "\n")[1:])
 	directives := "\npackage place\n\n// CountryCode is an ISO 3166-1 alpha-2 country code.\n" +
 		"//vogue:string CountryCode trim upper required len=2 example=AR\n\n" +
 		"// GeoNamesID identifies a GeoNames record.\n//vogue:id GeoNamesID int64\n"
 	generate := func(suffixFlag string) (string, error) {
 		t.Helper()
-		write("place/vo.go", "//go:generate go run github.com/MathiasHilgert/vogue/cmd/vogue "+suffixFlag+"\n"+directives)
+		write("place/vo.go", "//go:generate go run github.com/MathiasHilgert/vogue/cmd/vogue -validation=consumer/fault.Validation "+suffixFlag+"\n"+directives)
 		command := exec.Command("go", "generate", "./...")
 		command.Dir = module
 		command.Env = append(os.Environ(), "GOFLAGS=-mod=mod", "GOPROXY=off", "GOWORK=off")

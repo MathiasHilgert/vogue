@@ -46,7 +46,7 @@ func assertGolden(t *testing.T, name string, content []byte) {
 func TestNew(t *testing.T) {
 	t.Run("rejects a missing package", func(t *testing.T) {
 		// Arrange
-		opts := gen.Options{}
+		opts := gen.Options{Validation: testValidation}
 
 		// Act
 		g, err := gen.New(opts)
@@ -59,7 +59,7 @@ func TestNew(t *testing.T) {
 
 	t.Run("accepts a parsed package", func(t *testing.T) {
 		// Arrange
-		opts := gen.Options{Package: parseCase(t, "tab")}
+		opts := gen.Options{Validation: testValidation, Package: parseCase(t, "tab")}
 
 		// Act
 		g, err := gen.New(opts)
@@ -73,7 +73,7 @@ func TestNew(t *testing.T) {
 func TestGenerator_Files(t *testing.T) {
 	t.Run("generates one file per source file, matching the golden output", func(t *testing.T) {
 		// Arrange
-		g, err := gen.New(gen.Options{Package: parseCase(t, "tab")})
+		g, err := gen.New(gen.Options{Validation: testValidation, Package: parseCase(t, "tab")})
 		require.NoError(t, err)
 
 		// Act
@@ -89,7 +89,7 @@ func TestGenerator_Files(t *testing.T) {
 
 	t.Run("generates a test file next to every generated file", func(t *testing.T) {
 		// Arrange
-		g, err := gen.New(gen.Options{Package: parseCase(t, "tab")})
+		g, err := gen.New(gen.Options{Validation: testValidation, Package: parseCase(t, "tab")})
 		require.NoError(t, err)
 
 		// Act
@@ -115,7 +115,7 @@ func TestGenerator_Files(t *testing.T) {
 		pkg := parseSource(t, "//vogue:string Title shouty\n", set)
 
 		// Act
-		_, err := filesOf(t, gen.Options{Package: pkg})
+		_, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg})
 
 		// Assert
 		require.Error(t, err)
@@ -139,7 +139,7 @@ func TestGenerator_Files(t *testing.T) {
 		pkg := parseSource(t, "//vogue:string Title alpha beta\n", set)
 
 		// Act
-		_, err := filesOf(t, gen.Options{Package: pkg})
+		_, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg})
 
 		// Assert
 		require.Error(t, err)

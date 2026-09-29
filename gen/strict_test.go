@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"os"
 	"path/filepath"
 	"strings"
@@ -27,9 +28,9 @@ var strictVariants = []struct {
 	// domain is what a hexagonal domain package holds: no database/sql/driver,
 	// which the consumer's depguard forbids there, and the JSONSchema method
 	// the HTTP adapter publishes.
-	{dir: "domain", opts: gen.Options{OmitSQL: true, Schema: true}},
+	{dir: "domain", opts: gen.Options{Validation: testValidation, Schema: true}},
 	// persistence is the same directives with the SQL codec.
-	{dir: "persistence", opts: gen.Options{}},
+	{dir: "persistence", opts: gen.Options{Validation: testValidation, SQL: true}},
 }
 
 func TestGenerate_Strict(t *testing.T) {
@@ -62,10 +63,12 @@ func TestGenerate_Strict(t *testing.T) {
 }
 
 // TestGenerate_MethodsOnly pins the shape of the generated API: the only
-// package-level functions are constructors, and there are no package-level
-// variables at all. Everything else — enum members, parsing, codecs — is a
+// package-level functions are constructors, and the only package-level
+// variables are compiled patterns. Everything else — enum members, parsing, codecs — is a
 // method, so a generated package adds no free-standing identifiers beyond the
-// types it declares and their New constructors.
+// types it declares and their New constructors. The one package-level
+// variable allowed is a compiled pattern: a regex rule compiles its expression
+// once, at package initialisation, into an unexported `<type>Pattern` variable.
 func TestGenerate_MethodsOnly(t *testing.T) {
 	goldens := []string{
 		filepath.Join("testdata", "strict", "domain", "vo_vogue.go"),
@@ -91,10 +94,34 @@ func TestGenerate_MethodsOnly(t *testing.T) {
 							"%s: package-level function %s is not a constructor", fset.Position(decl.Pos()), decl.Name.Name)
 					}
 				case *ast.GenDecl:
-					assert.NotEqual(t, token.VAR, decl.Tok,
-						"%s: generated code declares a package-level variable", fset.Position(decl.Pos()))
+					if decl.Tok == token.VAR {
+						assertOnlyCompiledPatterns(t, fset, decl)
+					}
 				}
 			}
 		})
+	}
+}
+
+// assertOnlyCompiledPatterns fails for a package-level variable that is not a
+// regular expression compiled with regexp.MustCompile and named after its type
+// with a "Pattern" suffix.
+func assertOnlyCompiledPatterns(t *testing.T, fset *token.FileSet, decl *ast.GenDecl) {
+	t.Helper()
+
+	for _, spec := range decl.Specs {
+		value, ok := spec.(*ast.ValueSpec)
+		if !ok {
+			continue
+		}
+		for i, name := range value.Names {
+			assert.True(t, strings.HasSuffix(name.Name, "Pattern"),
+				"%s: package-level variable %s is not a compiled pattern", fset.Position(name.Pos()), name.Name)
+			require.Len(t, value.Values, len(value.Names))
+			call, isCall := value.Values[i].(*ast.CallExpr)
+			require.True(t, isCall, "%s: %s is not initialised by a call", fset.Position(name.Pos()), name.Name)
+			assert.Equal(t, "regexp.MustCompile", types.ExprString(call.Fun),
+				"%s: %s is not compiled by regexp.MustCompile", fset.Position(name.Pos()), name.Name)
+		}
 	}
 }

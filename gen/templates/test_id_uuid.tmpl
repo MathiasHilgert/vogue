@@ -1,13 +1,114 @@
 {{$n := .Name}}
-// Test{{$n}} runs the identifier suite: fresh UUIDv{{.Version}} mints, and any
-// RFC 4122 UUID read back.
-func Test{{$n}}(t *testing.T) {
+// Test{{$n}}_MintsFreshIdentifiers checks that {{$n}} mints distinct UUIDv{{.Version}} identifiers.
+func Test{{$n}}_MintsFreshIdentifiers(t *testing.T) {
 	t.Parallel()
 
-	voguetest.UUID[{{$n}}, *{{$n}}]{
-		Field:      {{q .Field}},
-		New:        New{{$n}},
-		FromString: New{{$n}}FromString,
-		Version:    {{.Version}},
-	}.Run(t)
+	first, firstErr := New{{$n}}()
+	second, secondErr := New{{$n}}()
+	if firstErr != nil || secondErr != nil || first.IsZero() || first.Equal(second) {
+		t.Fatalf("New{{$n}}() twice = %v, %v and %v, %v, want two distinct identifiers", first, firstErr, second, secondErr)
+	}
+
+	version := first.UUID().Version()
+	if version != {{.Version}} {
+		t.Errorf("New{{$n}}() minted a version %d UUID, want {{.Version}}", version)
+	}
 }
+
+// Test{{$n}}_ReadsAnyRFC4122UUID checks that New{{$n}}FromString reads UUIDs of
+// other versions than the one it mints, so identifiers written earlier stay readable.
+func Test{{$n}}_ReadsAnyRFC4122UUID(t *testing.T) {
+	t.Parallel()
+
+	for _, raw := range []string{"018ff1d4-9c2a-7b3e-9f6a-6c1d2e3f4a5b", "3f333df6-90a4-4fda-8dd3-9485d27cee36"} {
+		got, err := New{{$n}}FromString(raw)
+		if err != nil || got.String() != raw {
+			t.Errorf("New{{$n}}FromString(%q) = %v, %v, want it unchanged", raw, got, err)
+		}
+	}
+}
+
+// Test{{$n}}_RejectsWhatIsNoIdentifier checks that text that is no UUID, and the nil UUID, are refused.
+func Test{{$n}}_RejectsWhatIsNoIdentifier(t *testing.T) {
+	t.Parallel()
+
+	for raw, rule := range map[string]string{
+		"not-a-uuid":                           "uuid",
+		"":                                     "uuid",
+		"00000000-0000-0000-0000-000000000000": "required",
+	} {
+		got, err := New{{$n}}FromString(raw)
+
+		var failed interface{ Has(field, rule string) bool }
+		if !errors.As(err, &failed) || !failed.Has({{q .Field}}, rule) || !got.IsZero() {
+			t.Errorf("New{{$n}}FromString(%q) = %v, %v, want a %q failure and the zero {{$n}}", raw, got, err, rule)
+		}
+	}
+}
+
+// Test{{$n}}_RoundTripsText checks that a minted identifier survives its text.
+func Test{{$n}}_RoundTripsText(t *testing.T) {
+	t.Parallel()
+
+	value, err := New{{$n}}()
+	if err != nil {
+		t.Fatalf("New{{$n}}() = %v", err)
+	}
+
+	text, err := value.MarshalText()
+	if err != nil {
+		t.Fatalf("%v.MarshalText() = %v", value, err)
+	}
+
+	var decoded {{$n}}
+
+	err = decoded.UnmarshalText(text)
+	if err != nil || !decoded.Equal(value) {
+		t.Errorf("%v became %v, %v through its text", value, decoded, err)
+	}
+}
+
+// Test{{$n}}_ZeroHasNoText checks that the unassigned {{$n}} cannot be marshaled.
+func Test{{$n}}_ZeroHasNoText(t *testing.T) {
+	t.Parallel()
+
+	var zero {{$n}}
+
+	_, err := zero.MarshalText()
+	if !zero.IsZero() || !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("the zero {{$n}} marshaled: %v", err)
+	}
+}
+{{if .SQL}}
+// Test{{$n}}_RoundTripsSQL checks Value and Scan, and that NULL is the zero {{$n}}.
+func Test{{$n}}_RoundTripsSQL(t *testing.T) {
+	t.Parallel()
+
+	value, err := New{{$n}}()
+	if err != nil {
+		t.Fatalf("New{{$n}}() = %v", err)
+	}
+
+	stored, err := value.Value()
+	if err != nil {
+		t.Fatalf("%v.Value() = %v", value, err)
+	}
+
+	var scanned {{$n}}
+
+	err = scanned.Scan(stored)
+	if err != nil || !scanned.Equal(value) {
+		t.Errorf("%v became %v, %v through the database", value, scanned, err)
+	}
+
+	err = scanned.Scan(nil)
+	if err != nil || !scanned.IsZero() {
+		t.Errorf("Scan(nil) = %v, %v, want the zero {{$n}}", scanned, err)
+	}
+
+	err = scanned.Scan(struct{}{})
+	if !errors.Is(err, errors.ErrUnsupported) {
+		t.Errorf("Scan(struct{}{}) = %v, want errors.ErrUnsupported", err)
+	}
+}
+{{end}}

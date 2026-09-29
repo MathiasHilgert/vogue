@@ -1,7 +1,9 @@
 package rules_test
 
 import (
+	"go/token"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/MathiasHilgert/vogue"
@@ -168,16 +170,19 @@ func TestMessages(t *testing.T) {
 	cases := []struct {
 		name  string
 		rule  string
+		kind  vogue.Kind
 		param string
 		want  string
 	}{
-		{name: "required", rule: "required", want: "title is required"},
-		{name: "min on a string", rule: "min", param: "3", want: "title must be at least 3"},
-		{name: "max on a string", rule: "max", param: "120", want: "title must be at most 120"},
-		{name: "len", rule: "len", param: "3", want: "title must be exactly 3 characters long"},
-		{name: "email", rule: "email", want: "title must be a valid email address"},
-		{name: "oneof", rule: "oneof", param: "a,b", want: "title must be one of: a,b"},
-		{name: "prefix", rule: "prefix", param: "SKU-", want: `title must start with "SKU-"`},
+		{name: "required", rule: "required", kind: vogue.String, want: "is required"},
+		{name: "min on a string", rule: "min", kind: vogue.String, param: "3", want: "length must be at least 3"},
+		{name: "min on an int", rule: "min", kind: vogue.Int, param: "3", want: "must be at least 3"},
+		{name: "max on a string", rule: "max", kind: vogue.String, param: "120", want: "length must be at most 120"},
+		{name: "max on a decimal", rule: "max", kind: vogue.Decimal, param: "1.5", want: "must be at most 1.5"},
+		{name: "len", rule: "len", kind: vogue.String, param: "3", want: "must be exactly 3 characters long"},
+		{name: "email", rule: "email", kind: vogue.String, want: "must be a valid email address"},
+		{name: "oneof", rule: "oneof", kind: vogue.String, param: "a,b", want: "must be one of: a,b"},
+		{name: "prefix", rule: "prefix", kind: vogue.String, param: "SKU-", want: `must start with "SKU-"`},
 	}
 
 	set := rules.MustSet()
@@ -188,11 +193,27 @@ func TestMessages(t *testing.T) {
 			require.True(t, ok)
 
 			// Act
-			got, err := rule.RenderMessage(vogue.MessageData{Field: "title", Param: tc.param})
+			got, err := rule.RenderMessage(vogue.MessageData{Field: "title", Kind: tc.kind, Param: tc.param})
 
 			// Assert
 			require.NoError(t, err)
 			assert.Equal(t, tc.want, got)
+		})
+	}
+}
+
+func TestMessages_DoNotNameTheField(t *testing.T) {
+	// Arrange
+	for _, rule := range rules.All() {
+		t.Run(rule.Name, func(t *testing.T) {
+			for _, kind := range rule.Kinds.Kinds() {
+				// Act
+				got, err := rule.RenderMessage(vogue.MessageData{Field: "thefield", Kind: kind, Param: "1"})
+
+				// Assert
+				require.NoError(t, err)
+				assert.NotContains(t, got, "thefield", "a failure already carries its field, so the message reads after it")
+			}
 		})
 	}
 }
@@ -370,10 +391,70 @@ func TestIntegerParameters(t *testing.T) {
 }
 
 func TestRegex(t *testing.T) {
-	t.Run("calls the caching matcher instead of declaring a package-level pattern", func(t *testing.T) {
+	t.Run("declares one pattern compiled at package initialisation, named after the type", func(t *testing.T) {
+		// Arrange
+		ctx := vogue.EmitContext{Var: "value", Param: "^[A-Z]{2}$", Type: "CountryCode", Receiver: "countryCode"}
+
+		// Act
+		declaration := rules.Regex.Declare(ctx)
+		expression := rules.Regex.Emit(ctx)
+
 		// Assert
-		assert.Nil(t, rules.Regex.Declare)
-		require.NotNil(t, rules.Regex.Call)
-		assert.Equal(t, "rulecheck.Regexp", rules.Regex.Call.Selector())
+		assert.Nil(t, rules.Regex.Call)
+		assert.Equal(t, "var countryCodePattern = regexp.MustCompile(`^[A-Z]{2}$`)", declaration)
+		assert.Equal(t, "countryCodePattern.MatchString(value)", expression)
+	})
+
+	t.Run("quotes a pattern that holds a backtick", func(t *testing.T) {
+		// Arrange
+		ctx := vogue.EmitContext{Var: "value", Param: "^`$", Type: "Quoted", Receiver: "quoted"}
+
+		// Act
+		declaration := rules.Regex.Declare(ctx)
+
+		// Assert
+		assert.Equal(t, `var quotedPattern = regexp.MustCompile("^`+"`"+`$")`, declaration)
+	})
+}
+
+func TestBuiltinsWithoutRuntimeHelpers(t *testing.T) {
+	// Arrange
+	for _, rule := range []vogue.Rule{rules.Email, rules.URL, rules.UUID, rules.TimeZone} {
+		t.Run(rule.Name+" is a method of the generated type that uses the standard library only", func(t *testing.T) {
+			// Act
+			name, body := rule.Method(vogue.EmitContext{Var: "value", Type: "Subject"})
+
+			// Assert
+			assert.Nil(t, rule.Call)
+			assert.Nil(t, rule.Emit)
+			assert.True(t, token.IsIdentifier(name))
+			assert.NotContains(t, body, "rulecheck")
+			assert.NotContains(t, body, "vogue")
+			assert.Contains(t, body, "return ")
+			for _, path := range rule.Imports {
+				assert.NotContains(t, path, ".", "%q is not a standard library package", path)
+			}
+		})
+	}
+}
+
+func TestTimeZoneMethod(t *testing.T) {
+	// Act
+	_, body := rules.TimeZone.Method(vogue.EmitContext{Var: "value", Type: "Zone"})
+
+	// Assert
+	t.Run("switches over the zone names, several to a line", func(t *testing.T) {
+		assert.Contains(t, body, "switch value {")
+		assert.Contains(t, body, `"America/Argentina/Buenos_Aires"`)
+		assert.Contains(t, body, `"UTC"`)
+		assert.NotContains(t, body, `"Local"`)
+		assert.NotContains(t, body, `"Factory"`)
+		for _, line := range strings.Split(body, "\n") {
+			assert.LessOrEqual(t, len(strings.ReplaceAll(line, "\t", "    ")), 110, "line too long: %s", line)
+		}
+	})
+
+	t.Run("names every zone once", func(t *testing.T) {
+		assert.Equal(t, 1, strings.Count(body, `"Europe/Madrid"`))
 	})
 }

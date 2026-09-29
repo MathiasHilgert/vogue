@@ -2,6 +2,7 @@ package generator_test
 
 import (
 	"bytes"
+	"io"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,6 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// withValidation names the failure type generated code records its failures
+// on: the reference implementation of the repository.
+var withValidation = generator.WithValidation("github.com/MathiasHilgert/vogue/examples/validation", "Validation")
 
 // copyDir copies a testdata package into a fresh temporary directory, so a run
 // that writes files never touches the committed fixture.
@@ -66,7 +71,7 @@ func TestRun(t *testing.T) {
 		var stdout, stderr bytes.Buffer
 
 		// Act
-		err := generator.Run(
+		err := generator.Run(withValidation,
 			generator.WithDir(dir),
 			generator.WithImportPath("example.test/tab"),
 			generator.WithStdout(&stdout),
@@ -88,7 +93,7 @@ func TestRun(t *testing.T) {
 		dir := copyDir(t, filepath.Join("testdata", "tab"))
 
 		// Act
-		err := generator.Run(generator.WithDir(dir), generator.WithTests(false))
+		err := generator.Run(withValidation, generator.WithDir(dir), generator.WithTests(false))
 
 		// Assert
 		require.NoError(t, err)
@@ -100,7 +105,7 @@ func TestRun(t *testing.T) {
 		dir := copyDir(t, filepath.Join("testdata", "tab"))
 
 		// Act
-		err := generator.Run(generator.WithDir(dir), generator.WithSQL(false))
+		err := generator.Run(withValidation, generator.WithDir(dir), generator.WithSQL(false))
 
 		// Assert
 		require.NoError(t, err)
@@ -114,13 +119,13 @@ func TestRun(t *testing.T) {
 		dir := copyDir(t, filepath.Join("testdata", "tab"))
 
 		// Act
-		err := generator.Run(generator.WithDir(dir), generator.WithSchema(true))
+		err := generator.Run(withValidation, generator.WithDir(dir), generator.WithSchema(true))
 
 		// Assert
 		require.NoError(t, err)
 		generated, err := os.ReadFile(filepath.Join(dir, "vo_vogue.go"))
 		require.NoError(t, err)
-		assert.Contains(t, string(generated), "JSONSchema() schema.Schema")
+		assert.Contains(t, string(generated), "JSONSchema() map[string]any")
 	})
 
 	t.Run("a dry run reports what it would write and writes nothing", func(t *testing.T) {
@@ -129,7 +134,7 @@ func TestRun(t *testing.T) {
 		var stdout bytes.Buffer
 
 		// Act
-		err := generator.Run(generator.WithDir(dir), generator.WithDryRun(true), generator.WithStdout(&stdout))
+		err := generator.Run(withValidation, generator.WithDir(dir), generator.WithDryRun(true), generator.WithStdout(&stdout))
 
 		// Assert
 		require.NoError(t, err)
@@ -145,7 +150,7 @@ func TestRun(t *testing.T) {
 		var stderr bytes.Buffer
 
 		// Act
-		err := generator.Run(generator.WithDir(dir), generator.WithStderr(&stderr))
+		err := generator.Run(withValidation, generator.WithDir(dir), generator.WithStderr(&stderr))
 
 		// Assert
 		require.Error(t, err)
@@ -163,7 +168,7 @@ func TestRun(t *testing.T) {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "vo.go"), []byte(source), 0o600))
 
 		// Act
-		err := generator.Run(generator.WithDir(dir), generator.WithRules(cuit))
+		err := generator.Run(withValidation, generator.WithDir(dir), generator.WithRules(cuit))
 
 		// Assert
 		require.NoError(t, err)
@@ -179,7 +184,7 @@ func TestRun(t *testing.T) {
 		shadow.Name = "trim"
 
 		// Act
-		err := generator.Run(generator.WithDir(t.TempDir()), generator.WithRules(shadow))
+		err := generator.Run(withValidation, generator.WithDir(t.TempDir()), generator.WithRules(shadow))
 
 		// Assert
 		require.Error(t, err)
@@ -194,7 +199,7 @@ func TestRun(t *testing.T) {
 		var stderr bytes.Buffer
 
 		// Act
-		err := generator.Run(generator.WithDir(dir), generator.WithoutBuiltins(), generator.WithStderr(&stderr))
+		err := generator.Run(withValidation, generator.WithDir(dir), generator.WithoutBuiltins(), generator.WithStderr(&stderr))
 
 		// Assert
 		require.Error(t, err)
@@ -207,7 +212,7 @@ func TestRun(t *testing.T) {
 		t.Setenv("GOFILE", filepath.Join(dir, "vo.go"))
 
 		// Act
-		err := generator.Run()
+		err := generator.Run(withValidation)
 
 		// Assert
 		require.NoError(t, err)
@@ -216,9 +221,94 @@ func TestRun(t *testing.T) {
 
 	t.Run("refuses a directory that does not exist", func(t *testing.T) {
 		// Act
-		err := generator.Run(generator.WithDir(filepath.Join(t.TempDir(), "absent")))
+		err := generator.Run(withValidation, generator.WithDir(filepath.Join(t.TempDir(), "absent")))
 
 		// Assert
 		require.Error(t, err)
+	})
+}
+
+// predicateRule returns a rule dispatching to a static function of the given
+// package, the shape a consumer-owned predicate has.
+func predicateRule(path, name string) vogue.Rule {
+	return vogue.Rule{
+		Name:    "predicate",
+		Kinds:   vogue.Kinds(vogue.String),
+		Doc:     "Requires what the predicate accepts.",
+		Message: "{{.Field}} is not acceptable",
+		Call:    &vogue.FuncRef{Path: path, Name: name},
+		Examples: vogue.Examples{
+			Valid:   []vogue.Example{{In: "abc"}},
+			Invalid: []vogue.Example{{In: ""}},
+		},
+	}
+}
+
+func TestRun_CallRules(t *testing.T) {
+	const module = "github.com/MathiasHilgert/vogue"
+
+	t.Run("refuses a call into a package that depends on vogue", func(t *testing.T) {
+		// Arrange
+		var stdout bytes.Buffer
+
+		// Act
+		err := generator.Run(withValidation,
+			generator.WithDir(filepath.Join("testdata", "callrule")),
+			generator.WithRules(predicateRule(module+"/rules", "Any")),
+			generator.WithDryRun(true),
+			generator.WithStdout(&stdout),
+		)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), `rule "predicate"`)
+		assert.Contains(t, err.Error(), module+"/rules")
+		assert.Contains(t, err.Error(), "depends on vogue")
+		assert.Empty(t, stdout.String(), "nothing is planned for a refused run")
+	})
+
+	t.Run("refuses a call into the vogue module itself", func(t *testing.T) {
+		// Act
+		err := generator.Run(withValidation,
+			generator.WithDir(filepath.Join("testdata", "callrule")),
+			generator.WithRules(predicateRule(module, "Any")),
+			generator.WithDryRun(true),
+		)
+
+		// Assert
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "depends on vogue")
+	})
+
+	t.Run("accepts a call into a package that does not depend on vogue", func(t *testing.T) {
+		// Act
+		err := generator.Run(withValidation,
+			generator.WithDir(filepath.Join("testdata", "callrule")),
+			generator.WithRules(predicateRule("unicode/utf8", "ValidString")),
+			generator.WithDryRun(true),
+			generator.WithStdout(io.Discard),
+		)
+
+		// Assert
+		require.NoError(t, err)
+	})
+
+	t.Run("warns, and generates, when the dependencies cannot be listed", func(t *testing.T) {
+		// Arrange
+		var stderr bytes.Buffer
+
+		// Act
+		err := generator.Run(withValidation,
+			generator.WithDir(filepath.Join("testdata", "callrule")),
+			generator.WithRules(predicateRule("example.invalid/nowhere", "Check")),
+			generator.WithDryRun(true),
+			generator.WithStdout(io.Discard),
+			generator.WithStderr(&stderr),
+		)
+
+		// Assert
+		require.NoError(t, err)
+		assert.Contains(t, stderr.String(), "example.invalid/nowhere")
+		assert.Contains(t, stderr.String(), "could not be checked")
 	})
 }

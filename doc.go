@@ -17,9 +17,9 @@
 //
 // Running the generator over that package produces, for each directive, a
 // nominal type with an unexported field, a New<Name> constructor returning
-// (<Name>, error), accessors, Equal, IsZero, JSON marshalling and
-// database/sql Scan/Value, plus a table-driven test file derived from the
-// rules' own [Examples].
+// (<Name>, error), accessors, Equal, IsZero, a text codec (which
+// encoding/json uses) and, on request, database/sql Scan/Value, plus a
+// table-driven test file derived from the rules' own [Examples].
 //
 // A nominal type — rather than a generic wrapper — is what gives each value
 // object its own methods and makes the zero value meaningful, so the generator
@@ -27,45 +27,34 @@
 //
 // # The error model
 //
-// Validation never stops at the first problem. A generated constructor
-// collects failures in a [Notification] (Martin Fowler's Notification pattern)
-// and returns them as a single error:
+// Validation never stops at the first problem, and the type that collects the
+// failures is yours. Generated constructors record each failure on a
+// [Validation]-shaped type your project owns, named with `-validation`, and
+// return its error:
 //
 //	title, err := NewTitle("")
-//	// 1 validation error:
-//	//   - title: is required (rule "required")
+//	// invalid title: is required (required)
 //
-// Each failure is a [FieldError] carrying the field, the rule, the rule
-// parameter, the offending value and the rendered message. [FieldError.Error]
-// renders
+// The type needs a zero value that is ready to use and two methods,
+// Add(field, rule, message string) and Err() error, where Err is nil until
+// something was added and the error it returns has Has(field, rule string)
+// bool, which the generated tests use. examples/validation is a reference
+// implementation to copy. Generated code therefore imports the standard
+// library, the packages of the kinds it uses (uuid, decimal) and that one
+// type, and nothing of vogue.
 //
-//	<field>: <message> (rule "<rule>", param "<param>")
-//
-// and [FieldError.Code] returns the stable `<field>.<rule>` identifier for API
-// payloads and translation keys. Because [Notification] implements
-// `Unwrap() []error`, callers use the standard library directly:
-//
-//	if errors.Is(err, vogue.FieldError{Rule: "email"}) { ... }
-//
-//	var fe vogue.FieldError
-//	if errors.As(err, &fe) { log.Println(fe.Code()) }
-//
-// Both types live in the runtime package
-// github.com/MathiasHilgert/vogue/validation, which is the only vogue package
-// generated code imports and which depends on the standard library alone;
-// the names here are aliases kept for compatibility. Every failure also
-// matches the sentinel [ErrInvalid].
-//
-// The zero [Notification] is ready to use and allocates nothing until the
-// first failure, so constructing a value object from valid input allocates
-// nothing at all.
+// A message does not name the field, because the failure already carries it,
+// and never carries the offending value. The `required` rule returns at once
+// when it fails, so an empty input is one failure and not one per rule.
 //
 // # Rules
 //
 // A rule is a plain value: see [Rule]. It declares the tag [Rule.Name], the
 // [KindSet] it applies to, its [ParamSpec], a [Rule.Message] template rendered
 // with [MessageData], its documentation, its [Examples], and exactly one of
-// [Rule.Emit] (an inline expression) or [Rule.Call] (a static [FuncRef]).
+// [Rule.Emit] (an inline expression), [Rule.Call] (a static [FuncRef] into a
+// package the consumer owns, which may not depend on vogue) or [Rule.Method]
+// (an unexported method the generator writes on each type that uses the rule).
 //
 // The rules vogue ships with live in their own package, so the catalogue can
 // be read, extended or replaced wholesale:
@@ -77,9 +66,9 @@
 //     `nospace`, `prefix`, `suffix`, `contains` and `excludes`, and the
 //     integer checks `positive`, `nonneg` and `multipleof` — together with
 //     `rules.All`, `rules.Set` and `rules.MustSet`.
-//   - `rules/rulecheck` holds the runtime helpers those rules dispatch to
-//     through [Rule.Call], such as `rulecheck.Email`: pure `func(string) bool`
-//     predicates a generated constructor calls statically.
+//     The checks too long to read inline — `email`, `url`, `uuid` and
+//     `timezone` — are [Rule.Method] rules that use the standard library only,
+//     so generated code imports no helper package of vogue for them.
 //
 // Rules live in a [RuleSet], which is ordered and name-unique and provides
 // [RuleSet.Suggest] so an unknown tag is reported with a file:line position and
@@ -99,14 +88,17 @@
 // The pipeline itself — resolve the catalogue, parse a directory, render, write
 // — is `generator`, whose Run is what both front ends call:
 //
-//	//go:generate go run github.com/MathiasHilgert/vogue/cmd/vogue
+//	//go:generate go run github.com/MathiasHilgert/vogue/cmd/vogue -validation=example.com/app/fault.Validation
 //
-//	generator.Run(generator.WithRules(cuit.Rule))
+//	generator.Run(
+//		generator.WithValidation("example.com/app/fault", "Validation"),
+//		generator.WithRules(cuitrule.Rule),
+//	)
 //
 // It lives one package down rather than here because it depends on the parser,
 // the code generator and the shipped rules, and all three depend on this
-// package for [Rule] and [FieldError]. This package defines what a rule and a
-// failure are; that one is the program that uses them.
+// package for [Rule]. This package defines what a rule is; that one is the
+// program that uses it.
 //
 //   - `cmd/vogue` is the shipped command, the built-in catalogue and nothing
 //     else, with `-list`, `-dry-run` and `-tests`.

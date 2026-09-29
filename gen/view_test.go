@@ -24,7 +24,7 @@ func generate(t *testing.T, body string, rules *vogue.RuleSet) string {
 func generated(t *testing.T, body string, rules *vogue.RuleSet, kind gen.FileKind) string {
 	t.Helper()
 
-	files, err := filesOf(t, gen.Options{Package: parseSource(t, body, rules)})
+	files, err := filesOf(t, gen.Options{Validation: testValidation, Package: parseSource(t, body, rules)})
 	require.NoError(t, err)
 	require.Len(t, files, 2)
 	for _, file := range files {
@@ -66,7 +66,7 @@ func TestGenerator_Files_Kinds(t *testing.T) {
 		got := generate(t, "//vogue:enum Channel dine_in,takeaway\n", &vogue.RuleSet{})
 
 		// Assert
-		assert.Contains(t, got, "\tswitch raw {\n\tcase channels.DineIn().value:\n\t\treturn channels.DineIn(), nil\n")
+		assert.Contains(t, got, "\tswitch raw {\n\tcase \"dine_in\":\n\t\treturn channels.DineIn(), nil\n")
 		assert.NotContains(t, got, "range channels.All()")
 	})
 
@@ -99,15 +99,15 @@ func TestGenerator_Files_Kinds(t *testing.T) {
 		// Assert
 		assert.Contains(t, got, `"example.com/checks/v2"`)
 		assert.Contains(t, got, `if !checks.HasPrefix(value, "SKU-") {`)
-		assert.Regexp(t, `notification\.Reject\(\s*"sku",\s*"prefix",\s*"SKU\-",\s*value,\s*"sku\ must\ start\ with\ SKU\-",\s*\)`, got)
+		assert.Contains(t, got, `failures.Add("sku", "prefix", "sku must start with SKU-")`)
 	})
 
-	t.Run("leaves the SQL codec out when asked to", func(t *testing.T) {
+	t.Run("leaves the SQL codec out unless asked for it", func(t *testing.T) {
 		// Arrange
 		pkg := parseSource(t, "//vogue:string Title required\n//vogue:enum Channel dine_in,takeaway\n", testrules.Set(testrulesPath))
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg, OmitSQL: true})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg})
 
 		// Assert
 		require.NoError(t, err)
@@ -123,7 +123,7 @@ func TestGenerator_Files_Kinds(t *testing.T) {
 		pkg := parseSource(t, "// nothing to generate here\n", &vogue.RuleSet{})
 
 		// Act
-		files, err := filesOf(t, gen.Options{Package: pkg})
+		files, err := filesOf(t, gen.Options{Validation: testValidation, Package: pkg})
 
 		// Assert
 		require.NoError(t, err)
@@ -141,7 +141,7 @@ func TestGenerator_Files_Kinds(t *testing.T) {
 		}))
 
 		// Act
-		_, err := filesOf(t, gen.Options{Package: parseSource(t, "//vogue:string Title odd\n", set)})
+		_, err := filesOf(t, gen.Options{Validation: testValidation, Package: parseSource(t, "//vogue:string Title odd\n", set)})
 
 		// Assert
 		require.Error(t, err)
@@ -150,7 +150,7 @@ func TestGenerator_Files_Kinds(t *testing.T) {
 
 	t.Run("rejects a package without a name", func(t *testing.T) {
 		// Act
-		g, err := gen.New(gen.Options{Package: &parse.Package{}})
+		g, err := gen.New(gen.Options{Validation: testValidation, Package: &parse.Package{}})
 
 		// Assert
 		require.Error(t, err)
@@ -172,7 +172,7 @@ func TestGenerator_Files_ImportCollisions(t *testing.T) {
 		}))
 
 		// Act
-		_, err := filesOf(t, gen.Options{Package: parseSource(t, "//vogue:string Title shadow\n", set)})
+		_, err := filesOf(t, gen.Options{Validation: testValidation, Package: parseSource(t, "//vogue:string Title shadow\n", set)})
 
 		// Assert
 		require.Error(t, err)
